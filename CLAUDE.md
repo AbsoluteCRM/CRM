@@ -10,6 +10,8 @@ A CRM built on a freshly scaffolded TanStack Start app (created with `create-tsr
 
 Package manager is **pnpm**. Env vars come from `.env.local` (gitignored). It holds `DATABASE_URL` and the Sentry `VITE_SENTRY_*` / `SENTRY_AUTH_TOKEN` values. Scripts that need these values wrap themselves in `dotenv -e .env.local`.
 
+The toolchain comes from **devenv** (`devenv.nix`: Node 22 plus TypeScript). Enter it with `devenv shell`, or let direnv load it. devenv also generates `.devcontainer/` and the gitignored `.pre-commit-config.yaml`, so change `devenv.nix` rather than those files. Its git hooks run prettier on staged files at commit time; the rustfmt, nixfmt, and black hooks only fire on `.rs`, `.nix`, and `.py` files.
+
 ```bash
 pnpm dev                 # dev server on :3000 (loads Sentry via instrument.server.mjs)
 pnpm build               # vite build → .output/ (Nitro); copies instrument.server.mjs in
@@ -56,5 +58,5 @@ The README says the build output goes to `dist/`. It's wrong: Nitro writes to `.
     /* ... */
   })
   ```
-  Sentry is initialized server-side in `instrument.server.mjs`, which is loaded with `node --import`. It is a no-op when `VITE_SENTRY_DSN` is unset.
+  Sentry is initialized server-side in `instrument.server.mjs`, which is loaded with `node --import`. It is a no-op when `VITE_SENTRY_DSN` is unset. `.cursorrules` says client-side error collection is set up in `src/router.tsx`, but that file has no Sentry code yet, so only the server reports errors.
 - **TanStack Intent skills** (from `AGENTS.md`): before a substantial change, run `pnpm dlx @tanstack/intent@latest list`. If a listed skill matches the task, load it with `pnpm dlx @tanstack/intent@latest load <package>#<skill>` and follow its `SKILL.md`.
