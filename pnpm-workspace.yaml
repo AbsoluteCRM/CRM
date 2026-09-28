@@ -4,3 +4,4 @@ allowBuilds:
   '@sentry/cli': true
   '@prisma/engines': true
   prisma: true
+  unrs-resolver: false
