@@ -6,6 +6,8 @@ import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query
 import TanstackQueryProvider, {
   getContext,
 } from './integrations/tanstack-query/root-provider'
+import { AuthProvider } from './integrations/auth/context'
+import { OrganizationProvider } from './integrations/organization/context'
 
 export function getRouter() {
   const context = getContext()
@@ -20,7 +22,9 @@ export function getRouter() {
     Wrap: (props: { children: ReactNode }) => {
       return (
         <TanstackQueryProvider context={context}>
-          {props.children}
+          <AuthProvider>
+            <OrganizationProvider>{props.children}</OrganizationProvider>
+          </AuthProvider>
         </TanstackQueryProvider>
       )
     },
