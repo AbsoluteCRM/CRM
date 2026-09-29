@@ -29,7 +29,7 @@ function AuthedLayout() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="h-screen">
       <Header />
 
       <main className="flex h-screen">
