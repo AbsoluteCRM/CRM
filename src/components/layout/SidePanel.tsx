@@ -32,7 +32,7 @@ function IconRow({
 
 export default function SidePanel() {
   return (
-    <div className="group flex flex-col space-y-4 border-r border-border pt-10 w-16 hover:w-64 overflow-hidden transition-all duration-200">
+    <div className="group  flex flex-col space-y-4 border-r border-border pt-10 w-16 hover:w-64 overflow-hidden transition-all duration-200">
       <IconRow label="Dashboard" icon={HomeIcon} route="/dashboard" />
       <IconRow label="Requests" icon={MessageSquareDiff} route="/requests" />
       <IconRow label="Calendar" icon={Calendar} route="/calendar" />
