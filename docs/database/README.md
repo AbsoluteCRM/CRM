@@ -137,9 +137,9 @@ applied it is never edited; fixes go in a new migration.
 | 3   | `tenancy_identity`                  | ✅ `20260929195514` | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs |
 | 3a  | `fix_accept_invitation_email_match` | ✅ `20260929195738` | Case-insensitive invite email match (see the citext gotcha in [rls.md](rls.md))                     |
 | 4   | `clients_properties`                | ✅ `20260929200046` | clients, client_contacts, properties, client_portal_users                                           |
-| 5   | `catalog_tax`                       | ✅ `20260929200302`| services, tax_rates, service_default_taxes                                                          |
-| 6   | `crews`                             | ✅ `20260929200304`| crews, crew_members                                                                                 |
-| 7   | `quotes`                            | Pending             | quotes and their lines and taxes, quote RPCs                                                        |
+| 5   | `catalog_tax`                       | ✅ `20260929200302` | services, tax_rates, service_default_taxes                                                          |
+| 6   | `crews`                             | ✅ `20260929200304` | crews, crew_members                                                                                 |
+| 7   | `quotes`                            | ✅ `20260929200746` | quotes and their lines and taxes, quote RPCs                                                        |
 | 8   | `jobs_visits`                       | Pending             | jobs, job_line_items, visits, attachments, `org-files` bucket and policies                          |
 | 9   | `routing`                           | Pending             | routes, route_members, route_stops, optimization_runs, worker helpers                               |
 | 10  | `invoices_payments`                 | Pending             | invoices, lines, invoice_visits, taxes, payments, stripe_events                                     |
