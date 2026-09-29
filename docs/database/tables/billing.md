@@ -159,3 +159,66 @@ the service role reads or writes it. No standard columns.
 | `received_at`  | `timestamptz` | no   | `now()` |                                                  |
 | `processed_at` | `timestamptz` | yes  |         |                                                  |
 | `error`        | `text`        | yes  |         |                                                  |
+
+## Behaviour (as built)
+
+Migration `20260929202454_invoices_payments`. Tested in
+`supabase/tests/invoices_payments_test.sql`.
+
+**Status is derived.** A `before update` trigger on `invoices`:
+
+- **Issuing** (`draft` → anything else) stamps `sent_at`, `issue_date` (the
+  org-local date), and `due_date` (`issue_date` + the
+  `default_payment_terms_days` setting, default 30).
+- **After draft**, `status` is always recomputed:
+  - `paid` if `amount_paid_cents >= total`
+  - `partially_paid` if `> 0`
+  - `sent` otherwise
+
+  Setting `paid` by hand has no effect. `paid_at` is set or cleared to match.
+
+- **Void** is terminal. It requires `amount_paid_cents = 0` (`55000`), and
+  it flips the invoice's `invoice_visits.is_void`, which frees those visits
+  for re-billing.
+- An issued invoice can't return to `draft` (`23514`).
+
+**Draft-only editing**: `invoice_line_items`, `invoice_line_item_taxes`, and
+`invoice_visits` can only be inserted, updated, or deleted while the invoice
+is `draft` (`55000`). The exceptions are the `is_void` flip and cascading
+deletes. Only draft invoices can be deleted (RLS).
+
+**Keys as built**:
+
+- `invoice_visits`:
+  - PK `(organization_id, invoice_id, visit_id)`
+  - `unique (visit_id) where not is_void`
+  - a `before insert` check that the visit is `completed` and belongs to the
+    invoice's client (`23514`)
+- `invoice_line_items.visit_id`: FK `(organization_id, invoice_id,
+visit_id) → invoice_visits`
+- `payments`: FK `(organization_id, client_id, invoice_id) → invoices
+(organization_id, client_id, id)` proves the client matches. Payments can
+  only be inserted on `sent`, `partially_paid`, or `paid` invoices. Checks:
+  - `refunded` implies `refunded_cents = amount_cents`
+  - `partially_refunded` implies `0 < refunded_cents < amount_cents`
+- `stripe_events.id` must look like `evt_…`.
+
+**Taxes and totals** work exactly as they do on quotes: the app inserts
+`(organization_id, line_item_id, tax_rate_id)`, and the trigger snapshots
+`percentage` and computes `amount_cents`. Tax-exempt clients are rejected.
+`guard_tax_rate_percentage` now covers invoice taxes too.
+
+**Creating invoices**:
+
+| Function                                                                        | Who                                           | Does                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `create_invoice_for_visits(client_id, visit_ids[], period_start?, period_end?)` | owner/admin (invoker), service                | Creates a draft invoice. For each visit it adds `invoice_visits` and copies `job_line_items` as `"Jun 3 – <description>"` lines with their `tax_rate_ids` (skipped for tax-exempt clients). Returns the invoice id |
+| `private.run_invoice_generation()`                                              | pg_cron `generate-invoices`, `45 7 * * *` UTC | Per org: one draft per completed, unbilled `per_visit` visit. On the org-local 1st: one draft per client for unbilled `periodic`/`monthly` visits before today, with the period set to last month                  |
+
+**Portal RPCs**:
+
+| Function                   | Returns                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `portal_my_invoices()`     | Non-draft invoices with totals, `amount_paid_cents`, `balance_cents`, and `is_overdue` (org-local date) |
+| `portal_invoice_lines(id)` | Lines with a per-line tax total                                                                         |
+| `portal_my_payments()`     | Method, status, amount, refunded, and `received_at`                                                     |

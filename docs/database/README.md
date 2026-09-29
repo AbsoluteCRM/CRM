@@ -143,8 +143,8 @@ applied it is never edited; fixes go in a new migration.
 | 8   | `jobs_visits`                       | ✅ `20260929201255` | jobs, job_line_items, visits, attachments, `org-files` bucket and policies                          |
 | 8a  | `fix_visit_actuals_check`           | ✅ `20260929201447` | Allow `actual_end = actual_start` (visit completed after the fact)                                  |
 | 9   | `routing`                           | ✅ `20260929201854` | routes, route_members, route_stops, optimization_runs, worker helpers                               |
-| 10  | `invoices_payments`                 | Pending             | invoices, lines, invoice_visits, taxes, payments, stripe_events                                     |
-| 11  | `time_tracking`                     | Pending             | shifts, visit_time_entries, labor_cost_report                                                       |
+| 10  | `invoices_payments`                 | ✅ `20260929202454` | invoices, lines, invoice_visits, taxes, payments, stripe_events                                     |
+| 11  | `time_tracking`                     | ✅ `20260929202750` | shifts, visit_time_entries, labor_cost_report                                                       |
 
 `private.worker_visit_ids()` depends on routing, so the worker read policies
 on clients, properties, jobs, and visits are added in migration 9.
