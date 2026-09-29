@@ -123,6 +123,18 @@ To change the schema:
 
 Do **not** use `prisma migrate` or `prisma db push` against this database.
 
+**Demo data**: `supabase/seed.sql` is idempotent and creates the
+`absolute-demo` org (Edmonton, GST only), owned by the first auth user, with
+a crew, 3 clients, recurring and one-off jobs, visits for the next 8 weeks,
+and a draft quote. Run it with `execute_sql` or psql. It was applied to the
+project on 2026-09-29.
+
+**Prisma setup (pending)**: `.env.local` `DATABASE_URL` must point at the
+Supabase project for `prisma db pull` to work. Use the session pooler
+(port 5432) for `db pull`, and the transaction pooler (port 6543) for the
+app. After pulling, replace the scaffold `prisma/seed.ts` (it still
+references the removed `Todo` model).
+
 ## Migration plan
 
 Domains are migrated one at a time, in FK-dependency order
