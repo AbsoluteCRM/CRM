@@ -140,7 +140,8 @@ applied it is never edited; fixes go in a new migration.
 | 5   | `catalog_tax`                       | ✅ `20260929200302` | services, tax_rates, service_default_taxes                                                          |
 | 6   | `crews`                             | ✅ `20260929200304` | crews, crew_members                                                                                 |
 | 7   | `quotes`                            | ✅ `20260929200746` | quotes and their lines and taxes, quote RPCs                                                        |
-| 8   | `jobs_visits`                       | Pending             | jobs, job_line_items, visits, attachments, `org-files` bucket and policies                          |
+| 8   | `jobs_visits`                       | ✅ `20260929201255` | jobs, job_line_items, visits, attachments, `org-files` bucket and policies                          |
+| 8a  | `fix_visit_actuals_check`           | ✅ `20260929201447` | Allow `actual_end = actual_start` (visit completed after the fact)                                  |
 | 9   | `routing`                           | Pending             | routes, route_members, route_stops, optimization_runs, worker helpers                               |
 | 10  | `invoices_payments`                 | Pending             | invoices, lines, invoice_visits, taxes, payments, stripe_events                                     |
 | 11  | `time_tracking`                     | Pending             | shifts, visit_time_entries, labor_cost_report                                                       |

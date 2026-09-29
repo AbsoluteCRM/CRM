@@ -126,3 +126,14 @@ Bucket `org-files` (private). Object paths start with `{organization_id}/`.
 Prisma connects as `postgres`, which **bypasses RLS**. User-facing server
 code must go through `withRls()`. See
 [ADR 0007](decisions/0007-prisma-and-rls.md).
+
+## Accepted advisor findings
+
+The Supabase security advisor reports these by design. Don't "fix" them:
+
+| Finding                                                                                                                                                    | Why it's intended                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `document_sequences`: RLS enabled, no policies                                                                                                             | Only `private.next_document_number()` touches it                                              |
+| `authenticated` can execute `security definer` functions: `create_organization`, `accept_invitation`, `approve_quote`, `decline_quote`, and all `portal_*` | These are the API. Each checks `auth.uid()` and scopes to the caller's orgs or portal clients |
+| `public.rls_auto_enable()` executable by `anon`/`authenticated`                                                                                            | A Supabase-managed event-trigger function that predates these migrations. It's left alone     |
+| Leaked password protection disabled                                                                                                                        | An Auth dashboard setting. Enable it before launch                                            |

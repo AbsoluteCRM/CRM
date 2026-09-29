@@ -71,22 +71,22 @@ is true.
 
 ## `visits`
 
-| Column                   | Type           | Null | Default       | Notes                                                                             |
-| ------------------------ | -------------- | ---- | ------------- | --------------------------------------------------------------------------------- |
-| `job_id`                 | `uuid`         | no   |               | Composite FK → `jobs`, on delete cascade                                          |
-| `property_id`            | `uuid`         | no   |               | Composite FK → `properties`. Copied from the job so routing needs no join         |
-| `occurrence_date`        | `date`         | yes  |               | The RRULE date this visit came from. Null for manually added visits               |
-| `status`                 | `visit_status` | no   | `'scheduled'` |                                                                                   |
-| `scheduled_date`         | `date`         | yes  |               | Day it will happen (org timezone). Null only when `unscheduled` (check)           |
-| `window_start`           | `timestamptz`  | yes  |               | Arrival window, resolved to instants in the org timezone                          |
-| `window_end`             | `timestamptz`  | yes  |               | Check `> window_start`                                                            |
-| `duration_minutes`       | `integer`      | no   |               | Check `> 0`. Expected time on site, fed to the optimizer                          |
-| `is_exception`           | `boolean`      | no   | `false`       | Set when a person moves or edits a generated visit. Regeneration never touches it |
-| `instructions`           | `text`         | yes  |               | Visit-specific additions to the job instructions                                  |
-| `actual_start`           | `timestamptz`  | yes  |               | Set when the crew starts                                                          |
-| `actual_end`             | `timestamptz`  | yes  |               | Check `> actual_start`                                                            |
-| `completed_by_member_id` | `uuid`         | yes  |               | Composite FK → `organization_members`                                             |
-| `completion_notes`       | `text`         | yes  |               |                                                                                   |
+| Column                   | Type           | Null | Default       | Notes                                                                                    |
+| ------------------------ | -------------- | ---- | ------------- | ---------------------------------------------------------------------------------------- |
+| `job_id`                 | `uuid`         | no   |               | Composite FK → `jobs`, on delete cascade                                                 |
+| `property_id`            | `uuid`         | no   |               | Composite FK → `properties`. Copied from the job so routing needs no join                |
+| `occurrence_date`        | `date`         | yes  |               | The RRULE date this visit came from. Null for manually added visits                      |
+| `status`                 | `visit_status` | no   | `'scheduled'` |                                                                                          |
+| `scheduled_date`         | `date`         | yes  |               | Day it will happen (org timezone). Null only when `unscheduled` (check)                  |
+| `window_start`           | `timestamptz`  | yes  |               | Arrival window, resolved to instants in the org timezone                                 |
+| `window_end`             | `timestamptz`  | yes  |               | Check `> window_start`                                                                   |
+| `duration_minutes`       | `integer`      | no   |               | Check `> 0`. Expected time on site, fed to the optimizer                                 |
+| `is_exception`           | `boolean`      | no   | `false`       | Set when a person moves or edits a generated visit. Regeneration never touches it        |
+| `instructions`           | `text`         | yes  |               | Visit-specific additions to the job instructions                                         |
+| `actual_start`           | `timestamptz`  | yes  |               | Set when the crew starts                                                                 |
+| `actual_end`             | `timestamptz`  | yes  |               | Check `>= actual_start`, and requires `actual_start` (constraint `visits_actuals_check`) |
+| `completed_by_member_id` | `uuid`         | yes  |               | Composite FK → `organization_members`                                                    |
+| `completion_notes`       | `text`         | yes  |               |                                                                                          |
 
 Constraints and indexes:
 
@@ -137,4 +137,72 @@ memberships.
 | `is_client_visible` | `boolean` | no   | `false` | Shown in the portal (e.g. before/after photos) |
 
 Check: `num_nonnulls(client_id, property_id, job_id, visit_id, quote_id) = 1`.
-Each owner FK gets a partial index (`where x_id is not null`).
+Each owner FK gets an `(organization_id, x_id)` index. `storage_path` must start with `{organization_id}/` (check).
+
+## Behaviour (as built)
+
+Migrations `20260929201255_jobs_visits` and
+`20260929201447_fix_visit_actuals_check`.
+
+**Jobs**
+
+- `number` is set by the `assign_number` trigger (`J-1001`).
+- FK `(organization_id, client_id, property_id) → properties`, so the
+  property must belong to the client.
+- `unique (organization_id, quote_id)`: a quote converts into at most one
+  job.
+- Checks:
+  - `kind = 'recurring'` if and only if `rrule` is set
+  - the rrule has `FREQ=` and no `DTSTART`
+  - `periodic` billing requires `billing_period`
+  - window columns are both set or both null, with end after start
+- **From a quote** (after insert, when `quote_id` is set): the quote must be
+  `approved` and for the same client. It moves to `converted`, and its
+  counted lines are copied into `job_line_items`, with `tax_rate_ids` taken
+  from the quote line taxes. Otherwise `23514`.
+- **One-off jobs** (after insert, `kind = 'one_off'`): the single visit is
+  created on `start_date` and `generated_through = start_date`.
+- **Property change**: `unscheduled` and `scheduled` visits move with the job.
+
+**Job line items**: `tax_rate_ids` is validated by trigger against the org's
+`tax_rates` (`23503`).
+
+**Visits**
+
+- Before insert: `property_id` is always copied from the job, and
+  `duration_minutes` defaults to the job's.
+- Before update:
+  - `in_progress` stamps `actual_start`.
+  - `completed` stamps both actuals when they're unset.
+  - For generated visits (`occurrence_date` set), changing the date, window,
+    or duration, or moving to `skipped`, `cancelled`, or `unscheduled`, sets
+    `is_exception = true`.
+
+**Generation RPCs** (`security invoker`, so RLS applies: office staff or the
+service role):
+
+| Function                                              | Does                                                                                                                                                                                                                  |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `generate_visits(job_id, dates date[], through date)` | Inserts one visit per date within `[start_date, end_date]` and `(generated_through, through]`. Windows are resolved in the org timezone. `on conflict do nothing`. Advances `generated_through` and returns the count |
+| `reset_job_schedule(job_id, from date default today)` | Deletes generated, non-exception, `scheduled` visits on or after `from`. Rewinds `generated_through` to `from - 1` and returns the count. The routing migration also keeps routed visits                              |
+
+The nightly job that calls the app-side RRULE expander (pg_cron plus
+`pg_net`) is **not scheduled yet**. It's added once the endpoint exists.
+
+**Storage**: private bucket `org-files`. Policies on `storage.objects` check
+the first path segment against `private.my_org_ids()`:
+
+- **Read and upload**: any staff member of the org.
+- **Update and delete**: office staff only.
+
+Tested in `supabase/tests/storage_policies_test.sql`.
+
+**RLS**: office staff only on `jobs`, `job_line_items`, `visits`, and
+`attachments`. Worker policies arrive with routing.
+
+**Portal RPCs**:
+
+- `portal_my_jobs()`
+- `portal_my_visits(from date default null, to date default null)`: excludes
+  `cancelled` visits, and returns `completed_at` (`actual_end`) and
+  `completion_notes`
