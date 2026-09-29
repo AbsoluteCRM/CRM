@@ -4,6 +4,8 @@
     javascript = {
       enable = true;
       package = pkgs.nodejs_22;
+
+      pnpm.enable = true;
     };
 
     # devenv.sh/languages/typescript/
@@ -14,11 +16,7 @@
 
   # Enable formatters via git-hooks
   git-hooks.hooks = {
-    rustfmt.enable = true;
     nixfmt.enable = true;
-    black.enable = true;
     prettier.enable = true;
   };
-
-  devcontainer.enable = true;
 }
