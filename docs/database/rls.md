@@ -65,30 +65,30 @@ Shorthand used below:
 
 S = select, I = insert, U = update, D = delete. "—" means no access.
 
-| Table(s)                                                              | owner/admin                 | dispatcher | worker                                                                      | portal user                                                      |
-| --------------------------------------------------------------------- | --------------------------- | ---------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| organizations                                                         | S U                         | S          | S                                                                           | S (name, logo, contact only, via the `portal_organization` view) |
-| organization_members                                                  | S I U D                     | S          | S                                                                           | —                                                                |
-| organization_invitations                                              | S I U D                     | —          | —                                                                           | —                                                                |
-| member_pay_rates                                                      | S I U D                     | —          | —                                                                           | —                                                                |
-| clients, client_contacts                                              | S I U D                     | S I U D    | S, only clients with a visit in `worker_visit_ids`                          | S own (`portal_client_ids`)                                      |
-| properties                                                            | S I U D                     | S I U D    | S, only properties with a visit in `worker_visit_ids`                       | S own                                                            |
-| client_portal_users                                                   | S I U D                     | S I U D    | —                                                                           | S own rows                                                       |
-| services                                                              | S I U D                     | S          | S                                                                           | —                                                                |
-| tax_rates, service_default_taxes                                      | S I U D                     | S          | —                                                                           | —                                                                |
-| quotes, quote_line_items, quote_line_item_taxes                       | S I U D                     | S I U D    | —                                                                           | S own, where status ≠ `draft`. Writes via RPC                    |
-| jobs                                                                  | S I U D                     | S I U D    | S, jobs of visits in `worker_visit_ids`                                     | S own                                                            |
-| job_line_items                                                        | S I U D                     | S I U D    | S, only if `workers_see_prices`                                             | —                                                                |
-| visits                                                                | S I U D                     | S I U D    | S; U status/notes/actuals on `worker_visit_ids` (trigger restricts columns) | S own (upcoming and completed)                                   |
-| attachments                                                           | S I U D                     | S I U D    | S; I on their visits                                                        | S own where `is_client_visible`                                  |
-| crews, crew_members                                                   | S I U D                     | S I U D    | S                                                                           | —                                                                |
-| routes, route_members, route_stops                                    | S I U D                     | S I U D    | S, their published routes                                                   | —                                                                |
-| optimization_runs                                                     | S I U                       | S I U      | —                                                                           | —                                                                |
-| invoices, invoice_line_items, invoice_visits, invoice_line_item_taxes | S I U D (D only for drafts) | S          | —                                                                           | S own, where status ≠ `draft`                                    |
-| payments                                                              | S I U                       | S          | —                                                                           | S own                                                            |
-| stripe_events                                                         | —                           | —          | —                                                                           | —                                                                |
-| shifts, visit_time_entries                                            | S I U D                     | S I U D    | S I own. U own while open and unapproved                                    | —                                                                |
-| document_sequences                                                    | —                           | —          | —                                                                           | —                                                                |
+| Table(s)                                                              | owner/admin                 | dispatcher | worker                                                                      | portal user                                               |
+| --------------------------------------------------------------------- | --------------------------- | ---------- | --------------------------------------------------------------------------- | --------------------------------------------------------- |
+| organizations                                                         | S U                         | S          | S                                                                           | via `portal_my_clients()` (org name only)                 |
+| organization_members                                                  | S I U D                     | S          | S                                                                           | —                                                         |
+| organization_invitations                                              | S I U D                     | —          | —                                                                           | —                                                         |
+| member_pay_rates                                                      | S I U D                     | —          | —                                                                           | —                                                         |
+| clients, client_contacts                                              | S I U D                     | S I U D    | S, only clients with a visit in `worker_visit_ids`                          | via `portal_my_clients()`                                 |
+| properties                                                            | S I U D                     | S I U D    | S, only properties with a visit in `worker_visit_ids`                       | via `portal_my_properties()`                              |
+| client_portal_users                                                   | S I U D                     | S I U D    | —                                                                           | S own rows                                                |
+| services                                                              | S I U D                     | S          | S                                                                           | —                                                         |
+| tax_rates, service_default_taxes                                      | S I U D                     | S          | —                                                                           | —                                                         |
+| quotes, quote_line_items, quote_line_item_taxes                       | S I U D                     | S I U D    | —                                                                           | via `portal_*` RPCs, non-draft only; approve/decline RPCs |
+| jobs                                                                  | S I U D                     | S I U D    | S, jobs of visits in `worker_visit_ids`                                     | via `portal_*` RPCs                                       |
+| job_line_items                                                        | S I U D                     | S I U D    | S, only if `workers_see_prices`                                             | —                                                         |
+| visits                                                                | S I U D                     | S I U D    | S; U status/notes/actuals on `worker_visit_ids` (trigger restricts columns) | via `portal_*` RPCs (upcoming and completed)              |
+| attachments                                                           | S I U D                     | S I U D    | S; I on their visits                                                        | signed URLs for `is_client_visible` only                  |
+| crews, crew_members                                                   | S I U D                     | S I U D    | S                                                                           | —                                                         |
+| routes, route_members, route_stops                                    | S I U D                     | S I U D    | S, their published routes                                                   | —                                                         |
+| optimization_runs                                                     | S I U                       | S I U      | —                                                                           | —                                                         |
+| invoices, invoice_line_items, invoice_visits, invoice_line_item_taxes | S I U D (D only for drafts) | S          | —                                                                           | via `portal_*` RPCs, non-draft only                       |
+| payments                                                              | S I U                       | S          | —                                                                           | via `portal_*` RPCs                                       |
+| stripe_events                                                         | —                           | —          | —                                                                           | —                                                         |
+| shifts, visit_time_entries                                            | S I U D                     | S I U D    | S I own. U own while open and unapproved                                    | —                                                         |
+| document_sequences                                                    | —                           | —          | —                                                                           | —                                                         |
 
 Notes:
 
@@ -99,6 +99,13 @@ Notes:
   - `optimization_runs.request`/`response` are revoked from `authenticated`.
   - Dispatchers can't update `organizations`. Only admins can change
     `settings`.
+- **Portal reads go through RPCs, not table policies.** RLS is row-only, and
+  staff and portal users are both the `authenticated` role, so a portal
+  select policy on `clients` would also expose internal columns (`notes`,
+  `lead_source`, `internal_notes` on quotes and invoices, …). Portal users
+  therefore get no policies on domain tables. `security definer` functions
+  named `portal_*` return client-safe columns for
+  `private.portal_client_ids()` only.
 - **Portal writes**: `approve_quote`, `decline_quote`, and payments (Stripe
   Checkout) go through RPCs or server code. Portal users have no direct
   insert, update, or delete on any table.

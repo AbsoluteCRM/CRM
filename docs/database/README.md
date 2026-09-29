@@ -68,6 +68,11 @@ These rules apply to every table unless its reference doc says otherwise.
 - **Indexes**: every foreign key column is indexed. On tenant tables,
   `organization_id` is the leading column of composite indexes, and those
   indexes also serve RLS.
+- **Join tables** (those without an `id`, e.g. `service_default_taxes`,
+  `crew_members`) use a composite primary key that **starts with
+  `organization_id`**, e.g. `(organization_id, crew_id, member_id)`. The PK
+  then also indexes the first composite FK, and each further FK gets its own
+  `(organization_id, x_id)` index.
 - **Money**: integer cents in `bigint` columns named `*_cents`. Each
   organization has one currency (`organizations.currency`). Percentages are
   `numeric(7,4)`, and quantities are `numeric(10,2)`. See
@@ -131,9 +136,9 @@ applied it is never edited; fixes go in a new migration.
 | 2   | `foundation`                        | ✅ `20260929195309` | Extensions, `private` schema, `uuid_generate_v7`                                                    |
 | 3   | `tenancy_identity`                  | ✅ `20260929195514` | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs |
 | 3a  | `fix_accept_invitation_email_match` | ✅ `20260929195738` | Case-insensitive invite email match (see the citext gotcha in [rls.md](rls.md))                     |
-| 4   | `clients_properties`                | Pending             | clients, client_contacts, properties, client_portal_users                                           |
-| 5   | `catalog_tax`                       | Pending             | services, tax_rates, service_default_taxes                                                          |
-| 6   | `crews`                             | Pending             | crews, crew_members                                                                                 |
+| 4   | `clients_properties`                | ✅ `20260929200046` | clients, client_contacts, properties, client_portal_users                                           |
+| 5   | `catalog_tax`                       | ✅ `20260929200302`| services, tax_rates, service_default_taxes                                                          |
+| 6   | `crews`                             | ✅ `20260929200304`| crews, crew_members                                                                                 |
 | 7   | `quotes`                            | Pending             | quotes and their lines and taxes, quote RPCs                                                        |
 | 8   | `jobs_visits`                       | Pending             | jobs, job_line_items, visits, attachments, `org-files` bucket and policies                          |
 | 9   | `routing`                           | Pending             | routes, route_members, route_stops, optimization_runs, worker helpers                               |

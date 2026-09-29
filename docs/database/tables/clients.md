@@ -97,3 +97,14 @@ can have several logins.
 `unique (client_id, user_id)`. Index `(user_id)`, which
 `private.portal_client_ids()` uses. Only owner/admin/dispatcher can create
 these rows, normally by sending a portal invite.
+
+## Portal RPCs
+
+Portal users have no policies on `clients`, `client_contacts`, or
+`properties`, because those tables hold internal columns (see
+[rls.md](../rls.md)). They read through:
+
+- `public.portal_my_clients()`: client id, org name, display name, email,
+  and phone for each linked, non-archived client
+- `public.portal_my_properties()`: address and access notes for those
+  clients' non-archived properties
