@@ -1,1 +1,12 @@
-/nix/store/sf0sj4f09nnwq1l27dmsgq4np2xzsngh-mcp.json
+{
+  "mcpServers": {
+    "mcp.devenv.sh": {
+      "type": "http",
+      "url": "https://mcp.devenv.sh"
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=skygtamcakhoirlrqlnq&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching"
+    }
+  }
+}

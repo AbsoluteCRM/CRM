@@ -12,8 +12,6 @@
     typescript.enable = true;
   };
 
-  claude.code.enable = true;
-
   # Enable formatters via git-hooks
   git-hooks.hooks = {
     nixfmt.enable = true;
