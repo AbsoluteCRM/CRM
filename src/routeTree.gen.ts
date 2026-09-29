@@ -10,12 +10,65 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthedRouteImport } from './routes/_authed'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as SignUpRouteImport } from './routes/sign-up'
+import { Route as AuthedCalendarRouteImport } from './routes/_authed/calendar'
+import { Route as AuthedClientsRouteImport } from './routes/_authed/clients'
+import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
+import { Route as AuthedJobsRouteImport } from './routes/_authed/jobs'
+import { Route as AuthedRequestsRouteImport } from './routes/_authed/requests'
+import { Route as AuthedTeamsRouteImport } from './routes/_authed/teams'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthedRoute = AuthedRouteImport.update({
+  id: '/_authed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignUpRoute = SignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthedCalendarRoute = AuthedCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedClientsRoute = AuthedClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedDashboardRoute = AuthedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedJobsRoute = AuthedJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedRequestsRoute = AuthedRequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedTeamsRoute = AuthedTeamsRouteImport.update({
+  id: '/teams',
+  path: '/teams',
+  getParentRoute: () => AuthedRoute,
 } as any)
 const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
   id: '/api/trpc/$',
@@ -25,27 +78,87 @@ const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-up': typeof SignUpRoute
+  '/calendar': typeof AuthedCalendarRoute
+  '/clients': typeof AuthedClientsRoute
+  '/dashboard': typeof AuthedDashboardRoute
+  '/jobs': typeof AuthedJobsRoute
+  '/requests': typeof AuthedRequestsRoute
+  '/teams': typeof AuthedTeamsRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-up': typeof SignUpRoute
+  '/calendar': typeof AuthedCalendarRoute
+  '/clients': typeof AuthedClientsRoute
+  '/dashboard': typeof AuthedDashboardRoute
+  '/jobs': typeof AuthedJobsRoute
+  '/requests': typeof AuthedRequestsRoute
+  '/teams': typeof AuthedTeamsRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authed': typeof AuthedRouteWithChildren
+  '/sign-in': typeof SignInRoute
+  '/sign-up': typeof SignUpRoute
+  '/_authed/calendar': typeof AuthedCalendarRoute
+  '/_authed/clients': typeof AuthedClientsRoute
+  '/_authed/dashboard': typeof AuthedDashboardRoute
+  '/_authed/jobs': typeof AuthedJobsRoute
+  '/_authed/requests': typeof AuthedRequestsRoute
+  '/_authed/teams': typeof AuthedTeamsRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/trpc/$'
+  fullPaths:
+    | '/'
+    | '/sign-in'
+    | '/sign-up'
+    | '/calendar'
+    | '/clients'
+    | '/dashboard'
+    | '/jobs'
+    | '/requests'
+    | '/teams'
+    | '/api/trpc/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/trpc/$'
-  id: '__root__' | '/' | '/api/trpc/$'
+  to:
+    | '/'
+    | '/sign-in'
+    | '/sign-up'
+    | '/calendar'
+    | '/clients'
+    | '/dashboard'
+    | '/jobs'
+    | '/requests'
+    | '/teams'
+    | '/api/trpc/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authed'
+    | '/sign-in'
+    | '/sign-up'
+    | '/_authed/calendar'
+    | '/_authed/clients'
+    | '/_authed/dashboard'
+    | '/_authed/jobs'
+    | '/_authed/requests'
+    | '/_authed/teams'
+    | '/api/trpc/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthedRoute: typeof AuthedRouteWithChildren
+  SignInRoute: typeof SignInRoute
+  SignUpRoute: typeof SignUpRoute
   ApiTrpcSplatRoute: typeof ApiTrpcSplatRoute
 }
 
@@ -58,6 +171,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authed': {
+      id: '/_authed'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-up': {
+      id: '/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof SignUpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authed/calendar': {
+      id: '/_authed/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AuthedCalendarRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/clients': {
+      id: '/_authed/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof AuthedClientsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/dashboard': {
+      id: '/_authed/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthedDashboardRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/jobs': {
+      id: '/_authed/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof AuthedJobsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/requests': {
+      id: '/_authed/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof AuthedRequestsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/teams': {
+      id: '/_authed/teams'
+      path: '/teams'
+      fullPath: '/teams'
+      preLoaderRoute: typeof AuthedTeamsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/api/trpc/$': {
       id: '/api/trpc/$'
       path: '/api/trpc/$'
@@ -68,10 +244,43 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthedRouteChildren {
+  AuthedCalendarRoute: typeof AuthedCalendarRoute
+  AuthedClientsRoute: typeof AuthedClientsRoute
+  AuthedDashboardRoute: typeof AuthedDashboardRoute
+  AuthedJobsRoute: typeof AuthedJobsRoute
+  AuthedRequestsRoute: typeof AuthedRequestsRoute
+  AuthedTeamsRoute: typeof AuthedTeamsRoute
+}
+
+const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedCalendarRoute: AuthedCalendarRoute,
+  AuthedClientsRoute: AuthedClientsRoute,
+  AuthedDashboardRoute: AuthedDashboardRoute,
+  AuthedJobsRoute: AuthedJobsRoute,
+  AuthedRequestsRoute: AuthedRequestsRoute,
+  AuthedTeamsRoute: AuthedTeamsRoute,
+}
+
+const AuthedRouteWithChildren =
+  AuthedRoute._addFileChildren(AuthedRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthedRoute: AuthedRouteWithChildren,
+  SignInRoute: SignInRoute,
+  SignUpRoute: SignUpRoute,
   ApiTrpcSplatRoute: ApiTrpcSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

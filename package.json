@@ -6,9 +6,9 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "dotenv -e .env.local -- sh -c &#34;NODE_OPTIONS=&#39;--import ./instrument.server.mjs&#39; vite dev --port 3000&#34;",
+    "dev": "dotenv -e .env.local -- node --import ./instrument.server.mjs ./node_modules/vite/bin/vite.js dev --port 3000",
     "generate-routes": "tsr generate",
-    "build": "vite build &amp;&amp; cp instrument.server.mjs .output/server",
+    "build": "vite build && cp instrument.server.mjs .output/server",
     "preview": "vite preview",
     "lint": "eslint",
     "format": "prettier --write . && eslint --fix",
@@ -28,6 +28,8 @@
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
     "@sentry/tanstackstart-react": "^10.67.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.1",
     "@t3-oss/env-core": "^0.13.10",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/match-sorter-utils": "latest",
