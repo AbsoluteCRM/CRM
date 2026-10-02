@@ -157,6 +157,7 @@ applied it is never edited; fixes go in a new migration.
 | 9   | `routing`                           | ✅ `20260929201854` | routes, route_members, route_stops, optimization_runs, worker helpers                               |
 | 10  | `invoices_payments`                 | ✅ `20260929202454` | invoices, lines, invoice_visits, taxes, payments, stripe_events                                     |
 | 11  | `time_tracking`                     | ✅ `20260929202750` | shifts, visit_time_entries, labor_cost_report                                                       |
+| 11a | `capture_dashboard_member_policy`   | ✅ `20261002011300` | Records a dashboard-made `organization_members` select policy (own rows, any status); no change     |
 
 `private.worker_visit_ids()` depends on routing, so the worker read policies
 on clients, properties, jobs, and visits are added in migration 9.
