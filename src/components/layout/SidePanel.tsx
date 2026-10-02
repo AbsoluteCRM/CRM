@@ -5,7 +5,7 @@ import {
   HardHat,
   Handshake,
   MessageSquareDiff,
-  Toolbox
+  Toolbox,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
