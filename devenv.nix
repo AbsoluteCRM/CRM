@@ -13,8 +13,8 @@
   };
 
   # Enable formatters via git-hooks
-  git-hooks.hooks = {
-    nixfmt.enable = true;
-    prettier.enable = true;
-  };
+  # git-hooks.hooks = {
+  #   nixfmt.enable = true;
+  #   prettier.enable = true;
+  # };
 }

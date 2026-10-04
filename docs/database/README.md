@@ -123,6 +123,18 @@ To change the schema:
 
 Do **not** use `prisma migrate` or `prisma db push` against this database.
 
+**Demo data**: `supabase/seed.sql` is idempotent and creates the
+`absolute-demo` org (Edmonton, GST only), owned by the first auth user, with
+a crew, 3 clients, recurring and one-off jobs, visits for the next 8 weeks,
+and a draft quote. Run it with `execute_sql` or psql. It was applied to the
+project on 2026-09-29.
+
+**Prisma setup (pending)**: `.env.local` `DATABASE_URL` must point at the
+Supabase project for `prisma db pull` to work. Use the session pooler
+(port 5432) for `db pull`, and the transaction pooler (port 6543) for the
+app. After pulling, replace the scaffold `prisma/seed.ts` (it still
+references the removed `Todo` model).
+
 ## Migration plan
 
 Domains are migrated one at a time, in FK-dependency order
@@ -142,9 +154,9 @@ applied it is never edited; fixes go in a new migration.
 | 7   | `quotes`                            | ✅ `20260929200746` | quotes and their lines and taxes, quote RPCs                                                        |
 | 8   | `jobs_visits`                       | ✅ `20260929201255` | jobs, job_line_items, visits, attachments, `org-files` bucket and policies                          |
 | 8a  | `fix_visit_actuals_check`           | ✅ `20260929201447` | Allow `actual_end = actual_start` (visit completed after the fact)                                  |
-| 9   | `routing`                           | Pending             | routes, route_members, route_stops, optimization_runs, worker helpers                               |
-| 10  | `invoices_payments`                 | Pending             | invoices, lines, invoice_visits, taxes, payments, stripe_events                                     |
-| 11  | `time_tracking`                     | Pending             | shifts, visit_time_entries, labor_cost_report                                                       |
+| 9   | `routing`                           | ✅ `20260929201854` | routes, route_members, route_stops, optimization_runs, worker helpers                               |
+| 10  | `invoices_payments`                 | ✅ `20260929202454` | invoices, lines, invoice_visits, taxes, payments, stripe_events                                     |
+| 11  | `time_tracking`                     | ✅ `20260929202750` | shifts, visit_time_entries, labor_cost_report                                                       |
 
 `private.worker_visit_ids()` depends on routing, so the worker read policies
 on clients, properties, jobs, and visits are added in migration 9.

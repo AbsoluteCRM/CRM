@@ -112,16 +112,27 @@ for a date, and assign visits across crews.
 | `provider`             | `text`                | no   |            | `google_route_optimization`, `mapbox`, `vroom`… |
 | `requested_by`         | `uuid`                | yes  |            | FK → `auth.users`                               |
 | `crew_ids`             | `uuid[]`              | no   |            | Crews included                                  |
-| `request`              | `jsonb`               | yes  |            | Payload sent. Service role only                 |
-| `response`             | `jsonb`               | yes  |            | Raw result. Service role only                   |
 | `error`                | `text`                | yes  |            |                                                 |
 | `unassigned_visit_ids` | `uuid[]`              | no   | `'{}'`     | Visits the solver couldn't fit                  |
 | `started_at`           | `timestamptz`         | yes  |            |                                                 |
 | `finished_at`          | `timestamptz`         | yes  |            |                                                 |
 
-Index `(organization_id, route_date desc)`. Staff can read every column
-except `request` and `response`: a column-level grant revokes `select` on
-those two from `authenticated`.
+Index `(organization_id, route_date desc)`. Office staff can read, insert,
+and update runs.
+
+## `optimization_run_payloads`
+
+The raw solver request and response, one row per run. It's a separate table
+instead of revoked columns on `optimization_runs`, because a column-level
+REVOKE breaks `select *`, which Prisma issues by default (ADR 0007). RLS is
+enabled with **no policies**, so it's service role only. PK
+`(organization_id, run_id)`, a composite FK to `optimization_runs`, on
+delete cascade.
+
+| Column     | Type    | Null |
+| ---------- | ------- | ---- |
+| `request`  | `jsonb` | yes  |
+| `response` | `jsonb` | yes  |
 
 ## Optimization flow
 
@@ -135,3 +146,51 @@ those two from `authenticated`.
    the unlocked `route_stops`, and marks the run `succeeded`.
 5. The dispatcher reviews the result and publishes it
    (`published`, `published_at`).
+
+## Behaviour (as built)
+
+Migration `20260929201854_routing`.
+
+**Keys**:
+
+- `routes`: `unique (organization_id, crew_id, route_date)`
+- `route_stops`:
+  - `unique (organization_id, visit_id)`: a visit is on at most one route
+  - `unique (organization_id, route_id, sequence) deferrable initially deferred`
+- `route_members`: PK `(organization_id, route_id, member_id)`
+
+**Triggers**:
+
+| Table           | Trigger                 | Does                                                                                                                                                                                       |
+| --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `routes`        | before insert           | Copies start and end location and `planned_start` (route date + crew start time, org timezone) from the crew                                                                               |
+| `routes`        | after insert            | Seeds `route_members` from active `crew_members`, skipping anyone already routed that day                                                                                                  |
+| `routes`        | before update of status | Stamps `published_at` when the route is published                                                                                                                                          |
+| `route_members` | before insert/update    | Rejects a member already on another route that date (`23P01`)                                                                                                                              |
+| `route_stops`   | before insert/update    | The visit's `scheduled_date` must equal `route_date` (`23514`)                                                                                                                             |
+| `visits`        | after update of date    | A rescheduled visit's stop on the old date is deleted                                                                                                                                      |
+| `visits`        | before update           | **Workers** may change only `status` (to `in_progress`, `completed`, or `no_show`), actual times, `completion_notes`, and `completed_by_member_id` (only to themselves). Otherwise `42501` |
+
+`reset_job_schedule()` was redefined here so it never deletes a visit that
+has a route stop.
+
+## Worker access
+
+A worker's scope is derived from routes, never stored. These `private`
+helpers are uncorrelated, `security definer`, and return `setof uuid`:
+
+| Helper                   | Returns                                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `worker_route_ids()`     | Routes where the caller is in `route_members` and the status is `published`, `in_progress`, or `completed` |
+| `worker_visit_ids()`     | Visits with a stop on those routes                                                                         |
+| `worker_job_ids()`       | Those visits' jobs                                                                                         |
+| `worker_property_ids()`  | Those visits' properties                                                                                   |
+| `worker_client_ids()`    | Those jobs' clients                                                                                        |
+| `worker_price_org_ids()` | Orgs where the caller is a worker and `settings.workers_see_prices` is true                                |
+
+This migration **replaced** the office-only select policies on `visits`,
+`jobs`, `job_line_items`, `properties`, `clients`, `client_contacts`, and
+`attachments` (plus the update policy on `visits` and the insert policy on
+`attachments`). Each is now a single `office OR worker-scope` policy, so
+there are never two permissive policies for one action. Draft and optimized
+routes are invisible to workers.

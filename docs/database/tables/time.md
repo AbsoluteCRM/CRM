@@ -73,3 +73,36 @@ open entries and sets `actual_end`.
   effect on `clock_in::date` (org timezone).
 - Job costing: `visit_time_entries` hours × rate, summed per job and compared
   against invoiced revenue.
+
+## Behaviour (as built)
+
+Migration `20260929202750_time_tracking`. Tested in
+`supabase/tests/time_tracking_test.sql`.
+
+**Constraints**:
+
+- `shifts_no_overlap` and `visit_time_entries_no_overlap` are GiST exclusion
+  constraints on `(member_id, tstzrange(start, end, '[)'))`. An open entry
+  extends to infinity, so it also means at most one open shift or visit
+  entry per person (`23P01`).
+- Breaks must be shorter than the shift, and an approved shift must be
+  closed (`23514`).
+- `route_id` uses `on delete set null (route_id)`.
+
+**RLS** (via the new uncorrelated helper `private.my_member_ids()`):
+
+| Actor        | shifts                                                                                                                  | visit_time_entries                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| office staff | S I U D                                                                                                                 | S I U D                                                                         |
+| worker       | S own. I own, unapproved only. U own only while `clock_out is null` and unapproved, and the result must stay unapproved | S own. I own, only on `worker_visit_ids()`. U own only while `ended_at is null` |
+
+**`public.labor_cost_report`** (a `security_invoker` view): one row per
+closed shift, with these columns:
+
+- `work_date` (org-local)
+- `hours` = (clock_out − clock_in − break), to 2 decimal places
+- `hourly_rate_cents` (the rate in effect on `work_date`)
+- `labor_cost_cents`
+
+Because it runs as the invoker, a worker sees their own hours with a null
+rate, and owner/admin see everything. `anon` has no grant.
