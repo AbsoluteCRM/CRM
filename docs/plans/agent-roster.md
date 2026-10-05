@@ -508,6 +508,15 @@ pass, a fresh reviewer re-reviews the whole diff:
   the main agent unless the Commits list assigns one.
 - CLAUDE.md lists every security-gated path.
 
+### Review 2 (fresh `reviewer`, whole diff at `65d2675`): **pass**, confidence high
+
+- No blocking findings. Recording this verdict is bookkeeping, not a fix, so
+  it doesn't void the pass. Verify was re-run on the new head before merge.
+- Deferred non-blocking note: the Definition-of-done bullet "Verdicts are
+  recorded in the plan's Audit log" should add "(light tier: the PR body)".
+  It's carried into the next PR (drop-prisma), because changing doc text now
+  would void this pass.
+
 ## Scope-change log
 
 - **Verification step 2 (implementer smoke test)**: Claude Code creates
