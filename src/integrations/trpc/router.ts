@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { createTRPCRouter, publicProcedure } from './init'
+import { createTRPCRouter, protectedProcedure, publicProcedure } from './init'
 
 import type { TRPCRouterRecord } from '@trpc/server'
 
@@ -21,7 +21,17 @@ const todosRouter = {
     }),
 } satisfies TRPCRouterRecord
 
+const authRouter = {
+  me: protectedProcedure.query(({ ctx }) => {
+    return {
+      id: ctx.user.id,
+      email: ctx.user.email,
+    }
+  }),
+} satisfies TRPCRouterRecord
+
 export const trpcRouter = createTRPCRouter({
   todos: todosRouter,
+  auth: authRouter,
 })
 export type TRPCRouter = typeof trpcRouter
