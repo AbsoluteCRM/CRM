@@ -1,6 +1,9 @@
 { pkgs, ... }:
 {
-  packages = [ pkgs.git-lfs ];
+  packages = [
+    pkgs.git-lfs
+    pkgs.supabase-cli
+  ];
 
   languages = {
     # devenv.sh/languages/javascript/

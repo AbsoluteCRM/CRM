@@ -24,6 +24,7 @@ export default [
       'prettier.config.js',
       '.claude/worktrees/**',
       '.output/**',
+      'src/types/database.ts',
     ],
   },
   ...storybook.configs['flat/recommended'],

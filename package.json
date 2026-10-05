@@ -13,6 +13,7 @@
     "lint": "eslint",
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
+    "db:types": "dotenv -e .env.local -- sh -c 'mkdir -p src/types && { supabase gen types --lang typescript --project-id skygtamcakhoirlrqlnq --schema public > src/types/database.ts.tmp || { rm -f src/types/database.ts.tmp; exit 1; }; } && mv src/types/database.ts.tmp src/types/database.ts' && prettier --write src/types/database.ts",
     "start": "node --import ./.output/server/instrument.server.mjs .output/server/index.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
