@@ -26,8 +26,6 @@ devenv.local.yaml
 # pre-commit
 .pre-commit-config.yaml
 
-# Prisma client (pnpm db:generate)
-src/generated
 
 # Claude Code agent worktrees (implementer isolation)
 .claude/worktrees/

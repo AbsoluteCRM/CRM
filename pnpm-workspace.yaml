@@ -2,6 +2,6 @@ allowBuilds:
   esbuild: true
   lightningcss: true
   '@sentry/cli': true
-  '@prisma/engines': true
-  prisma: true
   unrs-resolver: false
+  '@prisma/engines': set this to true or false
+  prisma: set this to true or false

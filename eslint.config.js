@@ -19,12 +19,7 @@ export default [
     },
   },
   {
-    ignores: [
-      'eslint.config.js',
-      'prettier.config.js',
-      'src/generated/**',
-      '.claude/worktrees/**',
-    ],
+    ignores: ['eslint.config.js', 'prettier.config.js', '.claude/worktrees/**'],
   },
   ...storybook.configs['flat/recommended'],
   {
