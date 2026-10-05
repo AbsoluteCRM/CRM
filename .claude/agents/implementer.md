@@ -64,7 +64,7 @@ Deviating from the plan's commit list is allowed when the real shape of the code
 
 ## Before you finish
 
-Run the plan's exact **Verify command** and see it pass. Paste the actual final output into your summary. Confirm everything is pushed: `git status` is clean and `git log origin/<pr-branch>..HEAD` is empty. Do not merge, and do not take the PR out of draft.
+Run the plan's exact **Verify command** and see it pass. Until drop-prisma lands, `pnpm exec tsc --noEmit` fails on `main` with 2 known errors (`prisma/seed.ts` and `src/db.ts` cannot find the ungenerated Prisma client). Those two are not yours to fix and not a blocker: report them as pre-existing, and treat any _other_ tsc error as a failure. Do not run `pnpm db:generate`; it needs `.env.local`. Paste the actual final output into your summary. Confirm everything is pushed: `git status` is clean and `git log origin/<pr-branch>..HEAD` is empty. Do not merge, and do not take the PR out of draft.
 
 ## What to return
 

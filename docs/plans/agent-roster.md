@@ -135,8 +135,14 @@ implementer. Merges are autonomous, but only through explicit gates.
    (`.claude/agents/*.md`).
 3. `Wire the agent roster into the feature workflow`: `feature-workflow.md`,
    `_template.md`, `CLAUDE.md`, `AGENTS.md`.
+4. `Ignore Claude Code agent worktrees in git and eslint` (`.gitignore`,
+   `eslint.config.js`). Found by the implementer smoke test; see the
+   Scope-change log.
+5. `Adopt the plan-auditor smoke test notes` (agent files, workflow, this
+   plan). See the Audit log.
 
-Every commit builds; it's docs and markdown only.
+Every commit builds; commits 1–3 and 5 are docs and markdown, and commit 4
+changes ignore lists only.
 
 ## Changes
 
@@ -469,6 +475,22 @@ a merged branch (the implementation branches from `origin/main`).
     text literally rather than interpreting it.
 - **`pre_existing`**: tsc on main; the dead `pnpm` field in `package.json`
   (drop-prisma removes it).
+
+### Round 3 (`plan-auditor`, smoke test after implementation, Verification step 2): **pass**, confidence high
+
+- The first run of the real agent. It launched with the planned tools,
+  returned valid JSON with a full `checked_clean`, and left `git status`
+  clean. This settles round 1's two `unresolved` tool-resolution questions.
+- The implementer smoke test also passed: there are no `mcp__supabase` tools,
+  it ran in a separate worktree cut from `main` (`6cd8386`), and it could
+  fetch the PR branch.
+- The non-blocking notes were all adopted in commit 5:
+  - the tsc caveat now appears in Merge condition 1 and in the implementer
+    brief;
+  - the Commits list matches the branch;
+  - the auditor names "Out of scope" as the template does;
+  - `git fetch` is explicitly allowed for the reviewer and security agents;
+  - worktree cleanup covers every dispatch.
 
 ## Scope-change log
 

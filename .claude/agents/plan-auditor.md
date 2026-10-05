@@ -40,7 +40,7 @@ Cite only documents you actually opened.
 3. **Unhappy paths** the plan does not handle: empty, malformed, concurrent, unauthorised, a failed step halfway through, a dependency that is not there yet.
 4. **Factual claims** about the repo or the remote database. Verify them — grep for the callers, read the file, list the migrations. Claims that turn out false are the most common real defect in a plan.
 5. **Steps that cannot be carried out as written**: commands, flags, file paths, ordering, tools the plan assumes exist.
-6. **Missing sections** the template requires: Commits, Unhappy paths, exact Verify command, Non-goals, Dependencies not to add.
+6. **Missing sections** the template requires: Commits, Unhappy paths, exact Verify command, Out of scope (non-goals), Dependencies not to add.
 7. **Scope creep**: work the request and decisions did not call for.
 
 **Prefer running the check to reasoning about it.** If grep, a file read, or a read-only command settles a claim, do that. You may not run SQL; if a query would settle something, put the exact SQL in `unresolved` and the caller will run it.

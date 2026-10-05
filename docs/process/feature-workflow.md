@@ -187,8 +187,10 @@ feedback.
    - **One writer at a time on the PR branch.** While an implementer is
      dispatched, the main agent doesn't commit to the branch. It runs
      `git pull --ff-only` before and after each dispatch.
-4. After the merge, remove the implementer's worktree and its temporary
-   branch.
+4. After the merge, remove every implementer worktree this PR used (a review
+   loop creates one per dispatch): check `git worktree list`, then
+   `git worktree remove` each one under `.claude/worktrees/` and delete its
+   temporary branch.
 
 ### Scope changes
 
@@ -229,7 +231,8 @@ The main agent merges without asking only when **every** condition holds,
 checked fresh on the PR head:
 
 1. The plan's exact verify command passes, and so do the Definition-of-done
-   checks that apply.
+   checks that apply. Until drop-prisma lands, tsc passes when its only
+   errors are the 2 known Prisma-client ones (`prisma/seed.ts`, `src/db.ts`).
 2. The latest `reviewer` verdict is `pass`.
 3. If security-gated paths changed, the latest `security` verdict is `pass`.
    A pass with `confidence: low` doesn't count.
