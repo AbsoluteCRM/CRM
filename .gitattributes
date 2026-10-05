@@ -1,0 +1,11 @@
+# Binaries under docs/ (screenshots, mocks, PDFs, video) are stored with Git LFS
+# (docs/design/README.md#git-lfs). Nothing outside docs/ is, so builds and
+# deploys don't need LFS. Git attributes don't support brace expansion, so
+# each extension gets its own line.
+docs/**/*.png filter=lfs diff=lfs merge=lfs -text
+docs/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+docs/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+docs/**/*.gif filter=lfs diff=lfs merge=lfs -text
+docs/**/*.webp filter=lfs diff=lfs merge=lfs -text
+docs/**/*.pdf filter=lfs diff=lfs merge=lfs -text
+docs/**/*.mp4 filter=lfs diff=lfs merge=lfs -text

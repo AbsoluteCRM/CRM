@@ -110,8 +110,11 @@ To change the schema:
 1. Write a new file `supabase/migrations/<timestamp>_<name>.sql`. Never edit
    a migration that has already been applied.
 2. Apply it to the Supabase project with the Supabase MCP `apply_migration`
-   tool, using **the same name**, so the remote migration history matches the
-   repo.
+   tool, using **the same name**. The tool assigns its own version timestamp,
+   so then rename the local file to `<assigned version>_<name>.sql`. That
+   keeps the remote migration history matching the repo. In a feature PR,
+   apply only after the plan is approved, and follow the extra rules in
+   [the feature workflow](../process/feature-workflow.md#schema).
 3. Run the Supabase advisors (security + performance). Fix any new warnings,
    such as a missing RLS policy, an unindexed FK, or a mutable `search_path`.
 4. Run the pgTAP tests in `supabase/tests/` (each file runs inside
