@@ -472,4 +472,10 @@ a merged branch (the implementation branches from `origin/main`).
 
 ## Scope-change log
 
-_None._
+- **Verification step 2 (implementer smoke test)**: Claude Code creates
+  agent worktrees inside the repo, at `.claude/worktrees/<agent>/`. They were
+  not gitignored, and a worktree with commits is not auto-cleaned, so it would
+  show up in `git status` and be linted in the main checkout during Phase 5.
+  Fixed with `.claude/worktrees/` in `.gitignore` and in the eslint
+  `ignores`. This is not material: it only makes the planned mechanism work as
+  described, with no behaviour or decision change, so the status is not reset.

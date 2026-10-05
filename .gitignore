@@ -28,3 +28,6 @@ devenv.local.yaml
 
 # Prisma client (pnpm db:generate)
 src/generated
+
+# Claude Code agent worktrees (implementer isolation)
+.claude/worktrees/
