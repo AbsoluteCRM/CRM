@@ -1,3 +1,5 @@
+All work follows [docs/process/feature-workflow.md](docs/process/feature-workflow.md): ask until at least 95% confident, plan, have the plan adversarially audited, get approval, then ship the feature end to end in one PR.
+
 <!-- intent-skills:start -->
 
 ## Skill Loading

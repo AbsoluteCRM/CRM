@@ -4,13 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-A CRM built on a freshly scaffolded TanStack Start app (created with `create-tsrouter-app`; add-ons listed in `.cta.json`). Most domain code has not been written yet. The `todos` tRPC router, the Prisma `Todo` model, the `messagesCollection`, and `src/stories/*` are scaffold examples. Replace them rather than building on them.
+A multi-tenant CRM for contractor businesses, built on a scaffolded TanStack Start app (created with `create-tsrouter-app`; add-ons listed in `.cta.json`). The database schema is in place (see `docs/database/`). Supabase sign-in and sign-up and the `_authed` page shells exist, but most domain code has not been written yet. The `todos` tRPC router, the Prisma `Todo` model, the `messagesCollection`, and `src/stories/*` are scaffold examples. Replace them rather than building on them.
+
+## Feature workflow
+
+Every change follows [docs/process/feature-workflow.md](docs/process/feature-workflow.md). Read it before starting work. In short:
+
+- **Ask before planning.** Work in native plan mode (call `EnterPlanMode` if you aren't in it). Ask the user questions until at least 95% of the plan's material choices rest on their answers or on verified repo facts. List the open questions and assumptions; don't guess.
+- **Plan, then try to defeat the plan.** Write the plan from [docs/plans/\_template.md](docs/plans/_template.md). For full-tier work, a fresh `general-purpose` sub-agent (never a fork) audits it adversarially, one new auditor per round, until a round finds nothing MATERIAL. Escalate to the user after 3 rounds. Small single-layer `fix/` or `chore/` work (the light tier) skips only the audit.
+- **The user's approval on leaving plan mode is the go.** Only then create the branch (`feat/<slug>`, `fix/`, `db/`, `chore/`) and commit the plan as `docs/plans/<slug>.md`.
+- **One PR per feature, end to end.** Migration, `docs/database`, middleware, procedures, routes and UI, stories and tests, and the design record (`docs/<feature>/ui.md` plus screenshots, see [docs/design/](docs/design/README.md)) ship together, across as many commits as needed.
+- **Done** means: tsc, lint and prettier pass; procedure tests (cross-tenant, multi-org, per-role); stories with interaction tests; verified in the running app; docs updated.
+- **Tenancy**: user requests reach Prisma only through `withRls` (ADR 0007) and also filter by the active org. Never use `publicProcedure` for domain data.
+- **No surprises.** If the plan turns out wrong mid-build, stop, update the plan, and re-ask. Never use `--no-verify`.
 
 ## Commands
 
-Package manager is **pnpm**. Env vars come from `.env.local` (gitignored). It holds `DATABASE_URL` and the Sentry `VITE_SENTRY_*` / `SENTRY_AUTH_TOKEN` values. Scripts that need these values wrap themselves in `dotenv -e .env.local`.
+Package manager is **pnpm**. Env vars come from `.env.local` (gitignored). It holds `DATABASE_URL`, the Supabase keys (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), and the Sentry `VITE_SENTRY_*` / `SENTRY_AUTH_TOKEN` values. Scripts that need these values wrap themselves in `dotenv -e .env.local`. After a fresh install, run `pnpm db:generate`. The Prisma client in `src/generated/` is gitignored, and tsc fails without it.
 
-The toolchain comes from **devenv** (`devenv.nix`: Node 22 plus TypeScript). Enter it with `devenv shell`, or let direnv load it. devenv also generates `.devcontainer/` and the gitignored `.pre-commit-config.yaml`, so change `devenv.nix` rather than those files. Its git hooks run prettier on staged files at commit time; the rustfmt, nixfmt, and black hooks only fire on `.rs`, `.nix`, and `.py` files.
+The toolchain comes from **devenv** (`devenv.nix`: Node 22, TypeScript, git-lfs). Enter it with `devenv shell`; the repo has no `.envrc` for direnv. devenv generates the gitignored `.pre-commit-config.yaml`, so change `devenv.nix` rather than that file. `.devcontainer/devcontainer.json` is committed by hand. On commit, the git hooks run prettier (the repo's pinned version) on staged files and nixfmt on `.nix` files. Entering the shell also runs `git lfs install --local`, because screenshots under `docs/` are stored in Git LFS.
 
 ```bash
 pnpm dev                 # dev server on :3000 (loads Sentry via instrument.server.mjs)
@@ -38,17 +50,22 @@ The README says the build output goes to `dist/`. It's wrong: Nitro writes to `.
 - **Framework**: TanStack Start (React 19, SSR) on Vite 8 + Nitro. React Compiler is enabled through the babel plugin in `vite.config.ts`.
 - **Routing**: file-based routes in `src/routes/`. `src/routeTree.gen.ts` is generated, so don't edit it by hand (it regenerates on dev, or run `pnpm generate-routes`). `__root.tsx` is the HTML shell and devtools host. It also declares the router context type `{ queryClient, trpc }`.
 - **Data flow (tRPC + TanStack Query)**:
-  - Procedures live in `src/integrations/trpc/router.ts` and are built from `init.ts` (superjson transformer, `publicProcedure` only, with no context/auth yet).
+  - Procedures live in `src/integrations/trpc/router.ts` and are built from `init.ts` (superjson transformer). `init.ts` has only `publicProcedure` with no context on `main`. `origin/feature/trpc-auth` adds a user context and `protectedProcedure`; build org scoping on that branch rather than writing a second one.
   - They're served by the catch-all API route `src/routes/api.trpc.$.tsx` at `/api/trpc`.
   - `src/integrations/tanstack-query/root-provider.tsx` creates the tRPC client (`httpBatchStreamLink`; absolute `localhost:$PORT` URL during SSR). It also creates a `QueryClient` per request with superjson (de)hydration and a `createTRPCOptionsProxy`.
   - `src/router.tsx` passes these into router context and wires `setupRouterSsrQueryIntegration`. In route loaders, use `context.trpc.x.y.queryOptions()` with `context.queryClient`. In components, use `useTRPC()` from `src/integrations/trpc/react.ts`.
+  - The SSR tRPC link sends no cookies yet, so loaders can't prefetch authenticated procedures until that is fixed. See Bootstrapping in the workflow doc.
+- **Auth**:
+  - Supabase Auth, via `@supabase/ssr` clients in `src/lib/supabase/` (`server.ts` per request, `client.ts` for the browser).
+  - `src/integrations/auth/context.tsx` provides `useAuth()`, and `src/integrations/organization/context.tsx` provides the current org (a placeholder shape for now).
+  - `src/routes/_authed.tsx` is the layout for signed-in pages. Its guard is client-only.
 - **Schema design**: `docs/database/` is the design record. It holds the conventions, ERD, per-table reference, RLS model, and ADRs. Read it before touching the schema, and update it in the same change.
-  - The schema's source of truth is hand-written SQL in `supabase/migrations/`, applied to the remote Supabase project through the Supabase MCP `apply_migration` tool under the same name.
+  - The schema's source of truth is hand-written SQL in `supabase/migrations/`. It is applied to the remote Supabase project through the Supabase MCP `apply_migration` tool under the same name, and then the local file is renamed to the version the tool assigned.
   - `prisma/schema.prisma` is generated by `prisma db pull`. Don't use `prisma migrate` or `db push`.
-  - Prisma connects as `postgres` and bypasses RLS (see ADR 0007).
+  - Prisma connects as `postgres`, which bypasses RLS. So, per ADR 0007, user requests must go through `withRls(claims, tx => …)`, which isn't built yet. The raw `prisma` client and service-role Supabase clients are for trusted code only (`src/server/trusted/`, seeds).
 - **Database**: Prisma 7 with PostgreSQL through the `@prisma/adapter-pg` driver adapter. The client is generated into `src/generated/prisma` (import from `./generated/prisma/client.js`, not `@prisma/client`). `src/db.ts` exports a singleton `prisma` that is cached on `globalThis` in dev. Prisma CLI config (datasource URL, seed command `tsx prisma/seed.ts`) is in `prisma.config.ts`.
 - **Client-side collections**: `@tanstack/react-db` collections go in `src/db-collections/`. Only a local-only example exists so far; `@tanstack/query-db-collection` is installed for query-backed collections.
-- **Env**: `src/env.ts` uses t3 `createEnv`. Client vars must be prefixed `VITE_`. The file currently validates only `SERVER_URL` and `VITE_APP_TITLE`. `DATABASE_URL` is read directly from `process.env` in `src/database-url.ts`.
+- **Env**: `src/env.ts` uses t3 `createEnv`. Client vars must be prefixed `VITE_`. It validates `SERVER_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_APP_TITLE`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`. `DATABASE_URL` is read directly from `process.env` in `src/database-url.ts`.
 - **UI**: shadcn/ui (new-york, zinc, lucide) in `src/components/ui`, Tailwind v4 through `src/styles.css`, and `cn()` in `src/lib/utils.ts`. Add components with `pnpm dlx shadcn@latest add <name>`.
 - **Imports**: use the `#/*` alias for `src/*`. It's defined in both `package.json` `imports` and `tsconfig` paths, and it's what shadcn uses. `@/*` also resolves but is not the convention.
 
