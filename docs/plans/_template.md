@@ -114,10 +114,10 @@ the list>. If any, the `security` agent gates the merge.
 
 ## Verify command
 
-<!-- Exact and runnable as written. No placeholders. -->
+<!-- Exact and runnable as written. No placeholders. tsc runs last: until drop-prisma lands it exits non-zero on 2 known Prisma-client errors, which must not stop the other checks from running. -->
 
 ```
-pnpm exec tsc --noEmit && pnpm lint && pnpm check && pnpm exec vitest run
+pnpm lint && pnpm check && pnpm exec vitest run && pnpm exec tsc --noEmit
 ```
 
 ## Verification

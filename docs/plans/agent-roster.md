@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `agent-roster` / `chore/agent-roster`, from `origin/main` (`6cd8386`)
 - **Tier**: full. It changes the workflow rules and adds agents.
-- **Status**: approved (2026-10-05, on plan-mode exit)
+- **Status**: implemented (approved 2026-10-05 on plan-mode exit)
 - **Confidence**: 96%. Every material choice rests on R1–R7 (the user) or on
   the orchestrator sources read this session.
 - **Plan-mode file**: `~/.claude/plans/fluttering-wishing-reef.md`. This plan
@@ -140,9 +140,10 @@ implementer. Merges are autonomous, but only through explicit gates.
    Scope-change log.
 5. `Adopt the plan-auditor smoke test notes` (agent files, workflow, this
    plan). See the Audit log.
+6. `Adopt the first review's notes and mark the plan implemented`.
 
-Every commit builds; commits 1–3 and 5 are docs and markdown, and commit 4
-changes ignore lists only.
+Every commit builds; commits 1–3, 5 and 6 are docs and markdown, and
+commit 4 changes ignore lists only.
 
 ## Changes
 
@@ -491,6 +492,21 @@ a merged branch (the implementation branches from `origin/main`).
   - the auditor names "Out of scope" as the template does;
   - `git fetch` is explicitly allowed for the reviewer and security agents;
   - worktree cleanup covers every dispatch.
+
+### Review 1 (`reviewer`, diff at `5650d60`): **pass**, confidence high
+
+`security` is N/A, because no security-gated path changed.
+
+The non-blocking notes were adopted in commit 6. Because a change voids the
+pass, a fresh reviewer re-reviews the whole diff:
+
+- The template's verify command runs tsc **last**, so the 2 known Prisma
+  errors no longer stop lint, check, and vitest from running.
+- For light-tier work, verdicts and the `implemented` status live in the PR
+  body.
+- The implementer brief now matches the workflow: migration files belong to
+  the main agent unless the Commits list assigns one.
+- CLAUDE.md lists every security-gated path.
 
 ## Scope-change log
 

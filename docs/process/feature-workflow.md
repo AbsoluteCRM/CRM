@@ -210,7 +210,9 @@ If implementation shows that the plan is wrong, **stop**. No silent pivots.
    branch.
 3. If the diff touches any security-gated path (see [Agents](#agents)),
    dispatch a fresh `security` agent after the reviewer passes.
-4. Record each verdict in the plan's Audit log, under a Review heading.
+4. Record each verdict in the plan's Audit log, under a Review heading. For
+   light-tier work, which has no plan file, record it in the PR body under
+   the pasted plan.
 
 On `needs-changes` or `reject`:
 
@@ -238,8 +240,9 @@ checked fresh on the PR head:
    A pass with `confidence: low` doesn't count.
 4. `main` has been merged into the branch with no conflicts, and step 1 was
    re-run after that.
-5. The plan's status is `implemented`, and the PR body has the ticked
-   Definition of done, with a reason for each N/A item.
+5. The plan's status is `implemented` (light tier: the plan pasted in the PR
+   body says so), and the PR body has the ticked Definition of done, with a
+   reason for each N/A item.
 6. The PR is out of draft (`gh pr ready`).
 
 Then run `gh pr merge --merge`. There is no CI here, so condition 1 is the

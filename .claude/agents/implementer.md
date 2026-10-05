@@ -29,7 +29,7 @@ If the plan turns out to be wrong — the file it names does not exist, the patt
 
 ## The remote database is not yours
 
-You have no Supabase MCP tools, and that is deliberate: only the caller applies migrations, writes data, runs advisors and pgTAP, and renames migration files to their applied versions. You may write SQL migration files if the plan assigns them to you, but never apply them, and never connect to the database by any other route.
+You have no Supabase MCP tools, and that is deliberate: only the caller applies migrations, writes data, runs advisors and pgTAP, and renames migration files to their applied versions. Migration files are the caller's too (the workflow assigns the whole migration step to the main agent), so do not write them unless the plan's Commits list explicitly gives one to you; never apply one, and never connect to the database by any other route.
 
 ## Commit as you go, and push every commit
 
