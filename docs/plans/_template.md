@@ -61,6 +61,9 @@ Agent defaults (minor; the user may veto them):
 - [ ] Sentry
 - [ ] Design record (`docs/<feature>/ui.md`, shots, decisions)
 
+Security-gated paths touched (see the workflow's Agents section): <none, or
+the list>. If any, the `security` agent gates the merge.
+
 ## Changes
 
 <!-- What gets built, per layer. Concrete enough for an auditor to attack. -->
@@ -89,9 +92,33 @@ Agent defaults (minor; the user may veto them):
 
 1.
 
+## Commits
+
+<!-- In order. Each one builds. Who makes it: main agent (remote-DB steps) or implementer. -->
+
+1. `<imperative message>` (main agent | implementer): what it contains
+
+## Unhappy paths
+
+<!-- Empty, malformed, concurrent, unauthorised, a step failing halfway. How each is handled. -->
+
+-
+
 ## Out of scope
 
 -
+
+## Dependencies not to add
+
+-
+
+## Verify command
+
+<!-- Exact and runnable as written. No placeholders. -->
+
+```
+pnpm exec tsc --noEmit && pnpm lint && pnpm check && pnpm exec vitest run
+```
 
 ## Verification
 
@@ -102,11 +129,21 @@ feature:
 
 ## Audit log
 
-### Round 1 (fresh general-purpose agent): <verdict>, N material and N minor
+### Round 1 (`plan-auditor`): <pass | needs-changes>, confidence <high | medium | low>
 
-| #   | Finding | Resolution (fixed / rejected: reason / escalated) |
-| --- | ------- | ------------------------------------------------- |
-|     |         |                                                   |
+| #   | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
+| --- | ----------------------------- | ------------------------------------------------- |
+|     |                               |                                                   |
+
+- **Non-blocking**: adopted or noted.
+- **Unresolved**: each question and how it was settled.
+- **Pre-existing**: noted, not fixed here.
+
+### Review (`reviewer`, and `security` if gated): <verdict>
+
+| #   | Blocking finding (recurring?) | Resolution |
+| --- | ----------------------------- | ---------- |
+|     |                               |            |
 
 ## Scope-change log
 

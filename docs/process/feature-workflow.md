@@ -8,14 +8,51 @@ needs.
 The loop:
 
 ```
-Question ──▶ Plan ──▶ Audit ──▶ Approve ──▶ Implement ──▶ Verify ──▶ PR
-   ▲           ▲         │                     │
-   │           └─ fixes ─┘                     │
+Question ──▶ Plan ──▶ Audit ──▶ Approve ──▶ Implement ──▶ Review ──▶ Merge
+   ▲           ▲         │                     │    ▲        │
+   │           └─ fixes ─┘                     │    └ fixes ─┘
    └──────── user decision needed ◀────────────┘ (scope change)
 ```
 
-The decision record for these rules is
-[docs/plans/ai-workflow.md](../plans/ai-workflow.md).
+The decision records for these rules are
+[docs/plans/ai-workflow.md](../plans/ai-workflow.md) and
+[docs/plans/agent-roster.md](../plans/agent-roster.md).
+
+## Agents
+
+The roster lives in [.claude/agents/](../../.claude/agents/). Each agent pins
+its own model and effort, so dispatch it by `subagent_type` and **leave out
+`model`**.
+
+| Agent          | Model  | Phase       | Job                                                                                |
+| -------------- | ------ | ----------- | ---------------------------------------------------------------------------------- |
+| `plan-auditor` | opus   | 3 Audit     | Defeat the written plan. Read-only                                                 |
+| `implementer`  | sonnet | 4 Implement | Build the approved plan in an isolated worktree; push each commit to the PR branch |
+| `reviewer`     | opus   | 5 Review    | Defeat the branch diff before merge. Read-only                                     |
+| `security`     | opus   | 5 Review    | Hard gate on security-gated paths (below). Read-only                               |
+
+The three read-only agents share one contract:
+
+- **Standard of proof**: a blocking finding needs a location, evidence the
+  agent read or ran, the written rule or user decision it breaks, and the
+  concrete failure. Absence of a written rule is not a finding, and a clean
+  pass is a legitimate result.
+- **Named doubt**: an `unresolved` (or `could_not_verify`) entry with what was
+  tried and what would settle it. Low confidence requires one.
+- **JSON verdict** with a mandatory `checked_clean` list, and `pre_existing`
+  for real defects the change doesn't introduce.
+- **No writes**: they have Read, Bash, WebFetch, and the Supabase list and
+  inspect tools only. They can't run SQL or the advisors; a query that would
+  settle something comes back in `unresolved` with its exact SQL, and the
+  main agent runs it. After each run, the main agent checks `git status`.
+
+Tools without sub-agents run the same agent file's instructions in a fresh
+session.
+
+**Security-gated paths**: `supabase/migrations/**`,
+`src/integrations/trpc/**`, `src/integrations/auth/**`,
+`src/integrations/organization/**`, `src/lib/supabase/**`, `src/server/**`,
+`src/env.ts`, `src/routes/**`, `docs/database/rls.md`, and `.env.example`.
 
 ## Tiers
 
@@ -85,30 +122,35 @@ as `docs/plans/<slug>.md`.
 
 Try to defeat the plan before building it.
 
-- **Who audits**: a fresh `general-purpose` sub-agent, never a `fork`,
-  because a fork inherits the planner's context and blind spots. Each round
-  uses a new auditor. Tools without sub-agents use a fresh session given the
-  same prompt.
-- **What it gets**: the plan, the user's original request verbatim, the user
-  decisions (fixed, not to be re-litigated), and the instruction to defeat
-  the plan, read-only and **making no edits**. After each round, the planner
-  runs `git status` to confirm nothing changed.
-- **What it returns**: each finding is tagged **MATERIAL** or **MINOR**, and
-  the report ends with a verdict of DEFEATED or NOT DEFEATED. A finding is
-  MATERIAL when following the plan would produce a wrong, broken, insecure,
-  or incomplete result, or when the plan contradicts a user decision. Wording
-  and style are MINOR.
+- **Who audits**: a fresh `plan-auditor` each round, dispatched by
+  `subagent_type` with no `model`. Never a `fork`, because a fork inherits
+  the planner's context and blind spots.
+- **What it gets**: the plan's path, the user's original request verbatim,
+  the user decisions (fixed, not to be re-litigated), and what the planner
+  already verified. On a re-audit it also gets the previous findings and what
+  changed, and it audits the whole plan again.
+- **What it returns**: the JSON verdict described under [Agents](#agents):
+  `pass` or `needs-changes`, with `blocking`, `non_blocking`, `unresolved`,
+  `pre_existing`, and `checked_clean`.
 - **Handling findings**:
   - The planner checks the auditor's factual claims against the repo before
     acting on them.
-  - Every finding is recorded in the plan's Audit log as fixed, rejected with
-    a reason, or escalated.
-  - The planner may not reject a MATERIAL finding without the user agreeing.
+  - Every blocking finding is recorded in the plan's Audit log as fixed,
+    rejected with a reason, or escalated. Non-blocking notes are adopted or
+    noted.
+  - The planner may not reject a blocking finding without the user agreeing.
   - A finding that needs a user decision sends the work back to Phase 1.
-- **Termination**: the loop ends when a round returns no MATERIAL findings.
-  After 3 rounds that still find something, escalate by asking the user a
-  question, not by calling `ExitPlanMode`. If the user approves with a
-  MATERIAL finding still open, log it as a user override.
+  - An `unresolved` query: the planner runs it (or asks the user), then
+    re-audits.
+- **Loop end**:
+  - A `pass` ends the loop.
+  - A finding marked `recurring: true` (it survived a fix, so it wasn't
+    understood), or one saying the _approach_ is wrong, escalates to the user
+    at once.
+  - Otherwise, up to 3 rounds; then escalate with the full history.
+  - Escalate by asking the user a question, not by calling `ExitPlanMode`.
+    If the user approves with a blocking finding still open, log it as a user
+    override.
 
 ## Approval
 
@@ -126,14 +168,27 @@ feedback.
 
 ## Phase 4: Implement
 
-1. Create the branch from `main`: `feat/<slug>`, `fix/<slug>`,
-   `db/<slug>`, or `chore/<slug>`. Schema that is part of a feature stays on
-   `feat/`; `db/` is for schema-only work. Older `feature/*` branches predate
-   this convention.
-2. Commit the plan file first.
-3. Build the layers in this order, committing as you go:
-   migration → `docs/database` → Prisma pull/generate → middleware →
-   procedures → routes/UI → stories/tests → design record.
+1. Create the branch from a freshly fetched `origin/main`: `feat/<slug>`,
+   `fix/<slug>`, `db/<slug>`, or `chore/<slug>`. Schema that is part of a
+   feature stays on `feat/`; `db/` is for schema-only work. Older `feature/*`
+   branches predate this convention.
+2. Commit the plan file first, push, and open a **draft PR**.
+3. Build the layers in this order: migration → `docs/database` → Prisma
+   pull/generate → middleware → procedures → routes/UI → stories/tests →
+   design record.
+   - **The main agent** does the remote-database steps itself, because only
+     it writes to the remote: the migration file, `apply_migration`, the
+     version rename, and regenerating types. Each is an ordinary commit on
+     the PR branch.
+   - **The `implementer`** builds the code layers. Dispatch it with the plan
+     path, the PR branch name, the commits to make, the canonical files to
+     imitate, the non-goals, and the Definition of done. It works in its own
+     worktree and pushes each commit to the PR branch.
+   - **One writer at a time on the PR branch.** While an implementer is
+     dispatched, the main agent doesn't commit to the branch. It runs
+     `git pull --ff-only` before and after each dispatch.
+4. After the merge, remove the implementer's worktree and its temporary
+   branch.
 
 ### Scope changes
 
@@ -144,6 +199,50 @@ If implementation shows that the plan is wrong, **stop**. No silent pivots.
 3. If the change is material, re-enter plan mode, re-audit, and get the
    user's approval again before continuing. Log that approval.
 
+## Phase 5: Review
+
+1. Run the Definition-of-done checks and the plan's exact verify command on
+   the PR branch head, in the main checkout. These include anything that
+   needs `.env.local`, which the implementer's worktree doesn't have.
+2. Dispatch a fresh `reviewer` with the plan path, the request, and the PR
+   branch.
+3. If the diff touches any security-gated path (see [Agents](#agents)),
+   dispatch a fresh `security` agent after the reviewer passes.
+4. Record each verdict in the plan's Audit log, under a Review heading.
+
+On `needs-changes` or `reject`:
+
+- Hand the findings to the implementer **verbatim**: file, line, rule, and
+  failure or attack path. The failure is the acceptance criterion.
+- The first failure goes back to the implementer. On the second, re-dispatch
+  it with `model: "opus"`. A third failure escalates to the user with the
+  full history.
+- A finding marked `recurring: true`, or one saying the approach is wrong,
+  escalates at once.
+- Any fix voids every earlier pass. Re-run step 1, then send a **fresh**
+  reviewer (and security agent, if gated) over the **whole** diff, with the
+  previous findings as history.
+
+## Merge
+
+The main agent merges without asking only when **every** condition holds,
+checked fresh on the PR head:
+
+1. The plan's exact verify command passes, and so do the Definition-of-done
+   checks that apply.
+2. The latest `reviewer` verdict is `pass`.
+3. If security-gated paths changed, the latest `security` verdict is `pass`.
+   A pass with `confidence: low` doesn't count.
+4. `main` has been merged into the branch with no conflicts, and step 1 was
+   re-run after that.
+5. The plan's status is `implemented`, and the PR body has the ticked
+   Definition of done, with a reason for each N/A item.
+6. The PR is out of draft (`gh pr ready`).
+
+Then run `gh pr merge --merge`. There is no CI here, so condition 1 is the
+build gate. If any condition fails, stop and report. "Probably unrelated"
+never justifies a merge.
+
 ## Layer rules
 
 ### Schema
@@ -151,6 +250,9 @@ If implementation shows that the plan is wrong, **stop**. No silent pivots.
 Follow the steps in [docs/database/README.md](../database/README.md#toolchain-and-workflow).
 In addition:
 
+- **Only the main agent writes to the remote database**: `apply_migration`,
+  data writes, the advisors, and pgTAP runs. The implementer has no Supabase
+  tools, and the read-only agents have list and inspect tools only.
 - Apply migrations to the remote only **after the plan is approved**.
 - Before applying, compare `list_migrations` with `supabase/migrations/` on
   `main` plus your branch, matching by name.
@@ -248,6 +350,8 @@ Copy this checklist into the PR body and tick it.
       updated.
 - [ ] `docs/<feature>/ui.md` and its shots are updated; `docs/design/decisions.md`
       is updated if a design decision was made.
+- [ ] The `reviewer` passed, and so did `security` if security-gated paths
+      changed. Verdicts are recorded in the plan's Audit log.
 - [ ] The plan's status is `implemented`.
 
 Procedure tests may only touch a dedicated test org, never `absolute-demo` or
@@ -275,4 +379,5 @@ as part of its slice, and lists it in its plan:
   - links the plan (light tier: pastes the plan);
   - includes the ticked Definition of done;
   - lists the shots added.
-- PRs land as merge commits, matching the existing history.
+- PRs land as merge commits, matching the existing history, and only through
+  the [Merge](#merge) conditions.
