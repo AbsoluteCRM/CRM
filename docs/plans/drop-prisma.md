@@ -394,7 +394,10 @@ gets clean in commit 3 and stays clean.
 5. `Add ADR 0009 for supabase-js data access`: section 3.
 6. `Update the workflow, template, implementer brief, and CLAUDE.md for
 supabase-js`: section 4.
-7. Bookkeeping, after Phase 5: `Record reviews and mark the drop-prisma plan
+7. `Ignore build output in eslint`: `.output/**` in `eslint.config.js`, plus
+   this plan's Commits list and Scope-change log. Found while verifying
+   commit 3; see the Scope-change log.
+8. Bookkeeping, after Phase 5: `Record reviews and mark the drop-prisma plan
 implemented`. It records the `reviewer` and `security` verdicts in the
    Audit log, and sets the status to `implemented`. Recording verdicts isn't
    a fix, so it doesn't void them; verify is re-run on the new head before
@@ -607,3 +610,18 @@ All were resolved into this plan; the details are in the previous revision of
   (Commits, Unhappy paths, Verify command, Dependencies not to add,
   security-gated paths). It also absorbs every drop-prisma caveat that PR #8
   added, and the deferred PR #8 Review 2 note.
+- **During commit 3** (2026-10-05): after the verify command's `pnpm build`
+  had run, `pnpm lint` failed with "A config object is using the `extends`
+  key, which is not supported in flat config system". Cause, confirmed by
+  moving `.output/` away (lint then exits 0): `.output/` isn't in eslint's
+  ignores, so the build's `.js` files match the `files: ['**/*.js']` unicorn
+  block in `eslint.config.js`, which uses `extends`, and ESLint 9.39.5
+  rejects that. This is a pre-existing defect: `pnpm lint` fails on any tree
+  that has been built, on `main` too. It matters here because the Merge
+  gate re-runs the verify command on a tree that already has a build. Fixed
+  minimally by adding `.output/**` to the eslint `ignores`, as commit 7
+  (renumbering bookkeeping to 8). It is not material: it only makes the
+  verify command repeatable, with no decision or behaviour change, so the
+  status is not reset. The unicorn block's invalid `extends` stays as a
+  follow-up, because fixing it is a lint-config change this PR wasn't asked
+  to make.
