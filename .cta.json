@@ -6,11 +6,6 @@
   "includeExamples": false,
   "tailwind": true,
   "projectPreset": "default",
-  "addOnOptions": {
-    "prisma": {
-      "database": "postgres"
-    }
-  },
   "git": true,
   "install": true,
   "intent": true,
@@ -20,7 +15,6 @@
   "chosenAddOns": [
     "eslint",
     "nitro",
-    "prisma",
     "sentry",
     "compiler",
     "db",

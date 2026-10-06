@@ -173,8 +173,8 @@ feedback.
    feature stays on `feat/`; `db/` is for schema-only work. Older `feature/*`
    branches predate this convention.
 2. Commit the plan file first, push, and open a **draft PR**.
-3. Build the layers in this order: migration → `docs/database` → Prisma
-   pull/generate → middleware → procedures → routes/UI → stories/tests →
+3. Build the layers in this order: migration → `docs/database` →
+   `pnpm db:types` → middleware → procedures → routes/UI → stories/tests →
    design record.
    - **The main agent** does the remote-database steps itself, because only
      it writes to the remote: the migration file, `apply_migration`, the
@@ -233,8 +233,7 @@ The main agent merges without asking only when **every** condition holds,
 checked fresh on the PR head:
 
 1. The plan's exact verify command passes, and so do the Definition-of-done
-   checks that apply. Until drop-prisma lands, tsc passes when its only
-   errors are the 2 known Prisma-client ones (`prisma/seed.ts`, `src/db.ts`).
+   checks that apply.
 2. The latest `reviewer` verdict is `pass`.
 3. If security-gated paths changed, the latest `security` verdict is `pass`.
    A pass with `confidence: low` doesn't count.
@@ -267,10 +266,19 @@ In addition:
   - Stop and tell the user about any others.
 - After applying, rename the local file to the version `apply_migration`
   assigned.
-- After `prisma db pull`, `schema.prisma` may change only for this branch's
-  models. Revert other branches' models **and** the back-relation fields
-  they added to shared models such as `Organization`. Then run
-  `pnpm exec prisma validate` before `pnpm db:generate`.
+- Types: `src/types/database.ts` mirrors the Supabase project
+  ([ADR 0009](../database/decisions/0009-supabase-js-data-access.md)).
+  Before running `pnpm db:types`, the project's migrations must equal
+  `main`'s plus this branch's plus other open PRs'; if they don't, stop and
+  tell the user. Regenerate after merging `main` in; never hand-merge
+  `database.ts`. (Today the project has drifted, so this check fails until
+  `db/reconcile-remote` lands.)
+- New app-callable functions: put them in `public`, `revoke execute … from
+public, anon`, and grant to `authenticated`. Supabase also grants
+  `service_role` execute by default, so revoke it explicitly where it should
+  be denied. Default to `security invoker`; a `security definer` function
+  needs an `auth.uid()` or membership check and an entry in the accepted
+  advisor findings in `docs/database/rls.md`.
 - **Abandoned feature**: its migration is already on the remote. A light-tier
   `db/revert-<slug>` PR to `main` commits that migration, a revert
   migration, and the `docs/database` update, so remote history and repo stay
@@ -285,20 +293,18 @@ In addition:
   - The server resolves it to an `active` membership of the current user,
     with that member's role, and rejects the request otherwise.
   - The result is exposed as `ctx.org`.
-- **RLS is the access control**: user requests reach Prisma only through
-  `withRls(claims, (tx) => …)` ([ADR 0007](../database/decisions/0007-prisma-and-rls.md)),
-  so every policy applies, including role scoping. The claims come from the
-  verified Supabase session.
+- **RLS is the access control**: user requests use `ctx.supabase`, the
+  per-request Supabase server client built from the user's session
+  ([ADR 0009](../database/decisions/0009-supabase-js-data-access.md)), so
+  every policy applies, including role scoping.
 - **The active-org filter is also required**: RLS admits every org the user
   belongs to (`private.my_org_ids()`). So every org-owned query and insert
   must also scope to `ctx.org.id`. Both are required, and neither replaces
   the other.
-- **Trusted code only**:
-  - The raw `prisma` client is used only inside `withRls` itself, in
-    `prisma/seed.ts`, and in trusted code under `src/server/trusted/`
-    (webhooks, cron, optimizer write-back).
-  - Supabase clients built with `SUPABASE_SERVICE_ROLE_KEY` also bypass RLS,
-    so they too live only in `src/server/trusted/`.
+- **Trusted code only**: Supabase clients built with
+  `SUPABASE_SERVICE_ROLE_KEY` bypass RLS, so they live only in
+  `src/server/trusted/` (webhooks, cron, optimizer write-back, public token
+  pages).
 
 ### Observability
 
@@ -336,8 +342,7 @@ depend on Claude artifacts or any other external store. See
 
 Copy this checklist into the PR body and tick it.
 
-- [ ] `pnpm exec tsc --noEmit` is clean. Until the Prisma client is first
-      generated, this means "no new errors".
+- [ ] `pnpm exec tsc --noEmit` is clean.
 - [ ] `pnpm lint` and `pnpm check` pass.
 - [ ] Tests for new procedures, including:
   - a cross-tenant test (org A can't read or write org B);
@@ -357,7 +362,8 @@ Copy this checklist into the PR body and tick it.
 - [ ] `docs/<feature>/ui.md` and its shots are updated; `docs/design/decisions.md`
       is updated if a design decision was made.
 - [ ] The `reviewer` passed, and so did `security` if security-gated paths
-      changed. Verdicts are recorded in the plan's Audit log.
+      changed. Verdicts are recorded in the plan's Audit log (light tier: the PR
+      body).
 - [ ] The plan's status is `implemented`.
 
 Procedure tests may only touch a dedicated test org, never `absolute-demo` or
@@ -368,14 +374,16 @@ real tenants.
 Some pieces don't exist yet. The **first feature that needs one builds it**
 as part of its slice, and lists it in its plan:
 
-| Piece                            | Notes                                                                                                                                                                                                                                           |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prisma client                    | `prisma db pull` + `pnpm db:generate`, and replace the scaffold `prisma/seed.ts`                                                                                                                                                                |
-| Org-scoped procedure + `withRls` | Build on `protectedProcedure` from `origin/feature/trpc-auth`; don't write a second one. If that branch hasn't merged, ask the user whether to rebase onto it. The context must also carry verified JWT claims (for example from `getClaims()`) |
-| SSR auth for tRPC                | Forward the incoming request's cookie header in the SSR link in `root-provider.tsx`, or use a per-request server caller. Add a server-side `beforeLoad` guard on `_authed`; today the guard is client-only                                      |
-| Sentry tRPC middleware           | See Observability                                                                                                                                                                                                                               |
-| Unit/integration Vitest project  | Record how tests reach the database without touching real tenants; consider Supabase branching                                                                                                                                                  |
-| Seeded test user and org         | Credentials in `.env.local` as `E2E_EMAIL` / `E2E_PASSWORD`                                                                                                                                                                                     |
+| Piece                                 | Notes                                                                                                                                                                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Generated types                       | `pnpm db:types`, then wire `createServerClient<Database>` and `createBrowserClient<Database>` in `src/lib/supabase/`. Done by `db/reconcile-remote`; until then `src/types/database.ts` doesn't exist                                                        |
+| Org-scoped procedure + `ctx.supabase` | Build on `protectedProcedure` from `origin/feature/trpc-auth`; don't write a second one. If that branch hasn't merged, ask the user whether to rebase onto it. Add `ctx.supabase` (the per-request server client) and the resolved active org to its context |
+| SSR auth for tRPC                     | Forward the incoming request's cookie header in the SSR link in `root-provider.tsx`, or use a per-request server caller. Add a server-side `beforeLoad` guard on `_authed`; today the guard is client-only                                                   |
+| Sentry tRPC middleware                | See Observability                                                                                                                                                                                                                                            |
+| Trusted client                        | Read `SUPABASE_SERVICE_ROLE_KEY` from `process.env` on the server only (`src/env.ts` reads `import.meta.env`, which carries only `VITE_` values), under `src/server/trusted/`, with an eslint ban on the key elsewhere                                       |
+| Unit/integration Vitest project       | Record how tests reach the database without touching real tenants (fixtures use the service-role client and the auth admin API, not a direct connection); consider Supabase branching                                                                        |
+| Seeded test user and org              | Credentials in `.env.local` as `E2E_EMAIL` / `E2E_PASSWORD`                                                                                                                                                                                                  |
+| Remote reconciliation                 | `db/reconcile-remote`. Until it lands, the project has drifted from the migrations, so the migrations-equal check before `pnpm db:types` fails: stop and point the user at it                                                                                |
 
 ## Git and PRs
 

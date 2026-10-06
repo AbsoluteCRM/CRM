@@ -1,6 +1,6 @@
 # 0001. Supabase SQL migrations are the schema source of truth
 
-- **Status**: Accepted
+- **Status**: Accepted (the Prisma bullet is superseded by [0009](0009-supabase-js-data-access.md))
 - **Date**: 2026-09-29
 
 ## Context
