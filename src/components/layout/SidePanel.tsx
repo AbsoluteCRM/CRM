@@ -6,6 +6,7 @@ import {
   Handshake,
   MessageSquareDiff,
   Toolbox,
+  Settings,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
@@ -41,6 +42,7 @@ export default function SidePanel() {
       <IconRow label="Clients" icon={Handshake} route="/clients" />
       <IconRow label="Team" icon={Group} route="/teams" />
       <IconRow label="Services" icon={Toolbox} route="/services" />
+      <IconRow label="Settings" icon={Settings} route="/settings" />
     </div>
   )
 }

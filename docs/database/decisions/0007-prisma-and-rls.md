@@ -1,6 +1,6 @@
 # 0007. Prisma queries run under RLS via `withRls()`
 
-- **Status**: Accepted (2026-09-29)
+- **Status**: Superseded by [0009](0009-supabase-js-data-access.md) (2026-10-05)
 - **Date**: 2026-09-29
 
 ## Context

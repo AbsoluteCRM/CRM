@@ -25,3 +25,11 @@ devenv.local.yaml
 
 # pre-commit
 .pre-commit-config.yaml
+
+
+# Claude Code agent worktrees (implementer isolation)
+.claude/worktrees/
+
+# Supabase CLI scratch directory, and the types generator's temp file
+supabase/.temp/
+src/types/database.ts.tmp
