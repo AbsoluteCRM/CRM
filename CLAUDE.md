@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-A multi-tenant CRM for contractor businesses, built on a scaffolded TanStack Start app (created with `create-tsrouter-app`; add-ons listed in `.cta.json`). The database schema is in place (see `docs/database/`). Supabase sign-in and sign-up and the `_authed` page shells exist, but most domain code has not been written yet. The `todos` tRPC router, the Prisma `Todo` model, the `messagesCollection`, and `src/stories/*` are scaffold examples. Replace them rather than building on them.
+A multi-tenant CRM for contractor businesses, built on a scaffolded TanStack Start app (created with `create-tsrouter-app`; add-ons listed in `.cta.json`). The database schema is in place (see `docs/database/`). Supabase sign-in and sign-up and the `_authed` page shells exist, but most domain code has not been written yet. The `todos` tRPC router, the `messagesCollection`, and `src/stories/*` are scaffold examples. Replace them rather than building on them.
 
 ## Feature workflow
 
@@ -17,14 +17,14 @@ Every change follows [docs/process/feature-workflow.md](docs/process/feature-wor
 - **Agents** ([.claude/agents/](.claude/agents/)): `plan-auditor` (plans), `implementer` (builds in a worktree and pushes to the PR branch), `reviewer` (every diff before merge), and `security` (a hard gate on the security-gated paths listed in the workflow's Agents section: migrations, auth, organization context, tRPC, Supabase clients, server-only code, routes, env, and `rls.md`). Dispatch them by `subagent_type` without a `model`. Only the main agent writes to the remote database; the read-only agents get Supabase list and inspect tools only.
 - **Done** means: tsc, lint and prettier pass; procedure tests (cross-tenant, multi-org, per-role); stories with interaction tests; verified in the running app; reviewer (and security, if gated) passed; docs updated.
 - **Merge autonomously only through the gate**: verify passes fresh on the PR head, the reviewer passed, security passed if gated, `main` merged in cleanly, the plan is `implemented`, and the PR is out of draft. Then `gh pr merge --merge`. Otherwise stop and report.
-- **Tenancy**: user requests reach Prisma only through `withRls` (ADR 0007) and also filter by the active org. Never use `publicProcedure` for domain data.
+- **Tenancy**: user requests use `ctx.supabase`, the per-request Supabase client, so RLS is the access control (ADR 0009), and also filter by the active org. Never use `publicProcedure` for domain data.
 - **No surprises.** If the plan turns out wrong mid-build, stop, update the plan, and re-ask. Never use `--no-verify`.
 
 ## Commands
 
-Package manager is **pnpm**. Env vars come from `.env.local` (gitignored). It holds `DATABASE_URL`, the Supabase keys (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), and the Sentry `VITE_SENTRY_*` / `SENTRY_AUTH_TOKEN` values. Scripts that need these values wrap themselves in `dotenv -e .env.local`. After a fresh install, run `pnpm db:generate`. The Prisma client in `src/generated/` is gitignored, and tsc fails without it.
+Package manager is **pnpm**. Env vars come from `.env.local` (gitignored). It holds the Supabase keys (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), and the Sentry `VITE_SENTRY_*` / `SENTRY_AUTH_TOKEN` values. Scripts that need these values wrap themselves in `dotenv -e .env.local`.
 
-The toolchain comes from **devenv** (`devenv.nix`: Node 22, TypeScript, git-lfs). Enter it with `devenv shell`; the repo has no `.envrc` for direnv. devenv generates the gitignored `.pre-commit-config.yaml`, so change `devenv.nix` rather than that file. `.devcontainer/devcontainer.json` is committed by hand. On commit, the git hooks run prettier (the repo's pinned version) on staged files and nixfmt on `.nix` files. Entering the shell also runs `git lfs install --local`, because screenshots under `docs/` are stored in Git LFS.
+The toolchain comes from **devenv** (`devenv.nix`: Node 22, TypeScript, git-lfs, supabase-cli). Enter it with `devenv shell`; the repo has no `.envrc` for direnv. devenv generates the gitignored `.pre-commit-config.yaml`, so change `devenv.nix` rather than that file. `.devcontainer/devcontainer.json` is committed by hand. On commit, the git hooks run prettier (the repo's pinned version) on staged files and nixfmt on `.nix` files. Entering the shell also runs `git lfs install --local`, because screenshots under `docs/` are stored in Git LFS.
 
 ```bash
 pnpm dev                 # dev server on :3000 (loads Sentry via instrument.server.mjs)
@@ -35,8 +35,7 @@ pnpm format              # prettier --write + eslint --fix
 pnpm check               # prettier --check
 pnpm exec tsc --noEmit   # typecheck (no script for it)
 
-pnpm db:generate         # prisma generate → src/generated/prisma (run after schema changes)
-pnpm db:push | db:migrate | db:studio | db:seed
+pnpm db:types            # supabase gen types → src/types/database.ts (inside devenv shell; not usable until db/reconcile-remote lands)
 
 pnpm storybook           # Storybook on :6006
 pnpm exec vitest run                                   # all tests
@@ -63,11 +62,11 @@ The README says the build output goes to `dist/`. It's wrong: Nitro writes to `.
   - `src/routes/_authed.tsx` is the layout for signed-in pages. Its guard is client-only.
 - **Schema design**: `docs/database/` is the design record. It holds the conventions, ERD, per-table reference, RLS model, and ADRs. Read it before touching the schema, and update it in the same change.
   - The schema's source of truth is hand-written SQL in `supabase/migrations/`. It is applied to the remote Supabase project through the Supabase MCP `apply_migration` tool under the same name, and then the local file is renamed to the version the tool assigned.
-  - `prisma/schema.prisma` is generated by `prisma db pull`. Don't use `prisma migrate` or `db push`.
-  - Prisma connects as `postgres`, which bypasses RLS. So, per ADR 0007, user requests must go through `withRls(claims, tx => …)`, which isn't built yet. The raw `prisma` client and service-role Supabase clients are for trusted code only (`src/server/trusted/`, seeds).
-- **Database**: Prisma 7 with PostgreSQL through the `@prisma/adapter-pg` driver adapter. The client is generated into `src/generated/prisma` (import from `./generated/prisma/client.js`, not `@prisma/client`). `src/db.ts` exports a singleton `prisma` that is cached on `globalThis` in dev. Prisma CLI config (datasource URL, seed command `tsx prisma/seed.ts`) is in `prisma.config.ts`.
+  - **The remote has drifted from the migrations** (it re-applied 8 of the 13 on 2026-10-02, with different content, and lacks invoicing and time tracking, plus the seed). Don't run `pnpm db:types` or apply schema changes until the follow-up `db/reconcile-remote` lands. See `docs/database/README.md`.
+  - Service-role Supabase clients bypass RLS, so they are for trusted code only (`src/server/trusted/`). See ADR 0009.
+- **Database access**: supabase-js with the user's session, so RLS applies ([ADR 0009](docs/database/decisions/0009-supabase-js-data-access.md)). Use the per-request `createSupabaseServerClient()` in `src/lib/supabase/server.ts`. Multi-step or transactional writes are SQL functions called with `.rpc()`. There is no ORM and no direct Postgres connection. Generated types (`src/types/database.ts`, from `pnpm db:types`) are **pending**: the file doesn't exist until `db/reconcile-remote` lands.
 - **Client-side collections**: `@tanstack/react-db` collections go in `src/db-collections/`. Only a local-only example exists so far; `@tanstack/query-db-collection` is installed for query-backed collections.
-- **Env**: `src/env.ts` uses t3 `createEnv`. Client vars must be prefixed `VITE_`. It validates `SERVER_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_APP_TITLE`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`. `DATABASE_URL` is read directly from `process.env` in `src/database-url.ts`.
+- **Env**: `src/env.ts` uses t3 `createEnv`. Client vars must be prefixed `VITE_`. It validates `SERVER_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_APP_TITLE`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`.
 - **UI**: shadcn/ui (new-york, zinc, lucide) in `src/components/ui`, Tailwind v4 through `src/styles.css`, and `cn()` in `src/lib/utils.ts`. Add components with `pnpm dlx shadcn@latest add <name>`.
 - **Imports**: use the `#/*` alias for `src/*`. It's defined in both `package.json` `imports` and `tsconfig` paths, and it's what shadcn uses. `@/*` also resolves but is not the convention.
 

@@ -51,8 +51,8 @@ Agent defaults (minor; the user may veto them):
 - [ ] Migration (`supabase/migrations/…`)
 - [ ] RLS policies / pgTAP tests
 - [ ] `docs/database` (tables, ERD, ADR)
-- [ ] Prisma pull / generate
-- [ ] Middleware (auth, org scope, `withRls`)
+- [ ] Types (`pnpm db:types`)
+- [ ] Middleware (auth, org scope, `ctx.supabase`)
 - [ ] tRPC procedures
 - [ ] Routes / loaders
 - [ ] UI components
@@ -114,7 +114,7 @@ the list>. If any, the `security` agent gates the merge.
 
 ## Verify command
 
-<!-- Exact and runnable as written. No placeholders. tsc runs last: until drop-prisma lands it exits non-zero on 2 known Prisma-client errors, which must not stop the other checks from running. -->
+<!-- Exact and runnable as written. No placeholders. -->
 
 ```
 pnpm lint && pnpm check && pnpm exec vitest run && pnpm exec tsc --noEmit
