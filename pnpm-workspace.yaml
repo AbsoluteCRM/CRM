@@ -3,5 +3,3 @@ allowBuilds:
   lightningcss: true
   '@sentry/cli': true
   unrs-resolver: false
-  '@prisma/engines': set this to true or false
-  prisma: set this to true or false
