@@ -1,10 +1,11 @@
 import { TRPCError, initTRPC } from '@trpc/server'
 import superjson from 'superjson'
 
-import type { User } from '@supabase/supabase-js'
+import type { SupabaseClient, User } from '@supabase/supabase-js'
 
 export interface TRPCContext {
   user: User | null
+  supabase: SupabaseClient
 }
 
 const t = initTRPC.context<TRPCContext>().create({

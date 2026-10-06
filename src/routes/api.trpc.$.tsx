@@ -20,11 +20,13 @@ function handler({ request }: { request: Request }) {
       if (error) {
         return {
           user: null,
+          supabase,
         }
       }
 
       return {
         user,
+        supabase,
       }
     },
   })
