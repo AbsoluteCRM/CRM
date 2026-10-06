@@ -5,7 +5,7 @@
 - **Tier**: full. It touches more than one layer: tooling, `docs/database`,
   ADRs, the workflow rules, and the agent briefs.
 - **Plan-mode file**: `~/.claude/plans/fluttering-wishing-reef.md`
-- **Status**: approved (2026-10-05, on plan-mode exit). It was paused for `chore/agent-roster` (merged as PR #8)
+- **Status**: implemented (2026-10-06). Approved 2026-10-05 on plan-mode exit. It was paused for `chore/agent-roster` (merged as PR #8)
   and is now re-audited from round 1 by `plan-auditor`. Rounds 1–3 under the
   old auditor are in `docs/plans/drop-prisma.md` on `main`.
 - **Confidence**: 96%. Q1–Q7 come from the user. The repo and remote facts
@@ -602,6 +602,20 @@ All were resolved into this plan; the details are in the previous revision of
     v9 has no transitive `version:` lines, and it lists the expected `tsx` and
     `optional` noise.
 
+### Review 1 (`reviewer`): **pass**, confidence high
+
+- Head 4a540c8. No blocking findings. Non-blocking notes: the commit-order
+  deviation (now logged in the Scope-change log), the status and
+  bookkeeping (this commit), two cosmetic formatting nits, and that
+  `db:types` is unrun until `db/reconcile-remote`.
+
+### Review 1 (`security`): **pass**, confidence high
+
+- Head 4a540c8. No findings. The diff removes an RLS-bypassing path, no
+  tenancy rule is weakened, and there are no secrets. Pre-existing:
+  `src/env.ts` never populates `SUPABASE_SERVICE_ROLE_KEY` (recorded in the
+  workflow's Bootstrapping table).
+
 ## Scope-change log
 
 - Planning: types generation and wiring (Q3) were split out to
@@ -625,3 +639,7 @@ All were resolved into this plan; the details are in the previous revision of
   status is not reset. The unicorn block's invalid `extends` stays as a
   follow-up, because fixing it is a lint-config change this PR wasn't asked
   to make.
+- Commit order differs from the Commits list: the eslint `.output/**` commit
+  (5da1ba8) landed fourth, and one extra commit, 651a914, removed stale
+  Prisma placeholder entries that an aborted `pnpm install` had written into
+  `pnpm-workspace.yaml`. Neither changes behaviour or a decision.
