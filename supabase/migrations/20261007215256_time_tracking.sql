@@ -3,7 +3,7 @@
 -- See docs/database/tables/time.md.
 --
 -- RLS: office staff manage all time. Workers clock in and out, and time
--- their visits, through worker_* RPCs that stamp the server clock (ADR 0010).
+-- their visits, through worker_* RPCs that stamp the server clock (ADR 0011).
 
 create type public.time_source as enum ('app', 'manual', 'auto');
 

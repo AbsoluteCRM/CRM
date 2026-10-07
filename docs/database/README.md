@@ -167,19 +167,19 @@ Domains are migrated one at a time, in FK-dependency order
 `routes`). Advisors and pgTAP tests run after each. Once the rebaseline
 lands, an applied migration is never edited; fixes go in a new migration.
 
-| #   | Migration            | Status                           | Creates                                                                                                                |
-| --- | -------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 1   | `foundation`         | applied (rename file to version) | Extensions, `private` schema, default privileges, `uuid_generate_v7`                                                   |
-| 2   | `tenancy_identity`   | applied (rename file to version) | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs, `my_memberships`  |
-| 3   | `clients_properties` | applied (rename file to version) | clients, client_contacts, properties, client_portal_users, `portal_clients()`                                          |
-| 4   | `catalog_tax`        | applied (rename file to version) | services, tax_rates (insert-only percentage, `archived_at`), service_default_taxes                                     |
-| 5   | `crews`              | applied (rename file to version) | crews, crew_members                                                                                                    |
-| 6   | `quotes`             | applied (rename file to version) | quotes and their lines and taxes, statement-level totals, quote RPCs, hourly `expire-quotes` cron                      |
-| 7   | `jobs_visits`        | applied (rename file to version) | jobs (`window_start` + `window_minutes`), job lines and `job_line_item_taxes`, visits, attachments, `org-files` bucket |
-| 8   | `routing`            | applied (rename file to version) | routes, route_members (`unique (member, date)`), route_stops, optimization_runs, `reset_job_schedule`                  |
-| 9   | `invoices_payments`  | written, not applied             | invoices, lines, invoice_visits, taxes, payments, stripe_events, per-org invoice cron, portal RPCs                     |
-| 10  | `time_tracking`      | written, not applied             | shifts, visit_time_entries, labor_cost_report                                                                          |
-| 11  | `worker_api`         | written, not applied             | `worker_*` RPCs, worker storage policies ([ADR 0011](decisions/0011-worker-rpcs.md))                                   |
+| #   | Migration            | Status  | Creates                                                                                                                |
+| --- | -------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 1   | `foundation`         | applied | Extensions, `private` schema, default privileges, `uuid_generate_v7`                                                   |
+| 2   | `tenancy_identity`   | applied | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs, `my_memberships`  |
+| 3   | `clients_properties` | applied | clients, client_contacts, properties, client_portal_users, `portal_clients()`                                          |
+| 4   | `catalog_tax`        | applied | services, tax_rates (insert-only percentage, `archived_at`), service_default_taxes                                     |
+| 5   | `crews`              | applied | crews, crew_members                                                                                                    |
+| 6   | `quotes`             | applied | quotes and their lines and taxes, statement-level totals, quote RPCs, hourly `expire-quotes` cron                      |
+| 7   | `jobs_visits`        | applied | jobs (`window_start` + `window_minutes`), job lines and `job_line_item_taxes`, visits, attachments, `org-files` bucket |
+| 8   | `routing`            | applied | routes, route_members (`unique (member, date)`), route_stops, optimization_runs, `reset_job_schedule`                  |
+| 9   | `invoices_payments`  | applied | invoices, lines, invoice_visits, taxes, payments, stripe_events, per-org invoice cron, portal RPCs                     |
+| 10  | `time_tracking`      | applied | shifts, visit_time_entries, labor_cost_report                                                                          |
+| 11  | `worker_api`         | applied | `worker_*` RPCs, worker storage policies ([ADR 0011](decisions/0011-worker-rpcs.md))                                   |
 
 ## Out of scope (for now)
 

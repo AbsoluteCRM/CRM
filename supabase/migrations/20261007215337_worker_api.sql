@@ -2,7 +2,7 @@
 -- no policies on clients, jobs, properties, visits, or time tables. These
 -- security definer RPCs return crew-safe columns only and perform the few
 -- actions a worker takes, stamping times from the server clock.
--- See ADR 0010 and docs/database/rls.md.
+-- See ADR 0011 and docs/database/rls.md.
 --
 -- Scope: routes the caller is rostered on (route_members) that office staff
 -- have published. Published and in-progress routes are actionable; completed
