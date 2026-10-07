@@ -13,7 +13,6 @@ last.
 [docs/database/decisions/](../database/decisions/README.md) or the feature's
 plan instead.
 
-| #   | Date | Decision | Reason | Where it lives |
-| --- | ---- | -------- | ------ | -------------- |
-
-_None yet._
+| #   | Date       | Decision                                                                                                             | Reason                                                                                                                     | Where it lives                   |
+| --- | ---------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| 1   | 2026-10-07 | Style the Calendar with the current CRM brand system across week navigation, day tiles, route stops, and map states. | Keep the Calendar visually consistent with the rest of the signed-in CRM while retaining its existing layout and behavior. | [Calendar UI](../calendar/ui.md) |
