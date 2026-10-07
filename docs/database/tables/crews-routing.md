@@ -31,7 +31,6 @@ re-optimization unless someone first moves it back to `draft`.
 | `default_end_location`   | `geography(Point,4326)` | yes  |           | Null = return to start                      |
 | `default_start_time`     | `time`                  | no   | `'08:00'` | Local time                                  |
 | `max_work_minutes`       | `integer`               | yes  |           | Daily capacity passed to the optimizer      |
-| `is_active`              | `boolean`               | no   | `true`    |                                             |
 | `archived_at`            | `timestamptz`           | yes  |           |                                             |
 
 ## `crew_members`
@@ -70,17 +69,18 @@ crew's default roster.
 ## `route_members`
 
 The actual people on a route that day. It's seeded from `crew_members` when
-the route is created and can be edited (for sick days or swaps). **Workers
-see visits through this table.** Has no `id` column.
+the route is created and can be edited (for sick days or swaps). Workers' scope comes from this table (through `worker_*` RPCs). Has no `id`
+column.
 
-| Column            | Type   | Null | Default | Notes                                                             |
-| ----------------- | ------ | ---- | ------- | ----------------------------------------------------------------- |
-| `organization_id` | `uuid` | no   |         |                                                                   |
-| `route_id`        | `uuid` | no   |         | Composite FK → `routes`, on delete cascade. PK part               |
-| `member_id`       | `uuid` | no   |         | Composite FK → `organization_members`, on delete cascade. PK part |
+| Column            | Type   | Null | Default | Notes                                                                          |
+| ----------------- | ------ | ---- | ------- | ------------------------------------------------------------------------------ |
+| `organization_id` | `uuid` | no   |         |                                                                                |
+| `route_id`        | `uuid` | no   |         | Composite FK → `routes`, on delete cascade. PK part                            |
+| `member_id`       | `uuid` | no   |         | Composite FK → `organization_members`, on delete cascade. PK part              |
+| `route_date`      | `date` | no   |         | Copied from the route (composite FK `(organization_id, route_id, route_date)`) |
 
-Index `(organization_id, member_id, route_id)`, which the worker RLS uses.
-A trigger rejects placing a member on two routes on the same date.
+`unique (organization_id, member_id, route_date)` rejects placing a member on two
+routes on the same date (a real constraint, so concurrent bookings can't both pass).
 
 ## `route_stops`
 
@@ -149,48 +149,53 @@ delete cascade.
 
 ## Behaviour (as built)
 
-Migration `20260929201854_routing`.
+Migration `routing`.
 
 **Keys**:
 
-- `routes`: `unique (organization_id, crew_id, route_date)`
+- `routes`: `unique (organization_id, crew_id, route_date)`, and
+  `unique (organization_id, id, route_date)` as the FK target that carries the
+  date to `route_members`
 - `route_stops`:
   - `unique (organization_id, visit_id)`: a visit is on at most one route
   - `unique (organization_id, route_id, sequence) deferrable initially deferred`
-- `route_members`: PK `(organization_id, route_id, member_id)`
+- `route_members`: PK `(organization_id, route_id, member_id)`, and
+  `unique (organization_id, member_id, route_date)`
 
 **Triggers**:
 
-| Table           | Trigger                 | Does                                                                                                                                                                                       |
-| --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `routes`        | before insert           | Copies start and end location and `planned_start` (route date + crew start time, org timezone) from the crew                                                                               |
-| `routes`        | after insert            | Seeds `route_members` from active `crew_members`, skipping anyone already routed that day                                                                                                  |
-| `routes`        | before update of status | Stamps `published_at` when the route is published                                                                                                                                          |
-| `route_members` | before insert/update    | Rejects a member already on another route that date (`23P01`)                                                                                                                              |
-| `route_stops`   | before insert/update    | The visit's `scheduled_date` must equal `route_date` (`23514`)                                                                                                                             |
-| `visits`        | after update of date    | A rescheduled visit's stop on the old date is deleted                                                                                                                                      |
-| `visits`        | before update           | **Workers** may change only `status` (to `in_progress`, `completed`, or `no_show`), actual times, `completion_notes`, and `completed_by_member_id` (only to themselves). Otherwise `42501` |
+| Table               | Trigger                 | Does                                                                                                                                                                    |
+| ------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `routes`            | before insert           | Copies start and end location and `planned_start` (route date + crew start time, org timezone) from the crew                                                            |
+| `routes`            | after insert            | Seeds `route_members` from active `crew_members`; anyone already routed that day is skipped (`on conflict do nothing`)                                                  |
+| `routes`            | before update of status | Stamps `published_at` when the route is published                                                                                                                       |
+| `route_members`     | before insert           | Copies `route_date` from the route (the composite FK proves it)                                                                                                         |
+| `route_stops`       | before insert/update    | The visit's `scheduled_date` must equal `route_date` (`23514`); the visit row is locked on every write (a concurrent reschedule can deadlock with it: retry on `40P01`) |
+| `visits`            | after update of date    | A rescheduled visit's stop on the old date is deleted                                                                                                                   |
+| `optimization_runs` | before insert/update    | `crew_ids` and `unassigned_visit_ids` may only name this organization's crews and visits (`23503`)                                                                      |
 
-`reset_job_schedule()` was redefined here so it never deletes a visit that
-has a route stop.
+Routes' `crew_id` and `route_date` aren't updatable through the API: build a
+new route instead of moving one.
+
+`reset_job_schedule()` (a `security definer` function with an office-role
+check) never deletes a visit that has a route stop.
 
 ## Worker access
 
-A worker's scope is derived from routes, never stored. These `private`
-helpers are uncorrelated, `security definer`, and return `setof uuid`:
+Workers have no table policies on routes, stops, visits, jobs, properties, or
+clients. They read and act through `worker_*` RPCs
+([ADR 0011](../decisions/0011-worker-rpcs.md)):
 
-| Helper                   | Returns                                                                                                    |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `worker_route_ids()`     | Routes where the caller is in `route_members` and the status is `published`, `in_progress`, or `completed` |
-| `worker_visit_ids()`     | Visits with a stop on those routes                                                                         |
-| `worker_job_ids()`       | Those visits' jobs                                                                                         |
-| `worker_property_ids()`  | Those visits' properties                                                                                   |
-| `worker_client_ids()`    | Those jobs' clients                                                                                        |
-| `worker_price_org_ids()` | Orgs where the caller is a worker and `settings.workers_see_prices` is true                                |
+| Function                                                                | Does                                                                                                                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `worker_my_routes(date)`                                                | The caller's published, in-progress, or completed routes on a date, across organizations                                                          |
+| `worker_route_stops(route_id)`                                          | Stops with crew-safe columns (address, access notes, client name and phone, instructions, the window, status; price only if `workers_see_prices`) |
+| `worker_start_visit` / `worker_join_visit`                              | The first worker starts a scheduled visit; other rostered workers join to open their own time entry                                               |
+| `worker_complete_visit` / `worker_mark_no_show`                         | Records the caller, stamps server times, and closes every open time entry                                                                         |
+| `worker_add_attachment`, `worker_clock_in` / `_out`, `worker_my_shifts` | Photos for their visits, and shifts with server-stamped times                                                                                     |
 
-This migration **replaced** the office-only select policies on `visits`,
-`jobs`, `job_line_items`, `properties`, `clients`, `client_contacts`, and
-`attachments` (plus the update policy on `visits` and the insert policy on
-`attachments`). Each is now a single `office OR worker-scope` policy, so
-there are never two permissive policies for one action. Draft and optimized
-routes are invisible to workers.
+Scope comes from `private.worker_routes()` and `private.worker_visits()`: the
+caller's active membership on `route_members` of a route office staff have
+published. Actions need a published or in-progress route; completed routes
+and billed visits are read-only. Draft and optimized routes are invisible to
+workers.

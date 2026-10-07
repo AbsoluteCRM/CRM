@@ -17,32 +17,32 @@ described in the [README](../README.md#conventions) and are not repeated here.
 A contractor business, and the tenant boundary. There's no
 `organization_id` column; `id` is the tenant id.
 
-| Column                          | Type      | Null | Default              | Notes                                                                                                                                           |
-| ------------------------------- | --------- | ---- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                          | `text`    | no   |                      |                                                                                                                                                 |
-| `slug`                          | `citext`  | no   |                      | Unique. Used in URLs                                                                                                                            |
-| `timezone`                      | `text`    | no   | `'America/Edmonton'` | IANA name. Defines day boundaries for visits and routes. Validated by a trigger against `pg_timezone_names` (a CHECK constraint can't query it) |
-| `currency`                      | `char(3)` | no   | `'CAD'`              | ISO 4217                                                                                                                                        |
-| `country`                       | `char(2)` | no   | `'CA'`               | ISO 3166-1 alpha-2                                                                                                                              |
-| `email`                         | `citext`  | yes  |                      |                                                                                                                                                 |
-| `phone`                         | `text`    | yes  |                      |                                                                                                                                                 |
-| `address_line1` … `postal_code` | `text`    | yes  |                      | Same address columns as [properties](clients.md#properties)                                                                                     |
-| `logo_path`                     | `text`    | yes  |                      | Storage path in the `org-files` bucket                                                                                                          |
-| `settings`                      | `jsonb`   | no   | `'{}'`               | See settings keys below                                                                                                                         |
-| `stripe_account_id`             | `text`    | yes  |                      | Stripe Connect account (`acct_…`). Unique                                                                                                       |
-| `created_by`                    | `uuid`    | yes  |                      | FK → `auth.users` on delete set null                                                                                                            |
+| Column                          | Type    | Null | Default              | Notes                                                                                                                                           |
+| ------------------------------- | ------- | ---- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                          | `text`  | no   |                      |                                                                                                                                                 |
+| `slug`                          | `text`  | no   |                      | Unique. Used in URLs                                                                                                                            |
+| `timezone`                      | `text`  | no   | `'America/Edmonton'` | IANA name. Defines day boundaries for visits and routes. Validated by a trigger against `pg_timezone_names` (a CHECK constraint can't query it) |
+| `currency`                      | `text`  | no   | `'CAD'`              | ISO 4217                                                                                                                                        |
+| `country`                       | `text`  | no   | `'CA'`               | ISO 3166-1 alpha-2                                                                                                                              |
+| `email`                         | `text`  | yes  |                      |                                                                                                                                                 |
+| `phone`                         | `text`  | yes  |                      |                                                                                                                                                 |
+| `address_line1` … `postal_code` | `text`  | yes  |                      | Same address columns as [properties](clients.md#properties)                                                                                     |
+| `logo_path`                     | `text`  | yes  |                      | Storage path in the `org-files` bucket                                                                                                          |
+| `settings`                      | `jsonb` | no   | `'{}'`               | See settings keys below                                                                                                                         |
+| `stripe_account_id`             | `text`  | yes  |                      | Stripe Connect account (`acct_…`). Unique                                                                                                       |
+| `created_by`                    | `uuid`  | yes  |                      | FK → `auth.users` on delete set null                                                                                                            |
 
-`settings` keys (validated in the app; defaults apply when a key is absent):
+`settings` keys (validated in the app, except `default_payment_terms_days`, which falls back to 30 when not a whole number; defaults apply when a key is absent):
 
-| Key                                              | Type    | Default              | Meaning                                         |
-| ------------------------------------------------ | ------- | -------------------- | ----------------------------------------------- |
-| `workers_see_prices`                             | boolean | `false`              | Workers can read job and visit line-item prices |
-| `visit_horizon_weeks`                            | integer | `8`                  | How far ahead recurring visits are materialized |
-| `default_payment_terms_days`                     | integer | `30`                 | Invoice due date = issue date + N days          |
-| `invoice_prefix` / `quote_prefix` / `job_prefix` | text    | `INV-` / `Q-` / `J-` | Prefixes for document numbers                   |
+| Key                                              | Type    | Default              | Meaning                                               |
+| ------------------------------------------------ | ------- | -------------------- | ----------------------------------------------------- |
+| `workers_see_prices`                             | boolean | `false`              | `worker_route_stops` returns the job price to workers |
+| `visit_horizon_weeks`                            | integer | `8`                  | How far ahead recurring visits are materialized       |
+| `default_payment_terms_days`                     | integer | `30`                 | Invoice due date = issue date + N days                |
+| `invoice_prefix` / `quote_prefix` / `job_prefix` | text    | `INV-` / `Q-` / `J-` | Prefixes for document numbers                         |
 
 **On create**: organizations are created only through the
-`public.create_organization(name, slug, timezone)` RPC. It inserts the org
+`public.create_organization(name, slug, timezone, currency, country)` RPC. It inserts the org
 and makes the caller its `owner` member. There's no direct insert policy.
 Deleting an organization is service-role only.
 
@@ -75,7 +75,7 @@ have time tracked.
 | `role`          | `org_role`              | no   | `'worker'` |                                      |
 | `status`        | `member_status`         | no   | `'active'` |                                      |
 | `display_name`  | `text`                  | no   |            | Shown on schedules and routes        |
-| `email`         | `citext`                | yes  |            |                                      |
+| `email`         | `text`                  | yes  |            |                                      |
 | `phone`         | `text`                  | yes  |            |                                      |
 | `color`         | `text`                  | yes  |            | Calendar colour, `#rrggbb` (check)   |
 | `home_location` | `geography(Point,4326)` | yes  |            | Optional per-worker route start      |
@@ -85,7 +85,18 @@ Constraints and indexes:
 - `unique (organization_id, id)` (target for composite FKs)
 - `unique (organization_id, user_id)`, so a user is a member of an org at most once
 - index `(user_id, organization_id) include (role, status)`, which the RLS helpers use on every query
-- Trigger: an org must always keep ≥ 1 active `owner`. The last owner can't be demoted, disabled, or deleted.
+- Triggers:
+  - `ensure_org_has_owner`: an org must always keep ≥ 1 active `owner`. The
+    check locks the organization row first, so two concurrent demotions can't
+    both pass.
+  - `guard_member_change`: through the API, only owners can add, change, or
+    remove an owner row (any column, including status) or grant `owner`, and
+    nobody can change their own role or status (`42501`).
+- `user_id` is not writable through the API (not in the insert or update
+  grants). A login is attached only by `accept_invitation()` (which refuses an
+  invitation that names an owner row) and `create_organization()`.
+- `my_memberships()` returns the caller's memberships in every status; table
+  policies show only active ones.
 
 ## `organization_invitations`
 
@@ -94,7 +105,7 @@ links the `organization_members` row.
 
 | Column        | Type          | Null | Default                     | Notes                                                |
 | ------------- | ------------- | ---- | --------------------------- | ---------------------------------------------------- |
-| `email`       | `citext`      | no   |                             |                                                      |
+| `email`       | `text`        | no   |                             |                                                      |
 | `role`        | `org_role`    | no   | `'worker'`                  | Can't be `owner`                                     |
 | `member_id`   | `uuid`        | yes  |                             | Composite FK. Links to an existing login-less member |
 | `token_hash`  | `text`        | no   |                             | SHA-256 of the emailed token. Unique                 |
@@ -117,7 +128,7 @@ greatest `effective_from <= D`.
 | `effective_from`    | `date`   | no   |         |                                                         |
 | `notes`             | `text`   | yes  |         |                                                         |
 
-`unique (member_id, effective_from)`. RLS: owner/admin only.
+`unique (organization_id, member_id, effective_from)`. RLS: owner/admin only.
 
 ## `document_sequences`
 

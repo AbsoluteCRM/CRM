@@ -35,30 +35,30 @@ Once an invoice leaves `draft`, its lines, taxes, and totals are frozen
 
 ## `invoices`
 
-| Column               | Type             | Null | Default   | Notes                                                              |
-| -------------------- | ---------------- | ---- | --------- | ------------------------------------------------------------------ |
-| `number`             | `text`           | no   |           | `INV-1001`, set by trigger. `unique (organization_id, number)`     |
-| `client_id`          | `uuid`           | no   |           | Composite FK → `clients`, on delete restrict                       |
-| `status`             | `invoice_status` | no   | `'draft'` |                                                                    |
-| `issue_date`         | `date`           | yes  |           | Set when sent                                                      |
-| `due_date`           | `date`           | yes  |           | Check `>= issue_date`                                              |
-| `period_start`       | `date`           | yes  |           | For periodic invoices                                              |
-| `period_end`         | `date`           | yes  |           | Check: both period columns set or both null, and `>= period_start` |
-| `subtotal_cents`     | `bigint`         | no   | `0`       | Trigger-maintained from lines                                      |
-| `tax_cents`          | `bigint`         | no   | `0`       | Trigger-maintained from line taxes                                 |
-| `total_cents`        | `bigint`         | no   | —         | Generated: `subtotal_cents + tax_cents`                            |
-| `amount_paid_cents`  | `bigint`         | no   | `0`       | Trigger-maintained from succeeded payments minus refunds           |
-| `balance_cents`      | `bigint`         | no   | —         | Generated: `subtotal_cents + tax_cents - amount_paid_cents`        |
-| `message`            | `text`           | yes  |           | Client-facing                                                      |
-| `terms`              | `text`           | yes  |           |                                                                    |
-| `internal_notes`     | `text`           | yes  |           |                                                                    |
-| `sent_at`            | `timestamptz`    | yes  |           |                                                                    |
-| `paid_at`            | `timestamptz`    | yes  |           |                                                                    |
-| `voided_at`          | `timestamptz`    | yes  |           |                                                                    |
-| `void_reason`        | `text`           | yes  |           |                                                                    |
-| `stripe_invoice_id`  | `text`           | yes  |           | Unique. Set if Stripe Invoicing is used                            |
-| `payment_link_token` | `text`           | yes  |           | Unique. Random token for the public "pay this invoice" page        |
-| `created_by`         | `uuid`           | yes  |           | FK → `auth.users`                                                  |
+| Column                    | Type             | Null | Default   | Notes                                                                                                              |
+| ------------------------- | ---------------- | ---- | --------- | ------------------------------------------------------------------------------------------------------------------ |
+| `number`                  | `text`           | no   |           | `INV-1001`, set by trigger. `unique (organization_id, number)`                                                     |
+| `client_id`               | `uuid`           | no   |           | Composite FK → `clients`, on delete restrict                                                                       |
+| `status`                  | `invoice_status` | no   | `'draft'` |                                                                                                                    |
+| `issue_date`              | `date`           | yes  |           | Set when sent                                                                                                      |
+| `due_date`                | `date`           | yes  |           | Check `>= issue_date`                                                                                              |
+| `period_start`            | `date`           | yes  |           | For periodic invoices                                                                                              |
+| `period_end`              | `date`           | yes  |           | Check: both period columns set or both null, and `>= period_start`                                                 |
+| `subtotal_cents`          | `bigint`         | no   | `0`       | Trigger-maintained from lines                                                                                      |
+| `tax_cents`               | `bigint`         | no   | `0`       | Trigger-maintained from line taxes                                                                                 |
+| `total_cents`             | `bigint`         | no   | —         | Generated: `subtotal_cents + tax_cents`                                                                            |
+| `amount_paid_cents`       | `bigint`         | no   | `0`       | Trigger-maintained from succeeded payments minus refunds                                                           |
+| `balance_cents`           | `bigint`         | no   | —         | Generated: `subtotal_cents + tax_cents - amount_paid_cents`                                                        |
+| `message`                 | `text`           | yes  |           | Client-facing                                                                                                      |
+| `terms`                   | `text`           | yes  |           |                                                                                                                    |
+| `internal_notes`          | `text`           | yes  |           |                                                                                                                    |
+| `sent_at`                 | `timestamptz`    | yes  |           |                                                                                                                    |
+| `paid_at`                 | `timestamptz`    | yes  |           |                                                                                                                    |
+| `voided_at`               | `timestamptz`    | yes  |           |                                                                                                                    |
+| `void_reason`             | `text`           | yes  |           |                                                                                                                    |
+| `stripe_invoice_id`       | `text`           | yes  |           | Unique. Set if Stripe Invoicing is used                                                                            |
+| `payment_link_token_hash` | `text`           | yes  |           | Unique. sha256 hex of the random token behind the public "pay this invoice" page. The token itself is never stored |
+| `created_by`              | `uuid`           | yes  |           | FK → `auth.users`                                                                                                  |
 
 Indexes: `unique (organization_id, id)`, `(organization_id, status, due_date)`,
 `(organization_id, client_id, issue_date desc)`.
@@ -162,8 +162,8 @@ the service role reads or writes it. No standard columns.
 
 ## Behaviour (as built)
 
-Migration `20260929202454_invoices_payments`. Tested in
-`supabase/tests/invoices_payments_test.sql`.
+Migrations `invoices_payments`, `followup_hardening`, `pending_payment_fix`. Tested in
+`supabase/tests/audit_regressions_test.sql` and `followup_hardening_test.sql`.
 
 **Status is derived.** A `before update` trigger on `invoices`:
 
@@ -206,14 +206,22 @@ visit_id) → invoice_visits`
 **Taxes and totals** work exactly as they do on quotes: the app inserts
 `(organization_id, line_item_id, tax_rate_id)`, and the trigger snapshots
 `percentage` and computes `amount_cents`. Tax-exempt clients are rejected.
-`guard_tax_rate_percentage` now covers invoice taxes too.
+`guard_tax_rate_usable` rejects archived rates on invoice taxes too.
+
+**Void invoices**: once an invoice is void its payments are frozen
+(`guard_payment_update`) except that a `pending` payment can still settle or
+fail, and a settled payment can still move toward refunded (same amount,
+refunded amount not lowered), so money that arrives after the void can be
+refunded. Notes and reference stay editable.
+The payment and invoice-visit guards lock the parent invoice or visit row
+(`for no key update`) before reading it.
 
 **Creating invoices**:
 
-| Function                                                                        | Who                                           | Does                                                                                                                                                                                                               |
-| ------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `create_invoice_for_visits(client_id, visit_ids[], period_start?, period_end?)` | owner/admin (invoker), service                | Creates a draft invoice. For each visit it adds `invoice_visits` and copies `job_line_items` as `"Jun 3 – <description>"` lines with their `tax_rate_ids` (skipped for tax-exempt clients). Returns the invoice id |
-| `private.run_invoice_generation()`                                              | pg_cron `generate-invoices`, `45 7 * * *` UTC | Per org: one draft per completed, unbilled `per_visit` visit. On the org-local 1st: one draft per client for unbilled `periodic`/`monthly` visits before today, with the period set to last month                  |
+| Function                                                                        | Who                                           | Does                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_invoice_for_visits(client_id, visit_ids[], period_start?, period_end?)` | owner/admin (definer, role-checked), service  | Creates a draft invoice. For each visit it adds `invoice_visits` and copies `job_line_items` as `"Jun 3 – <description>"` lines with their `job_line_item_taxes` (skipped for tax-exempt clients). Returns the invoice id |
+| `private.run_invoice_generation()`                                              | pg_cron `generate-invoices`, `45 7 * * *` UTC | Per org: one draft per completed, unbilled `per_visit` visit. On the org-local 1st: one draft per client for unbilled `periodic`/`monthly` visits before today, with the period set to last month                         |
 
 **Portal RPCs**:
 
