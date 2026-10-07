@@ -162,8 +162,8 @@ the service role reads or writes it. No standard columns.
 
 ## Behaviour (as built)
 
-Migration `20260929202454_invoices_payments`. Tested in
-`supabase/tests/invoices_payments_test.sql`.
+Migrations `invoices_payments`, `followup_hardening`, `pending_payment_fix`. Tested in
+`supabase/tests/audit_regressions_test.sql` and `followup_hardening_test.sql`.
 
 **Status is derived.** A `before update` trigger on `invoices`:
 
@@ -206,14 +206,20 @@ visit_id) → invoice_visits`
 **Taxes and totals** work exactly as they do on quotes: the app inserts
 `(organization_id, line_item_id, tax_rate_id)`, and the trigger snapshots
 `percentage` and computes `amount_cents`. Tax-exempt clients are rejected.
-`guard_tax_rate_percentage` now covers invoice taxes too.
+`guard_tax_rate_usable` rejects archived rates on invoice taxes too.
+
+**Void invoices**: once an invoice is void its payments' amount, status and
+refunds are frozen (`guard_payment_update`), except for a payment that is still
+`pending`, which can still settle or fail. Notes and reference stay editable.
+The payment and invoice-visit guards lock the parent invoice or visit row
+(`for no key update`) before reading it.
 
 **Creating invoices**:
 
-| Function                                                                        | Who                                           | Does                                                                                                                                                                                                               |
-| ------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `create_invoice_for_visits(client_id, visit_ids[], period_start?, period_end?)` | owner/admin (definer, role-checked), service  | Creates a draft invoice. For each visit it adds `invoice_visits` and copies `job_line_items` as `"Jun 3 – <description>"` lines with their `tax_rate_ids` (skipped for tax-exempt clients). Returns the invoice id |
-| `private.run_invoice_generation()`                                              | pg_cron `generate-invoices`, `45 7 * * *` UTC | Per org: one draft per completed, unbilled `per_visit` visit. On the org-local 1st: one draft per client for unbilled `periodic`/`monthly` visits before today, with the period set to last month                  |
+| Function                                                                        | Who                                           | Does                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_invoice_for_visits(client_id, visit_ids[], period_start?, period_end?)` | owner/admin (definer, role-checked), service  | Creates a draft invoice. For each visit it adds `invoice_visits` and copies `job_line_items` as `"Jun 3 – <description>"` lines with their `job_line_item_taxes` (skipped for tax-exempt clients). Returns the invoice id |
+| `private.run_invoice_generation()`                                              | pg_cron `generate-invoices`, `45 7 * * *` UTC | Per org: one draft per completed, unbilled `per_visit` visit. On the org-local 1st: one draft per client for unbilled `periodic`/`monthly` visits before today, with the period set to last month                         |
 
 **Portal RPCs**:
 

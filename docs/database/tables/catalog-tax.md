@@ -14,14 +14,14 @@ The org's price list. Quote, job, and invoice lines copy `description` and
 price from a service when the line is created, so later price changes never
 rewrite history.
 
-| Column                     | Type           | Null | Default  | Notes                                                                 |
-| -------------------------- | -------------- | ---- | -------- | --------------------------------------------------------------------- |
-| `name`                     | `text`         | no   |          | Unique per org among non-archived rows                                |
-| `description`              | `text`         | yes  |          | Default line description                                              |
-| `unit`                     | `service_unit` | no   | `'each'` |                                                                       |
-| `default_price_cents`      | `bigint`       | no   | `0`      | Check `>= 0`                                                          |
-| `default_duration_minutes` | `integer`      | yes  |          | Check `> 0`. Seeds the visit duration                                 |
-| `archived_at`              | `timestamptz`  | yes  |          | Archived services are hidden from pickers and can't be newly attached |
+| Column                     | Type           | Null | Default  | Notes                                                                                 |
+| -------------------------- | -------------- | ---- | -------- | ------------------------------------------------------------------------------------- |
+| `name`                     | `text`         | no   |          | Unique per org among non-archived rows                                                |
+| `description`              | `text`         | yes  |          | Default line description                                                              |
+| `unit`                     | `service_unit` | no   | `'each'` |                                                                                       |
+| `default_price_cents`      | `bigint`       | no   | `0`      | Check `>= 0`                                                                          |
+| `default_duration_minutes` | `integer`      | yes  |          | Check `> 0`. Seeds the visit duration                                                 |
+| `archived_at`              | `timestamptz`  | yes  |          | Archived services are hidden from pickers (not enforced by the database on new lines) |
 
 Indexes: `unique (organization_id, id)`,
 `unique (organization_id, lower(name)) where archived_at is null`.

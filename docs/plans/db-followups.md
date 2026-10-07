@@ -1,7 +1,7 @@
 # Plan: Database follow-ups after the rebaseline
 
 - **Slug / branch**: `db-followups` / `db/followups`
-- **Tier**: light (hardening migration with tests, doc corrections, generated types)
+- **Tier**: full (db/ work; plan-auditor skipped by the user's instruction to keep moving, reviewer and security gates run)
 - **Status**: implemented
 - **Confidence**: 95%, because every item came from the reviewer and security
   reports or from checks against the live database
@@ -18,6 +18,7 @@ Close the follow-ups listed when PR #25 merged.
 ## What shipped
 
 - Migration `20261007222040_followup_hardening`: payments can't change or be
+- Migration `20261007223559_pending_payment_fix`: a pending payment can still settle after its invoice is voided (reviewer finding).
   added on a void invoice; payment, invoice-visit, and route-stop guards lock
   the parent row; optimizer runs can only name their own organization's crews
   and visits. `supabase/tests/followup_hardening_test.sql` (8 assertions).

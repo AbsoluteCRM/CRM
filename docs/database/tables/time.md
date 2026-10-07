@@ -76,8 +76,8 @@ open entries and sets `actual_end`.
 
 ## Behaviour (as built)
 
-Migration `20260929202750_time_tracking`. Tested in
-`supabase/tests/time_tracking_test.sql`.
+Migration `time_tracking`. Tested in
+`supabase/tests/audit_regressions_test.sql`.
 
 **Constraints**:
 

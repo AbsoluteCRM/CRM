@@ -42,6 +42,10 @@ insert into public.payments (organization_id, invoice_id, client_id, method, amo
 values ((select id from _ids where key = 'pgtap-c'), (select id from _ids where key = 'invoice'), (select id from _ids where key = 'client'), 'cash', 4500);
 insert into _ids select 'payment', id from public.payments where organization_id = (select id from _ids where key = 'pgtap-c');
 
+insert into public.payments (organization_id, invoice_id, client_id, method, amount_cents, status)
+values ((select id from _ids where key = 'pgtap-c'), (select id from _ids where key = 'invoice'), (select id from _ids where key = 'client'), 'cash', 100, 'pending');
+insert into _ids select 'pending', id from public.payments where status = 'pending' and organization_id = (select id from _ids where key = 'pgtap-c');
+
 -- A fully refunded invoice can be voided, and then its payments are frozen ----------
 update public.payments set status = 'refunded', refunded_cents = 4500 where id = (select id from _ids where key = 'payment');
 update public.invoices set status = 'void' where id = (select id from _ids where key = 'invoice');
@@ -58,6 +62,10 @@ insert into _tap (line) select throws_ok(
   $$insert into public.payments (organization_id, invoice_id, client_id, method, amount_cents)
     values ((select id from _ids where key = 'pgtap-c'), (select id from _ids where key = 'invoice'), (select id from _ids where key = 'client'), 'cash', 100)$$,
   '55000', null, 'a payment can''t be added to a void invoice');
+
+insert into _tap (line) select lives_ok(
+  $$update public.payments set status = 'failed' where id = (select id from _ids where key = 'pending')$$,
+  'a pending payment can still settle after its invoice is voided');
 
 -- Optimizer runs only name their own organization's crews --------------------------
 insert into _tap (line) select lives_ok(

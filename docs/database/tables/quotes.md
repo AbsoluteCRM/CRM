@@ -10,7 +10,7 @@ Tax rows snapshot their rate and compute their own amount. Quote totals are
 recalculated by triggers. The app never writes amounts or totals.
 
 Standard columns are described in the [README](../README.md#conventions).
-Migration: `20260929200746_quotes`.
+Migration: `quotes`.
 
 ## Enums
 

@@ -382,7 +382,6 @@ as part of its slice, and lists it in its plan:
 | Trusted client                        | Read `SUPABASE_SERVICE_ROLE_KEY` from `process.env` on the server only (`src/env.ts` reads `import.meta.env`, which carries only `VITE_` values), under `src/server/trusted/`, with an eslint ban on the key elsewhere                                       |
 | Unit/integration Vitest project       | Record how tests reach the database without touching real tenants (fixtures use the service-role client and the auth admin API, not a direct connection); consider Supabase branching                                                                        |
 | Seeded test user and org              | Credentials in `.env.local` as `E2E_EMAIL` / `E2E_PASSWORD`                                                                                                                                                                                                  |
-| Remote reconciliation                 | `db/reconcile-remote`. Until it lands, the project has drifted from the migrations, so the migrations-equal check before `pnpm db:types` fails: stop and point the user at it                                                                                |
 
 ## Git and PRs
 

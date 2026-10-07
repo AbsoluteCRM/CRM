@@ -149,8 +149,7 @@ Each owner FK gets an `(organization_id, x_id)` index. `storage_path` must start
 
 ## Behaviour (as built)
 
-Migrations `20260929201255_jobs_visits` and
-`20260929201447_fix_visit_actuals_check`.
+Migration `jobs_visits`.
 
 **Jobs**
 
