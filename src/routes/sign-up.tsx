@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 
 import { useAuth } from '#/integrations/auth/context'
-import { Button } from '#/components/ui/button'
+import { Button } from '#/components/ui/button/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 

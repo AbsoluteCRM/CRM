@@ -105,8 +105,7 @@ export function WeekCalendar({
               <div
                 className={cn(
                   'mt-3 inline-flex rounded-full bg-(--cream) px-2.5 py-1 text-xs font-semibold text-(--ink-2)',
-                  selected === day.date &&
-                    'bg-(--lime) text-(--leaf-950)',
+                  selected === day.date && 'bg-(--lime) text-(--leaf-950)',
                 )}
               >
                 {count === 0
@@ -122,7 +121,6 @@ export function WeekCalendar({
         <section
           aria-label="Route stops"
           className="flex lg:flex-1 flex-col gap-3"
-
         >
           <div className="flex lg:w-1/2">
             <RouteMap stops={selectedDay.stops} apiKey={mapApiKey} />
