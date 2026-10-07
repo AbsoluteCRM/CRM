@@ -18,11 +18,16 @@ Close the follow-ups listed when PR #25 merged.
 ## What shipped
 
 - Migration `20261007222040_followup_hardening`: payments can't change or be
-- Migration `20261007223559_pending_payment_fix`: a pending payment can still settle after its invoice is voided (reviewer finding).
-- Migration `20261007223741_route_stop_guard_lock_fix`: the stop-date guard locks the visit only on insert or visit change (reviewer deadlock note).
   added on a void invoice; payment, invoice-visit, and route-stop guards lock
   the parent row; optimizer runs can only name their own organization's crews
-  and visits. `supabase/tests/followup_hardening_test.sql` (8 assertions).
+  and visits.
+- Migration `20261007223559_pending_payment_fix` (reviewer finding): a pending
+  payment can still settle after its invoice is voided.
+- Migration `20261007223741_route_stop_guard_lock_fix` (reviewer deadlock note):
+  the stop-date guard locks the visit only on insert or visit change.
+- Migration `20261007223941_void_payment_refund_fix` (reviewer finding): on a
+  void invoice a settled payment can still move toward refunded.
+- `supabase/tests/followup_hardening_test.sql`: 12 assertions, all passing.
 - `createServerClient<Database>` / `createBrowserClient<Database>` in `src/lib/supabase/`.
 - Full suites re-run on the final schema: `audit_regressions_test.sql` 36/36,
   `review_fixes_test.sql` 12/12.

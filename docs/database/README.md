@@ -184,6 +184,7 @@ lands, an applied migration is never edited; fixes go in a new migration.
 | 13  | `followup_hardening`        | applied | Payment and invoice-visit guards lock their parent, void-invoice payment freeze, route-stop date lock, optimization-run ref check                |
 | 14  | `pending_payment_fix`       | applied | Pending payments may still settle after their invoice is voided                                                                                  |
 | 15  | `route_stop_guard_lock_fix` | applied | Route-stop date guard locks the visit only on insert or visit change (avoids a deadlock)                                                         |
+| 16  | `void_payment_refund_fix`   | applied | On a void invoice, settled payments can still be refunded                                                                                        |
 
 ## Out of scope (for now)
 

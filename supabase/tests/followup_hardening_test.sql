@@ -45,6 +45,9 @@ insert into _ids select 'payment', id from public.payments where organization_id
 insert into public.payments (organization_id, invoice_id, client_id, method, amount_cents, status)
 values ((select id from _ids where key = 'pgtap-c'), (select id from _ids where key = 'invoice'), (select id from _ids where key = 'client'), 'cash', 100, 'pending');
 insert into _ids select 'pending', id from public.payments where status = 'pending' and organization_id = (select id from _ids where key = 'pgtap-c');
+insert into public.payments (organization_id, invoice_id, client_id, method, amount_cents, status)
+values ((select id from _ids where key = 'pgtap-c'), (select id from _ids where key = 'invoice'), (select id from _ids where key = 'client'), 'cash', 200, 'pending');
+insert into _ids select 'pending2', id from public.payments where status = 'pending' and amount_cents = 200 and organization_id = (select id from _ids where key = 'pgtap-c');
 
 -- A fully refunded invoice can be voided, and then its payments are frozen ----------
 update public.payments set status = 'refunded', refunded_cents = 4500 where id = (select id from _ids where key = 'payment');
@@ -65,7 +68,16 @@ insert into _tap (line) select throws_ok(
 
 insert into _tap (line) select lives_ok(
   $$update public.payments set status = 'failed' where id = (select id from _ids where key = 'pending')$$,
-  'a pending payment can still settle after its invoice is voided');
+  'a pending payment can still fail after its invoice is voided');
+insert into _tap (line) select lives_ok(
+  $$update public.payments set status = 'succeeded' where id = (select id from _ids where key = 'pending2')$$,
+  'a pending payment can still succeed after its invoice is voided');
+insert into _tap (line) select lives_ok(
+  $$update public.payments set status = 'refunded', refunded_cents = 200 where id = (select id from _ids where key = 'pending2')$$,
+  'a payment settled after the void can still be refunded');
+insert into _tap (line) select throws_ok(
+  $$update public.payments set status = 'succeeded', refunded_cents = 0 where id = (select id from _ids where key = 'pending2')$$,
+  '55000', null, 'a refund on a void invoice can''t be undone');
 
 -- Optimizer runs only name their own organization's crews --------------------------
 insert into _tap (line) select lives_ok(

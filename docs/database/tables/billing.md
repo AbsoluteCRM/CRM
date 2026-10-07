@@ -208,9 +208,11 @@ visit_id) → invoice_visits`
 `percentage` and computes `amount_cents`. Tax-exempt clients are rejected.
 `guard_tax_rate_usable` rejects archived rates on invoice taxes too.
 
-**Void invoices**: once an invoice is void its payments' amount, status and
-refunds are frozen (`guard_payment_update`), except for a payment that is still
-`pending`, which can still settle or fail. Notes and reference stay editable.
+**Void invoices**: once an invoice is void its payments are frozen
+(`guard_payment_update`) except that a `pending` payment can still settle or
+fail, and a settled payment can still move toward refunded (same amount,
+refunded amount not lowered), so money that arrives after the void can be
+refunded. Notes and reference stay editable.
 The payment and invoice-visit guards lock the parent invoice or visit row
 (`for no key update`) before reading it.
 
