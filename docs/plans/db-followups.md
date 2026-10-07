@@ -21,6 +21,9 @@ Close the follow-ups listed when PR #25 merged.
   added on a void invoice; payment, invoice-visit, and route-stop guards lock
   the parent row; optimizer runs can only name their own organization's crews
   and visits. `supabase/tests/followup_hardening_test.sql` (8 assertions).
+- `createServerClient<Database>` / `createBrowserClient<Database>` in `src/lib/supabase/`.
+- Full suites re-run on the final schema: `audit_regressions_test.sql` 36/36,
+  `review_fixes_test.sql` 12/12.
 - Checked and not an issue: deleting an organization with clients, properties,
   quotes, and jobs cascades cleanly.
 - `docs/database/tables/*.md` brought in line with the rebaselined schema.
@@ -32,6 +35,5 @@ Close the follow-ups listed when PR #25 merged.
 
 - Concurrency can't be exercised on one connection; the locks are reviewed,
   not reproduced.
-- The Supabase clients aren't typed with `Database` yet (app work).
 - Per-domain pgTAP suites beyond the regression, review-fix, and hardening
   files.
