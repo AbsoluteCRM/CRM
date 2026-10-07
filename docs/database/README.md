@@ -90,8 +90,28 @@ These rules apply to every table unless its reference doc says otherwise.
   generated `latitude` / `longitude` columns exist so clients that can't read
   PostGIS types, such as the generated TypeScript types, still see usable
   fields.
-- **Extensions** (installed in schema `extensions`): `postgis`, `btree_gist`,
-  `citext`, `moddatetime`, `pg_trgm`, `pg_cron`, `pgtap`.
+- **Extensions** (installed in schema `extensions`, except `pg_cron`): `postgis`,
+  `btree_gist`, `btree_gin`, `moddatetime`, `pg_trgm`, `pgcrypto`, `pgtap`,
+  `pg_cron`. There is no `citext`: emails are `text` with a
+  `check (email = lower(email))`.
+- **Policies**: write tenant policies as
+  `organization_id = any (array(select private.my_org_ids('{…}')))`. The
+  planner turns that into an index condition; the `in (select …)` form is a
+  per-row hashed filter. One permissive policy per table and action.
+- **Column privileges**: `authenticated` gets `SELECT` and `DELETE` (filtered by
+  RLS) and per-column `INSERT` and `UPDATE`. `organization_id` (after insert),
+  `id`, `created_by`-style attribution columns, `number`, totals, status
+  stamps, and `stripe_*` ids are never updatable through the API; triggers and
+  `security definer` functions write them. `anon` has no table or function
+  access. Functions are not executable by `PUBLIC` unless granted.
+- **Triggers and helpers** always filter child lookups by `organization_id`
+  (the leading column of every composite index) and recompute totals once per
+  statement with transition tables. Line, tax, and total/paid recomputations
+  lock the parent quote or invoice. Other cross-row guards (payment vs invoice
+  status, billing a visit, routing a stop) read their parent without a lock, a
+  known gap that main shares.
+- **Workers** have no table policies on domain data. They use `worker_*` RPCs
+  that return crew-safe columns ([ADR 0011](decisions/0011-worker-rpcs.md)).
 
 ## Toolchain and workflow
 
@@ -131,50 +151,38 @@ To change the schema:
 6. Update the matching doc in `docs/database/tables/` and, when a decision
    changed, add an ADR.
 
-**Remote drift (as of 2026-10-05)**: the Supabase project doesn't match
-these migrations. It has 8 migrations, re-applied on 2026-10-02 with
-different content, and lacks `drop_legacy_tables`,
-`fix_accept_invitation_email_match`, `fix_visit_actuals_check`,
-`invoices_payments`, and `time_tracking`. It has an extra table,
-`job_line_item_taxes`, and no seed data. The policy captured in PR #6 never
-reached `main`. Until the follow-up `db/reconcile-remote` lands, don't run
-`pnpm db:types`, and treat the migration-plan table below as the intended
-state, not the current one.
+**Rebaseline (ADR 0010)**: the 14 original migrations were replaced by the 11
+below, and the remote was reset and rebuilt from them. Files are named
+`_NN_<name>.sql` until applied, then renamed to the version `apply_migration`
+assigned. Before running `pnpm db:types`, compare `list_migrations` with
+`supabase/migrations/`.
 
 **Demo data**: `supabase/seed.sql` is idempotent and creates the
 `absolute-demo` org (Edmonton, GST only), owned by the first auth user, with
 a crew, 3 clients, recurring and one-off jobs, visits for the next 8 weeks,
-and a draft quote. Run it with `execute_sql` or psql. It is **not currently
-applied**: the remote was rebuilt on 2026-10-02 without it.
+and a draft quote. Run it with `execute_sql` or psql. Run it after the migrations are applied.
 
 ## Migration plan
 
 Domains are migrated one at a time, in FK-dependency order
 (`jobs.preferred_crew_id` needs `crews`, and `shifts.route_id` needs
-`routes`). Advisors and pgTAP tests run after each. Once a migration is
-applied it is never edited; fixes go in a new migration.
+`routes`). Advisors and pgTAP tests run after each. Once the rebaseline
+lands, an applied migration is never edited; fixes go in a new migration.
 
-> The statuses and versions below describe the intended state. The remote
-> project doesn't currently match them; see **Remote drift** above.
-
-| #   | Migration                           | Status              | Creates                                                                                             |
-| --- | ----------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------- |
-| 1   | `drop_legacy_tables`                | ✅ `20260929195153` | Drops the 7 dashboard-made tables and their enums                                                   |
-| 2   | `foundation`                        | ✅ `20260929195309` | Extensions, `private` schema, `uuid_generate_v7`                                                    |
-| 3   | `tenancy_identity`                  | ✅ `20260929195514` | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs |
-| 3a  | `fix_accept_invitation_email_match` | ✅ `20260929195738` | Case-insensitive invite email match (see the citext gotcha in [rls.md](rls.md))                     |
-| 4   | `clients_properties`                | ✅ `20260929200046` | clients, client_contacts, properties, client_portal_users                                           |
-| 5   | `catalog_tax`                       | ✅ `20260929200302` | services, tax_rates, service_default_taxes                                                          |
-| 6   | `crews`                             | ✅ `20260929200304` | crews, crew_members                                                                                 |
-| 7   | `quotes`                            | ✅ `20260929200746` | quotes and their lines and taxes, quote RPCs                                                        |
-| 8   | `jobs_visits`                       | ✅ `20260929201255` | jobs, job_line_items, visits, attachments, `org-files` bucket and policies                          |
-| 8a  | `fix_visit_actuals_check`           | ✅ `20260929201447` | Allow `actual_end = actual_start` (visit completed after the fact)                                  |
-| 9   | `routing`                           | ✅ `20260929201854` | routes, route_members, route_stops, optimization_runs, worker helpers                               |
-| 10  | `invoices_payments`                 | ✅ `20260929202454` | invoices, lines, invoice_visits, taxes, payments, stripe_events                                     |
-| 11  | `time_tracking`                     | ✅ `20260929202750` | shifts, visit_time_entries, labor_cost_report                                                       |
-
-`private.worker_visit_ids()` depends on routing, so the worker read policies
-on clients, properties, jobs, and visits are added in migration 9.
+| #   | Migration            | Status  | Creates                                                                                                                                          |
+| --- | -------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `foundation`         | applied | Extensions, `private` schema, default privileges, `uuid_generate_v7`                                                                             |
+| 2   | `tenancy_identity`   | applied | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs, `my_memberships`                            |
+| 3   | `clients_properties` | applied | clients, client_contacts, properties, client_portal_users, `portal_clients()`                                                                    |
+| 4   | `catalog_tax`        | applied | services, tax_rates (insert-only percentage, `archived_at`), service_default_taxes                                                               |
+| 5   | `crews`              | applied | crews, crew_members                                                                                                                              |
+| 6   | `quotes`             | applied | quotes and their lines and taxes, statement-level totals, quote RPCs, hourly `expire-quotes` cron                                                |
+| 7   | `jobs_visits`        | applied | jobs (`window_start` + `window_minutes`), job lines and `job_line_item_taxes`, visits, attachments, `org-files` bucket                           |
+| 8   | `routing`            | applied | routes, route_members (`unique (member, date)`), route_stops, optimization_runs, `reset_job_schedule`                                            |
+| 9   | `invoices_payments`  | applied | invoices, lines, invoice_visits, taxes, payments, stripe_events, per-org invoice cron, portal RPCs                                               |
+| 10  | `time_tracking`      | applied | shifts, visit_time_entries, labor_cost_report                                                                                                    |
+| 11  | `worker_api`         | applied | `worker_*` RPCs, worker storage policies ([ADR 0011](decisions/0011-worker-rpcs.md))                                                             |
+| 12  | `review_fixes`       | applied | Office-checked definer `generate_visits`/`reset_job_schedule`, `worker_join_visit`, owner-row invitation guard, safer invoice creation and terms |
 
 ## Out of scope (for now)
 

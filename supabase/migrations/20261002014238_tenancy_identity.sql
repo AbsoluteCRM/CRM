@@ -1,6 +1,6 @@
 -- Tenancy & identity: organizations, profiles, staff membership, invitations,
--- pay rates, document numbering, and the RLS helper functions every later
--- migration builds on.
+-- pay rates, document numbering, and the RLS helpers every later migration
+-- builds on.
 -- See docs/database/tables/tenancy.md and docs/database/rls.md.
 
 ------------------------------------------------------------------------------
@@ -18,12 +18,11 @@ create type public.document_kind as enum ('quote', 'job', 'invoice');
 create table public.organizations (
   id uuid primary key default private.uuid_generate_v7(),
   name text not null check (length(trim(name)) > 0),
-  slug extensions.citext not null unique
-    check (slug::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  slug text not null unique check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   timezone text not null default 'America/Edmonton',
-  currency char(3) not null default 'CAD' check (currency ~ '^[A-Z]{3}$'),
-  country char(2) not null default 'CA' check (country ~ '^[A-Z]{2}$'),
-  email extensions.citext,
+  currency text not null default 'CAD' check (currency ~ '^[A-Z]{3}$'),
+  country text not null default 'CA' check (country ~ '^[A-Z]{2}$'),
+  email text check (email = lower(email)),
   phone text,
   address_line1 text,
   address_line2 text,
@@ -33,7 +32,7 @@ create table public.organizations (
   logo_path text,
   settings jsonb not null default '{}' check (jsonb_typeof(settings) = 'object'),
   stripe_account_id text unique,
-  created_by uuid references auth.users (id) on delete set null,
+  created_by uuid default auth.uid() references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -42,8 +41,12 @@ create index organizations_created_by_idx on public.organizations (created_by);
 
 comment on table public.organizations is
   'A contractor business: the tenant boundary. See docs/database/tables/tenancy.md';
+comment on column public.organizations.stripe_account_id is
+  'Stripe Connect account. Written only by the service role during onboarding (ADR 0008).';
 
--- A CHECK constraint can't query pg_timezone_names, so a trigger validates it.
+-- A CHECK constraint can't query pg_timezone_names, so a trigger validates
+-- it. (`at time zone` would also accept abbreviations such as MST, which
+-- have no DST rules.)
 create function private.validate_timezone()
 returns trigger
 language plpgsql
@@ -65,6 +68,12 @@ create trigger set_updated_at
   before update on public.organizations
   for each row execute function extensions.moddatetime(updated_at);
 
+-- Rows are created by create_organization(). Slug, currency, and the Stripe
+-- account are fixed after creation (service role only).
+grant update (name, timezone, country, email, phone, address_line1, address_line2, city,
+              region, postal_code, logo_path, settings)
+  on public.organizations to authenticated;
+
 ------------------------------------------------------------------------------
 -- profiles (one per auth user)
 ------------------------------------------------------------------------------
@@ -81,6 +90,8 @@ create table public.profiles (
 create trigger set_updated_at
   before update on public.profiles
   for each row execute function extensions.moddatetime(updated_at);
+
+grant update (full_name, phone, avatar_path) on public.profiles to authenticated;
 
 create function private.handle_new_user()
 returns trigger
@@ -124,7 +135,7 @@ create table public.organization_members (
   role public.org_role not null default 'worker',
   status public.member_status not null default 'active',
   display_name text not null check (length(trim(display_name)) > 0),
-  email extensions.citext,
+  email text check (email = lower(email)),
   phone text,
   color text check (color ~ '^#[0-9a-fA-F]{6}$'),
   home_location extensions.geography(point, 4326),
@@ -139,19 +150,26 @@ create index organization_members_user_org_idx
   on public.organization_members (user_id, organization_id) include (role, status);
 
 comment on table public.organization_members is
-  'Staff of an organization. user_id is null for crew members without a login.';
+  'Staff of an organization. user_id is null for crew members without a login. '
+  'A login is linked only by accept_invitation() or create_organization().';
 
 create trigger set_updated_at
   before update on public.organization_members
   for each row execute function extensions.moddatetime(updated_at);
 
+-- user_id is never written through the API, so an admin can't attach a
+-- login to (or detach one from) any member row, including an owner's.
+grant insert (organization_id, role, status, display_name, email, phone, color, home_location)
+  on public.organization_members to authenticated;
+grant update (role, status, display_name, email, phone, color, home_location)
+  on public.organization_members to authenticated;
+
 ------------------------------------------------------------------------------
 -- RLS helpers
 --
--- The my_org_ids() form is the one policies should use:
---   using (organization_id in (select private.my_org_ids()))
--- The subquery has no reference to the row, so Postgres evaluates it once
--- per statement (an InitPlan) rather than once per row.
+-- Policies use the array form, which the planner turns into an index
+-- condition (the `in (select …)` form becomes a per-row hashed filter):
+--   using (organization_id = any (array(select private.my_org_ids())))
 ------------------------------------------------------------------------------
 
 create function private.my_org_ids(p_roles public.org_role[] default null)
@@ -177,8 +195,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from public.organization_members m
-    where m.organization_id = p_org
-      and m.user_id = (select auth.uid())
+    where m.user_id = (select auth.uid())
+      and m.organization_id = p_org
       and m.status = 'active'
   )
 $$;
@@ -192,8 +210,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from public.organization_members m
-    where m.organization_id = p_org
-      and m.user_id = (select auth.uid())
+    where m.user_id = (select auth.uid())
+      and m.organization_id = p_org
       and m.status = 'active'
       and m.role = any (p_roles)
   )
@@ -207,8 +225,8 @@ security definer
 set search_path = ''
 as $$
   select m.id from public.organization_members m
-  where m.organization_id = p_org
-    and m.user_id = (select auth.uid())
+  where m.user_id = (select auth.uid())
+    and m.organization_id = p_org
     and m.status = 'active'
 $$;
 
@@ -223,7 +241,61 @@ to authenticated;
 -- Membership integrity
 ------------------------------------------------------------------------------
 
--- Every organization keeps at least one active owner.
+-- Locks the organization row and reports whether it exists. Owner-count
+-- checks take it first, so concurrent owner changes in one org run one at a
+-- time.
+create function private.lock_organization(p_org uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform 1 from public.organizations where id = p_org for update;
+  return found;
+end;
+$$;
+
+-- before insert/update/delete. Checks direct API writes only: trusted server
+-- code and the security definer RPCs (create_organization,
+-- accept_invitation) run as their owner, not as `authenticated`. So this
+-- function is security invoker, and reads through definer helpers.
+-- - Only owners add, change, or remove an owner row (any column, including
+--   status), or grant the owner role.
+-- - Nobody changes their own role or status.
+create function private.guard_member_change()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  org uuid := coalesce(new.organization_id, old.organization_id);
+begin
+  if current_user <> 'authenticated' then
+    return coalesce(new, old);
+  end if;
+
+  if ((tg_op <> 'INSERT' and old.role = 'owner') or (tg_op <> 'DELETE' and new.role = 'owner'))
+     and not private.has_org_role(org, '{owner}') then
+    raise exception 'only owners can add, change, or remove an owner' using errcode = '42501';
+  end if;
+
+  if tg_op = 'UPDATE' and old.user_id = (select auth.uid())
+     and (new.role is distinct from old.role or new.status is distinct from old.status) then
+    raise exception 'you cannot change your own role or status' using errcode = '42501';
+  end if;
+
+  return coalesce(new, old);
+end;
+$$;
+
+create trigger guard_member_change
+  before insert or update or delete on public.organization_members
+  for each row execute function private.guard_member_change();
+
+-- after update/delete: every organization keeps at least one active owner.
+-- The org row is locked before counting, so two concurrent demotions can't
+-- both see the other owner and pass.
 create function private.ensure_org_has_owner()
 returns trigger
 language plpgsql
@@ -233,7 +305,7 @@ as $$
 begin
   if old.role = 'owner' and old.status = 'active' then
     -- The whole organization is being deleted (cascade), so allow it.
-    if not exists (select 1 from public.organizations where id = old.organization_id) then
+    if not private.lock_organization(old.organization_id) then
       return null;
     end if;
     if not exists (
@@ -252,59 +324,6 @@ create trigger ensure_org_has_owner
   after update of role, status or delete on public.organization_members
   for each row execute function private.ensure_org_has_owner();
 
--- Blocks role escalation. Only owners grant, remove, or demote the owner
--- role, and nobody changes their own role or status. Trusted server code
--- (no auth.uid()) is exempt.
-create function private.guard_member_role()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  caller uuid := (select auth.uid());
-  caller_role public.org_role;
-begin
-  if caller is null then
-    return new;
-  end if;
-
-  -- Bootstrap: the first member of a brand-new organization (inserted by
-  -- create_organization) becomes its owner.
-  if tg_op = 'INSERT' and not exists (
-    select 1 from public.organization_members where organization_id = new.organization_id
-  ) then
-    return new;
-  end if;
-
-  select role into caller_role
-  from public.organization_members
-  where organization_id = new.organization_id and user_id = caller and status = 'active';
-
-  if tg_op = 'UPDATE' then
-    if old.user_id = caller
-       and (new.role is distinct from old.role or new.status is distinct from old.status) then
-      raise exception 'you cannot change your own role or status' using errcode = '42501';
-    end if;
-    if old.role = 'owner' and new.role <> 'owner' and caller_role is distinct from 'owner' then
-      raise exception 'only owners can change an owner''s role' using errcode = '42501';
-    end if;
-  end if;
-
-  if new.role = 'owner'
-     and (tg_op = 'INSERT' or old.role <> 'owner')
-     and caller_role is distinct from 'owner' then
-    raise exception 'only owners can grant the owner role' using errcode = '42501';
-  end if;
-
-  return new;
-end;
-$$;
-
-create trigger guard_member_role
-  before insert or update of role, status on public.organization_members
-  for each row execute function private.guard_member_role();
-
 ------------------------------------------------------------------------------
 -- organization_invitations
 ------------------------------------------------------------------------------
@@ -312,11 +331,11 @@ create trigger guard_member_role
 create table public.organization_invitations (
   id uuid primary key default private.uuid_generate_v7(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
-  email extensions.citext not null,
+  email text not null check (email = lower(email)),
   role public.org_role not null default 'worker' check (role <> 'owner'),
   member_id uuid,
   token_hash text not null unique,
-  invited_by uuid references auth.users (id) on delete set null,
+  invited_by uuid default auth.uid() references auth.users (id) on delete set null,
   expires_at timestamptz not null default now() + interval '7 days',
   accepted_at timestamptz,
   created_at timestamptz not null default now(),
@@ -337,6 +356,10 @@ create trigger set_updated_at
   before update on public.organization_invitations
   for each row execute function extensions.moddatetime(updated_at);
 
+grant insert (organization_id, email, role, member_id, token_hash, expires_at)
+  on public.organization_invitations to authenticated;
+grant update (role, token_hash, expires_at) on public.organization_invitations to authenticated;
+
 ------------------------------------------------------------------------------
 -- member_pay_rates
 ------------------------------------------------------------------------------
@@ -350,17 +373,18 @@ create table public.member_pay_rates (
   notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (member_id, effective_from),
+  unique (organization_id, member_id, effective_from),
   foreign key (organization_id, member_id)
     references public.organization_members (organization_id, id) on delete cascade
 );
 
-create index member_pay_rates_org_member_idx
-  on public.member_pay_rates (organization_id, member_id, effective_from desc);
-
 create trigger set_updated_at
   before update on public.member_pay_rates
   for each row execute function extensions.moddatetime(updated_at);
+
+grant insert (organization_id, member_id, hourly_rate_cents, effective_from, notes)
+  on public.member_pay_rates to authenticated;
+grant update (hourly_rate_cents, effective_from, notes) on public.member_pay_rates to authenticated;
 
 ------------------------------------------------------------------------------
 -- document_sequences + next_document_number()
@@ -375,6 +399,8 @@ create table public.document_sequences (
 
 comment on table public.document_sequences is
   'Per-org gap-free counters for Q-/J-/INV- numbers. Only accessed via private.next_document_number().';
+
+revoke all on public.document_sequences from authenticated;
 
 -- Gap-free: the counter row is locked until the calling transaction commits,
 -- and a rollback returns the number. Counters are created lazily.
@@ -406,6 +432,19 @@ begin
 end;
 $$;
 
+-- before insert: fills `number`. TG_ARGV[0] is the document_kind.
+create function private.assign_document_number()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  new.number := private.next_document_number(new.organization_id, tg_argv[0]::public.document_kind);
+  return new;
+end;
+$$;
+
 ------------------------------------------------------------------------------
 -- RPCs
 ------------------------------------------------------------------------------
@@ -414,7 +453,9 @@ $$;
 create function public.create_organization(
   p_name text,
   p_slug text,
-  p_timezone text default 'America/Edmonton'
+  p_timezone text default 'America/Edmonton',
+  p_currency text default 'CAD',
+  p_country text default 'CA'
 )
 returns public.organizations
 language plpgsql
@@ -431,11 +472,11 @@ begin
     raise exception 'not authenticated' using errcode = '42501';
   end if;
 
-  insert into public.organizations (name, slug, timezone, created_by)
-  values (p_name, p_slug, p_timezone, uid)
+  insert into public.organizations (name, slug, timezone, currency, country, created_by)
+  values (p_name, p_slug, p_timezone, p_currency, p_country, uid)
   returning * into org;
 
-  select coalesce(nullif(trim(p.full_name), ''), u.email), u.email
+  select coalesce(nullif(trim(p.full_name), ''), u.email), lower(u.email)
   into owner_name, owner_email
   from auth.users u
   left join public.profiles p on p.id = u.id
@@ -457,7 +498,7 @@ set search_path = ''
 as $$
 declare
   uid uuid := (select auth.uid());
-  user_email extensions.citext;
+  user_email text;
   user_name text;
   inv public.organization_invitations;
   member public.organization_members;
@@ -466,7 +507,7 @@ begin
     raise exception 'not authenticated' using errcode = '42501';
   end if;
 
-  select u.email, coalesce(nullif(trim(p.full_name), ''), u.email)
+  select lower(u.email), coalesce(nullif(trim(p.full_name), ''), u.email)
   into user_email, user_name
   from auth.users u
   left join public.profiles p on p.id = u.id
@@ -505,10 +546,39 @@ begin
 end;
 $$;
 
-revoke execute on function public.create_organization(text, text, text) from public, anon;
-revoke execute on function public.accept_invitation(text) from public, anon;
-grant execute on function public.create_organization(text, text, text) to authenticated;
-grant execute on function public.accept_invitation(text) to authenticated;
+-- The caller's memberships in every status (invited, active, disabled), for
+-- an org switcher. Table policies only expose active memberships.
+create function public.my_memberships()
+returns table (
+  member_id uuid,
+  organization_id uuid,
+  organization_name text,
+  organization_slug text,
+  role public.org_role,
+  status public.member_status
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m.id, m.organization_id, o.name, o.slug, m.role, m.status
+  from public.organization_members m
+  join public.organizations o on o.id = m.organization_id
+  where m.user_id = (select auth.uid())
+  order by o.name
+$$;
+
+revoke execute on function
+  public.create_organization(text, text, text, text, text),
+  public.accept_invitation(text),
+  public.my_memberships()
+from public, anon;
+grant execute on function
+  public.create_organization(text, text, text, text, text),
+  public.accept_invitation(text),
+  public.my_memberships()
+to authenticated;
 
 ------------------------------------------------------------------------------
 -- Row level security
@@ -523,21 +593,19 @@ alter table public.document_sequences enable row level security;
 -- document_sequences: no policies. Accessed only through the function above.
 
 -- organizations: staff read their orgs, and owner/admin update them.
--- Rows are created through create_organization(), and deletion is service-role only.
+-- Deletion is service-role only.
 create policy "Staff can view their organizations"
   on public.organizations for select to authenticated
-  using (id in (select private.my_org_ids()));
-
+  using (id = any (array(select private.my_org_ids())));
 create policy "Owners and admins can update their organization"
   on public.organizations for update to authenticated
-  using (id in (select private.my_org_ids('{owner,admin}')))
-  with check (id in (select private.my_org_ids('{owner,admin}')));
+  using (id = any (array(select private.my_org_ids('{owner,admin}'))))
+  with check (id = any (array(select private.my_org_ids('{owner,admin}'))));
 
 -- profiles: each user manages their own profile. Created by the auth trigger.
 create policy "Users can view their own profile"
   on public.profiles for select to authenticated
   using (id = (select auth.uid()));
-
 create policy "Users can update their own profile"
   on public.profiles for update to authenticated
   using (id = (select auth.uid()))
@@ -546,28 +614,24 @@ create policy "Users can update their own profile"
 -- organization_members: all staff can see the roster, and owner/admin manage it.
 create policy "Staff can view members of their organizations"
   on public.organization_members for select to authenticated
-  using (organization_id in (select private.my_org_ids()));
-
+  using (organization_id = any (array(select private.my_org_ids())));
 create policy "Owners and admins can add members"
   on public.organization_members for insert to authenticated
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
-
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins can update members"
   on public.organization_members for update to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')))
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
-
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))))
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins can remove members"
   on public.organization_members for delete to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 
 -- organization_invitations and member_pay_rates: owner/admin only.
 create policy "Owners and admins manage invitations"
   on public.organization_invitations for all to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')))
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
-
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))))
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins manage pay rates"
   on public.member_pay_rates for all to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')))
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))))
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));

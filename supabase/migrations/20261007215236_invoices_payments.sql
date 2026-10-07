@@ -1,10 +1,10 @@
--- Invoicing & payments.
--- See docs/database/tables/billing.md and ADRs 0004 and 0008.
+-- Invoicing & payments. See docs/database/tables/billing.md and ADRs 0004
+-- and 0008.
 --
 -- - The database owns the arithmetic: line amounts are generated, taxes are
---   snapshotted by trigger, and totals and amount_paid are trigger-maintained.
--- - Invoice status after draft is derived from amount_paid vs total. Nobody
---   sets 'paid' by hand.
+--   snapshotted by trigger, and totals and amount_paid are maintained by
+--   triggers. None of them are writable through the API.
+-- - Invoice status after draft is derived from amount_paid vs total.
 -- - invoice_visits gives "a visit is billed on at most one live invoice" a
 --   real unique index.
 --
@@ -43,7 +43,8 @@ create table public.invoices (
   voided_at timestamptz,
   void_reason text,
   stripe_invoice_id text unique,
-  payment_link_token text unique,
+  -- sha256 hex of the pay-link token. The token itself is never stored.
+  payment_link_token_hash text unique,
   created_by uuid default auth.uid() references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -70,9 +71,19 @@ create trigger set_updated_at
   before update on public.invoices
   for each row execute function extensions.moddatetime(updated_at);
 
+-- status is writable so admins can issue (draft → sent) and void. Every other
+-- status is derived by the trigger below.
+grant insert (organization_id, client_id, issue_date, due_date, period_start, period_end, message,
+              terms, internal_notes)
+  on public.invoices to authenticated;
+grant update (status, issue_date, due_date, period_start, period_end, message, terms,
+              internal_notes, void_reason)
+  on public.invoices to authenticated;
+
 -- before update:
 -- - void is terminal, and voiding requires no money received
--- - an issued invoice never returns to draft
+-- - an issued invoice never returns to draft, and its issue date and period
+--   are fixed
 -- - issuing stamps sent_at, issue_date, and due_date (org-local, with terms)
 -- - after draft, status is derived from amount_paid vs total
 create function private.invoice_before_update()
@@ -94,6 +105,12 @@ begin
 
   if old.status <> 'draft' and new.status = 'draft' then
     raise exception 'an issued invoice cannot return to draft' using errcode = '23514';
+  end if;
+
+  if old.status <> 'draft'
+     and (new.issue_date, new.period_start, new.period_end)
+         is distinct from (old.issue_date, old.period_start, old.period_end) then
+    raise exception 'an issued invoice''s date and period are fixed' using errcode = '55000';
   end if;
 
   if new.status = 'void' then
@@ -152,8 +169,12 @@ create table public.invoice_visits (
     references public.visits (organization_id, id) on delete restrict
 );
 
-create unique index invoice_visits_live_visit_idx on public.invoice_visits (visit_id) where not is_void;
+create unique index invoice_visits_live_visit_idx
+  on public.invoice_visits (organization_id, visit_id) where not is_void;
+-- The FK index for visits (the partial one above skips voided rows).
 create index invoice_visits_visit_idx on public.invoice_visits (organization_id, visit_id);
+
+grant insert (organization_id, invoice_id, visit_id) on public.invoice_visits to authenticated;
 
 -- A billed visit must be completed and belong to the invoice's client.
 create function private.guard_invoice_visit()
@@ -166,9 +187,10 @@ begin
   if not exists (
     select 1
     from public.visits v
-    join public.jobs j on j.id = v.job_id
-    join public.invoices i on i.id = new.invoice_id
-    where v.id = new.visit_id and v.status = 'completed' and j.client_id = i.client_id
+    join public.jobs j on j.organization_id = v.organization_id and j.id = v.job_id
+    join public.invoices i on i.organization_id = v.organization_id and i.id = new.invoice_id
+    where v.organization_id = new.organization_id and v.id = new.visit_id
+      and v.status = 'completed' and j.client_id = i.client_id
   ) then
     raise exception 'only a completed visit for the invoice''s client can be billed' using errcode = '23514';
   end if;
@@ -189,7 +211,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  update public.invoice_visits set is_void = true where invoice_id = new.id;
+  update public.invoice_visits set is_void = true
+  where organization_id = new.organization_id and invoice_id = new.id;
   return null;
 end;
 $$;
@@ -241,6 +264,12 @@ create trigger set_updated_at
   before update on public.invoice_line_items
   for each row execute function extensions.moddatetime(updated_at);
 
+grant insert (organization_id, invoice_id, job_id, visit_id, service_id, position, description,
+              quantity, unit_price_cents)
+  on public.invoice_line_items to authenticated;
+grant update (service_id, position, description, quantity, unit_price_cents)
+  on public.invoice_line_items to authenticated;
+
 create table public.invoice_line_item_taxes (
   organization_id uuid not null references public.organizations (id) on delete cascade,
   line_item_id uuid not null,
@@ -257,13 +286,16 @@ create table public.invoice_line_item_taxes (
 create index invoice_line_item_taxes_tax_rate_idx
   on public.invoice_line_item_taxes (organization_id, tax_rate_id);
 
+grant insert (organization_id, line_item_id, tax_rate_id) on public.invoice_line_item_taxes to authenticated;
+
 ------------------------------------------------------------------------------
 -- Draft-only editing
 ------------------------------------------------------------------------------
 
 -- Lines, taxes, and billed visits change only while the invoice is a draft.
 -- The one exception is invoice_visits.is_void, which voiding flips.
--- Cascading deletes (the invoice is already gone) are allowed.
+-- Cascading deletes (the invoice is already gone) are allowed. The invoice
+-- row is locked so a concurrent issue can't slip in between.
 create function private.guard_invoice_child_edit()
 returns trigger
 language plpgsql
@@ -271,17 +303,20 @@ security definer
 set search_path = ''
 as $$
 declare
+  org uuid := coalesce(new.organization_id, old.organization_id);
   inv_id uuid;
   st public.invoice_status;
 begin
   if tg_table_name = 'invoice_line_item_taxes' then
     select l.invoice_id into inv_id from public.invoice_line_items l
-    where l.id = coalesce(new.line_item_id, old.line_item_id);
+    where l.organization_id = org and l.id = coalesce(new.line_item_id, old.line_item_id);
   else
     inv_id := coalesce(new.invoice_id, old.invoice_id);
   end if;
 
-  select status into st from public.invoices where id = inv_id;
+  select status into st from public.invoices
+  where organization_id = org and id = inv_id
+  for no key update;
   if not found or st = 'draft' then
     return coalesce(new, old);
   end if;
@@ -310,6 +345,8 @@ create trigger guard_edit
 -- Tax snapshots and totals
 ------------------------------------------------------------------------------
 
+-- before insert/update: snapshots the rate and computes the tax. New taxes
+-- on a tax-exempt client's invoice are rejected.
 create function private.compute_invoice_line_tax()
 returns trigger
 language plpgsql
@@ -319,22 +356,23 @@ as $$
 declare
   line_amount bigint;
   exempt boolean;
-  pct numeric(7, 4);
 begin
   select l.amount_cents, c.tax_exempt
   into line_amount, exempt
   from public.invoice_line_items l
-  join public.invoices i on i.id = l.invoice_id
-  join public.clients c on c.id = i.client_id
-  where l.id = new.line_item_id;
-
-  if exempt then
+  join public.invoices i on i.organization_id = l.organization_id and i.id = l.invoice_id
+  join public.clients c on c.organization_id = i.organization_id and c.id = i.client_id
+  where l.organization_id = new.organization_id and l.id = new.line_item_id;
+  if not found then
+    raise exception 'invoice line not found' using errcode = '23503';
+  end if;
+  if tg_op = 'INSERT' and exempt then
     raise exception 'this client is tax exempt' using errcode = '23514';
   end if;
 
-  select percentage into pct from public.tax_rates where id = new.tax_rate_id;
-  new.percentage := pct;
-  new.amount_cents := round(line_amount * pct / 100);
+  select percentage into new.percentage from public.tax_rates
+  where organization_id = new.organization_id and id = new.tax_rate_id;
+  new.amount_cents := round(line_amount * new.percentage / 100);
   return new;
 end;
 $$;
@@ -343,42 +381,38 @@ create trigger compute_tax
   before insert or update on public.invoice_line_item_taxes
   for each row execute function private.compute_invoice_line_tax();
 
-create function private.refresh_invoice_line_taxes()
-returns trigger
+-- Recomputes one invoice's totals. Locks the invoice first, so the sums run
+-- on a snapshot that includes every committed sibling change.
+create function private.recalc_invoice_totals(p_org uuid, p_invoice_id uuid)
+returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  update public.invoice_line_item_taxes set percentage = percentage where line_item_id = new.id;
-  return null;
-end;
-$$;
+  perform 1 from public.invoices where organization_id = p_org and id = p_invoice_id for no key update;
+  if not found then
+    return;
+  end if;
 
-create trigger refresh_taxes
-  after update of quantity, unit_price_cents on public.invoice_line_items
-  for each row execute function private.refresh_invoice_line_taxes();
-
-create function private.recalc_invoice_totals(p_invoice_id uuid)
-returns void
-language sql
-security definer
-set search_path = ''
-as $$
   update public.invoices i
   set
     subtotal_cents = coalesce((
-      select sum(l.amount_cents) from public.invoice_line_items l where l.invoice_id = p_invoice_id
+      select sum(l.amount_cents) from public.invoice_line_items l
+      where l.organization_id = p_org and l.invoice_id = p_invoice_id
     ), 0),
     tax_cents = coalesce((
       select sum(t.amount_cents)
-      from public.invoice_line_item_taxes t
-      join public.invoice_line_items l on l.id = t.line_item_id
-      where l.invoice_id = p_invoice_id
+      from public.invoice_line_items l
+      join public.invoice_line_item_taxes t on t.organization_id = l.organization_id and t.line_item_id = l.id
+      where l.organization_id = p_org and l.invoice_id = p_invoice_id
     ), 0)
-  where i.id = p_invoice_id
+  where i.organization_id = p_org and i.id = p_invoice_id;
+end;
 $$;
 
+-- after each statement on invoice_line_items: lines whose amount changed get
+-- their taxes recomputed, then every touched invoice is re-totalled once.
 create function private.invoice_lines_changed()
 returns trigger
 language plpgsql
@@ -386,14 +420,43 @@ security definer
 set search_path = ''
 as $$
 begin
-  perform private.recalc_invoice_totals(coalesce(new.invoice_id, old.invoice_id));
+  if tg_op = 'INSERT' then
+    perform private.recalc_invoice_totals(s.organization_id, s.invoice_id)
+    from (select distinct organization_id, invoice_id from new_rows) s;
+  elsif tg_op = 'DELETE' then
+    perform private.recalc_invoice_totals(s.organization_id, s.invoice_id)
+    from (select distinct organization_id, invoice_id from old_rows) s;
+  else
+    update public.invoice_line_item_taxes t
+    set percentage = t.percentage
+    from new_rows n
+    join old_rows o on o.id = n.id
+    where n.amount_cents is distinct from o.amount_cents
+      and t.organization_id = n.organization_id and t.line_item_id = n.id;
+
+    perform private.recalc_invoice_totals(s.organization_id, s.invoice_id)
+    from (
+      select organization_id, invoice_id from new_rows
+      union
+      select organization_id, invoice_id from old_rows
+    ) s;
+  end if;
   return null;
 end;
 $$;
 
-create trigger recalc_totals
-  after insert or update or delete on public.invoice_line_items
-  for each row execute function private.invoice_lines_changed();
+create trigger recalc_totals_insert
+  after insert on public.invoice_line_items
+  referencing new table as new_rows
+  for each statement execute function private.invoice_lines_changed();
+create trigger recalc_totals_update
+  after update on public.invoice_line_items
+  referencing new table as new_rows old table as old_rows
+  for each statement execute function private.invoice_lines_changed();
+create trigger recalc_totals_delete
+  after delete on public.invoice_line_items
+  referencing old table as old_rows
+  for each statement execute function private.invoice_lines_changed();
 
 create function private.invoice_taxes_changed()
 returns trigger
@@ -401,40 +464,38 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  inv_id uuid;
 begin
-  select invoice_id into inv_id from public.invoice_line_items
-  where id = coalesce(new.line_item_id, old.line_item_id);
-  if inv_id is not null then
-    perform private.recalc_invoice_totals(inv_id);
+  if tg_op = 'DELETE' then
+    perform private.recalc_invoice_totals(s.organization_id, s.invoice_id)
+    from (
+      select distinct l.organization_id, l.invoice_id
+      from old_rows t
+      join public.invoice_line_items l on l.organization_id = t.organization_id and l.id = t.line_item_id
+    ) s;
+  else
+    perform private.recalc_invoice_totals(s.organization_id, s.invoice_id)
+    from (
+      select distinct l.organization_id, l.invoice_id
+      from new_rows t
+      join public.invoice_line_items l on l.organization_id = t.organization_id and l.id = t.line_item_id
+    ) s;
   end if;
   return null;
 end;
 $$;
 
-create trigger recalc_totals
-  after insert or update or delete on public.invoice_line_item_taxes
-  for each row execute function private.invoice_taxes_changed();
-
--- Tax rates used on any quote or invoice can't change percentage.
-create or replace function private.guard_tax_rate_percentage()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if new.percentage is distinct from old.percentage and (
-       exists (select 1 from public.quote_line_item_taxes where tax_rate_id = old.id)
-    or exists (select 1 from public.invoice_line_item_taxes where tax_rate_id = old.id)
-  ) then
-    raise exception 'this tax rate is used by documents; add a new rate instead of editing it'
-      using errcode = '55000';
-  end if;
-  return new;
-end;
-$$;
+create trigger recalc_totals_insert
+  after insert on public.invoice_line_item_taxes
+  referencing new table as new_rows
+  for each statement execute function private.invoice_taxes_changed();
+create trigger recalc_totals_update
+  after update on public.invoice_line_item_taxes
+  referencing new table as new_rows
+  for each statement execute function private.invoice_taxes_changed();
+create trigger recalc_totals_delete
+  after delete on public.invoice_line_item_taxes
+  referencing old table as old_rows
+  for each statement execute function private.invoice_taxes_changed();
 
 ------------------------------------------------------------------------------
 -- payments
@@ -465,16 +526,26 @@ create table public.payments (
   check (status <> 'partially_refunded' or refunded_cents between 1 and amount_cents - 1)
 );
 
-create index payments_invoice_idx on public.payments (organization_id, client_id, invoice_id);
+create index payments_invoice_idx on public.payments (organization_id, invoice_id);
+create index payments_client_idx on public.payments (organization_id, client_id, received_at desc);
 create index payments_received_idx on public.payments (organization_id, received_at desc);
 create index payments_recorded_by_idx on public.payments (recorded_by);
+-- Webhooks for refunds and disputes identify the charge.
+create index payments_stripe_charge_idx on public.payments (stripe_charge_id) where stripe_charge_id is not null;
 
 create trigger set_updated_at
   before update on public.payments
   for each row execute function extensions.moddatetime(updated_at);
 
--- Payments can only be recorded against issued (non-draft, non-void)
--- invoices.
+-- Admins record manual payments (cash, cheque, e-transfer…). Stripe ids and
+-- card payments come from the webhook (service role).
+grant insert (organization_id, invoice_id, client_id, method, status, amount_cents, received_at,
+              reference, notes)
+  on public.payments to authenticated;
+grant update (status, refunded_cents, received_at, reference, notes) on public.payments to authenticated;
+
+-- before insert: payments can only be recorded against issued (non-draft,
+-- non-void) invoices.
 create function private.guard_payment_invoice()
 returns trigger
 language plpgsql
@@ -482,7 +553,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  if (select status from public.invoices where id = new.invoice_id) not in ('sent', 'partially_paid', 'paid') then
+  if (select status from public.invoices where organization_id = new.organization_id and id = new.invoice_id)
+     not in ('sent', 'partially_paid', 'paid') then
     raise exception 'payments can only be recorded on issued invoices' using errcode = '55000';
   end if;
   return new;
@@ -493,31 +565,90 @@ create trigger guard_invoice
   before insert on public.payments
   for each row execute function private.guard_payment_invoice();
 
--- after any payment change: recompute the invoice's amount_paid. The invoice
--- trigger then re-derives its status.
+-- before update: a Stripe-backed payment is the webhook's record; through the
+-- API only its notes can change. (security invoker, so current_user tells
+-- an API write from trusted code.)
+create function private.guard_stripe_payment_edit()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if current_user = 'authenticated' and old.stripe_payment_intent_id is not null
+     and (to_jsonb(new) - '{notes,updated_at}'::text[]) is distinct from (to_jsonb(old) - '{notes,updated_at}'::text[]) then
+    raise exception 'Stripe payments are updated by Stripe; refund them in Stripe' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger guard_stripe_edit
+  before update on public.payments
+  for each row execute function private.guard_stripe_payment_edit();
+
+-- Recomputes an invoice's amount_paid; the invoice trigger then re-derives
+-- its status. Locks the invoice first, so two concurrent payments each see
+-- the other once it commits (no lost update).
+create function private.recalc_invoice_paid(p_org uuid, p_invoice_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform 1 from public.invoices where organization_id = p_org and id = p_invoice_id for no key update;
+  if not found then
+    return;
+  end if;
+
+  update public.invoices
+  set amount_paid_cents = coalesce((
+    select sum(p.amount_cents - p.refunded_cents)
+    from public.payments p
+    where p.organization_id = p_org and p.invoice_id = p_invoice_id
+      and p.status in ('succeeded', 'partially_refunded', 'refunded')
+  ), 0)
+  where organization_id = p_org and id = p_invoice_id;
+end;
+$$;
+
 create function private.payments_changed()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  inv_id uuid := coalesce(new.invoice_id, old.invoice_id);
 begin
-  update public.invoices
-  set amount_paid_cents = coalesce((
-    select sum(p.amount_cents - p.refunded_cents)
-    from public.payments p
-    where p.invoice_id = inv_id and p.status in ('succeeded', 'partially_refunded', 'refunded')
-  ), 0)
-  where id = inv_id;
+  if tg_op = 'INSERT' then
+    perform private.recalc_invoice_paid(s.organization_id, s.invoice_id)
+    from (select distinct organization_id, invoice_id from new_rows) s;
+  elsif tg_op = 'DELETE' then
+    perform private.recalc_invoice_paid(s.organization_id, s.invoice_id)
+    from (select distinct organization_id, invoice_id from old_rows) s;
+  else
+    perform private.recalc_invoice_paid(s.organization_id, s.invoice_id)
+    from (
+      select organization_id, invoice_id from new_rows
+      union
+      select organization_id, invoice_id from old_rows
+    ) s;
+  end if;
   return null;
 end;
 $$;
 
-create trigger recalc_paid
-  after insert or update or delete on public.payments
-  for each row execute function private.payments_changed();
+create trigger recalc_paid_insert
+  after insert on public.payments
+  referencing new table as new_rows
+  for each statement execute function private.payments_changed();
+create trigger recalc_paid_update
+  after update on public.payments
+  referencing new table as new_rows old table as old_rows
+  for each statement execute function private.payments_changed();
+create trigger recalc_paid_delete
+  after delete on public.payments
+  referencing old table as old_rows
+  for each statement execute function private.payments_changed();
 
 ------------------------------------------------------------------------------
 -- stripe_events (webhook idempotency; service role only)
@@ -535,14 +666,16 @@ create table public.stripe_events (
 
 create index stripe_events_unprocessed_idx on public.stripe_events (received_at) where processed_at is null;
 
+revoke all on public.stripe_events from authenticated;
+
 ------------------------------------------------------------------------------
 -- Invoice creation
 ------------------------------------------------------------------------------
 
 -- Creates a draft invoice for a client billing the given completed visits.
--- Each visit's job_line_items become invoice lines ("Jun 3 – Weekly
--- mowing"), with the job line's tax rates unless the client is tax exempt.
--- security invoker: owner/admin, or the service role.
+-- Each visit's job lines become invoice lines ("Jun 3 – Weekly mowing"),
+-- with the job lines' tax rates unless the client is tax exempt.
+-- Owner/admin, or trusted server code (no auth.uid()).
 create function public.create_invoice_for_visits(
   p_client_id uuid,
   p_visit_ids uuid[],
@@ -551,53 +684,65 @@ create function public.create_invoice_for_visits(
 )
 returns uuid
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
   c public.clients;
   inv_id uuid;
-  v record;
-  jl record;
-  pos integer := 0;
-  line_id uuid;
+  wanted integer := cardinality(array(select distinct unnest(p_visit_ids)));
+  found_visits integer;
 begin
   select * into c from public.clients where id = p_client_id;
   if not found then
     raise exception 'client not found' using errcode = 'P0002';
+  end if;
+  if (select auth.uid()) is not null and not private.has_org_role(c.organization_id, '{owner,admin}') then
+    raise exception 'only owners and admins can create invoices' using errcode = '42501';
+  end if;
+
+  select count(*) into found_visits from public.visits
+  where organization_id = c.organization_id and id = any (p_visit_ids);
+  if found_visits <> wanted then
+    raise exception 'some visits were not found' using errcode = 'P0002';
   end if;
 
   insert into public.invoices (organization_id, client_id, period_start, period_end)
   values (c.organization_id, c.id, p_period_start, p_period_end)
   returning id into inv_id;
 
-  for v in
-    select vi.id, vi.job_id, vi.scheduled_date
-    from public.visits vi
-    where vi.id = any (p_visit_ids)
-    order by vi.scheduled_date, vi.id
-  loop
-    insert into public.invoice_visits (organization_id, invoice_id, visit_id)
-    values (c.organization_id, inv_id, v.id);
+  insert into public.invoice_visits (organization_id, invoice_id, visit_id)
+  select c.organization_id, inv_id, v.id
+  from public.visits v
+  where v.organization_id = c.organization_id and v.id = any (p_visit_ids);
 
-    for jl in
-      select * from public.job_line_items where job_id = v.job_id order by position
-    loop
-      pos := pos + 1;
-      insert into public.invoice_line_items
-        (organization_id, invoice_id, job_id, visit_id, service_id, position, description, quantity, unit_price_cents)
-      values
-        (c.organization_id, inv_id, v.job_id, v.id, jl.service_id, pos,
+  -- One line per (visit, job line). position is unique within the invoice,
+  -- so the tax insert below can find each line again by it.
+  insert into public.invoice_line_items
+    (organization_id, invoice_id, job_id, visit_id, service_id, position, description, quantity, unit_price_cents)
+  select c.organization_id, inv_id, v.job_id, v.id, jl.service_id,
+         row_number() over (order by v.scheduled_date, v.id, jl.position, jl.id),
          to_char(v.scheduled_date, 'Mon FMDD') || ' – ' || jl.description,
-         jl.quantity, jl.unit_price_cents)
-      returning id into line_id;
+         jl.quantity, jl.unit_price_cents
+  from public.visits v
+  join public.job_line_items jl on jl.organization_id = v.organization_id and jl.job_id = v.job_id
+  where v.organization_id = c.organization_id and v.id = any (p_visit_ids);
 
-      if not c.tax_exempt then
-        insert into public.invoice_line_item_taxes (organization_id, line_item_id, tax_rate_id)
-        select c.organization_id, line_id, t from unnest(jl.tax_rate_ids) as t;
-      end if;
-    end loop;
-  end loop;
+  if not c.tax_exempt then
+    insert into public.invoice_line_item_taxes (organization_id, line_item_id, tax_rate_id)
+    select c.organization_id, il.id, t.tax_rate_id
+    from (
+      select jl.id as job_line_id,
+             row_number() over (order by v.scheduled_date, v.id, jl.position, jl.id) as pos
+      from public.visits v
+      join public.job_line_items jl on jl.organization_id = v.organization_id and jl.job_id = v.job_id
+      where v.organization_id = c.organization_id and v.id = any (p_visit_ids)
+    ) src
+    join public.invoice_line_items il
+      on il.organization_id = c.organization_id and il.invoice_id = inv_id and il.position = src.pos
+    join public.job_line_item_taxes t
+      on t.organization_id = c.organization_id and t.line_item_id = src.job_line_id;
+  end if;
 
   return inv_id;
 end;
@@ -610,6 +755,9 @@ grant execute on function public.create_invoice_for_visits(uuid, uuid[], date, d
 -- - per_visit jobs: one invoice per visit.
 -- - periodic monthly jobs: on the 1st (org-local), one invoice per client
 --   covering unbilled visits through the end of last month.
+-- Each invoice is created in its own subtransaction: a failure is logged as
+-- a warning with its org and client, and the run carries on. Returns the
+-- number of invoices created.
 create function private.run_invoice_generation()
 returns integer
 language plpgsql
@@ -628,33 +776,49 @@ begin
     for r in
       select vi.id, j.client_id
       from public.visits vi
-      join public.jobs j on j.id = vi.job_id
+      join public.jobs j on j.organization_id = vi.organization_id and j.id = vi.job_id
       where vi.organization_id = o.id
-        and j.billing_mode = 'per_visit'
         and vi.status = 'completed'
-        and not exists (select 1 from public.invoice_visits iv where iv.visit_id = vi.id and not iv.is_void)
+        and j.billing_mode = 'per_visit'
+        and not exists (
+          select 1 from public.invoice_visits iv
+          where iv.organization_id = vi.organization_id and iv.visit_id = vi.id and not iv.is_void
+        )
     loop
-      perform public.create_invoice_for_visits(r.client_id, array[r.id]);
-      n := n + 1;
+      begin
+        perform public.create_invoice_for_visits(r.client_id, array[r.id]);
+        n := n + 1;
+      exception when others then
+        raise warning 'invoice generation failed: org %, client %, visit %: % (%)',
+          o.id, r.client_id, r.id, sqlerrm, sqlstate;
+      end;
     end loop;
 
     if extract(day from today) = 1 then
       for r in
         select j.client_id, array_agg(vi.id order by vi.scheduled_date) as visit_ids
         from public.visits vi
-        join public.jobs j on j.id = vi.job_id
+        join public.jobs j on j.organization_id = vi.organization_id and j.id = vi.job_id
         where vi.organization_id = o.id
+          and vi.status = 'completed'
           and j.billing_mode = 'periodic'
           and j.billing_period = 'monthly'
-          and vi.status = 'completed'
           and vi.scheduled_date < today
-          and not exists (select 1 from public.invoice_visits iv where iv.visit_id = vi.id and not iv.is_void)
+          and not exists (
+            select 1 from public.invoice_visits iv
+            where iv.organization_id = vi.organization_id and iv.visit_id = vi.id and not iv.is_void
+          )
         group by j.client_id
       loop
-        perform public.create_invoice_for_visits(
-          r.client_id, r.visit_ids, (today - interval '1 month')::date, today - 1
-        );
-        n := n + 1;
+        begin
+          perform public.create_invoice_for_visits(
+            r.client_id, r.visit_ids, (today - interval '1 month')::date, today - 1
+          );
+          n := n + 1;
+        exception when others then
+          raise warning 'invoice generation failed: org %, client % (monthly): % (%)',
+            o.id, r.client_id, sqlerrm, sqlstate;
+        end;
       end loop;
     end if;
   end loop;
@@ -679,62 +843,62 @@ alter table public.stripe_events enable row level security;
 
 create policy "Office staff can view invoices"
   on public.invoices for select to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin,dispatcher}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin,dispatcher}'))));
 create policy "Owners and admins can create invoices"
   on public.invoices for insert to authenticated
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins can update invoices"
   on public.invoices for update to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')))
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))))
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins can delete draft invoices"
   on public.invoices for delete to authenticated
-  using (status = 'draft' and organization_id in (select private.my_org_ids('{owner,admin}')));
+  using (status = 'draft' and organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 
 create policy "Office staff can view billed visits"
   on public.invoice_visits for select to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin,dispatcher}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin,dispatcher}'))));
 create policy "Owners and admins can bill visits"
   on public.invoice_visits for insert to authenticated
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins can unbill visits"
   on public.invoice_visits for delete to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 
 create policy "Office staff can view invoice lines"
   on public.invoice_line_items for select to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin,dispatcher}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin,dispatcher}'))));
 create policy "Owners and admins can add invoice lines"
   on public.invoice_line_items for insert to authenticated
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins can update invoice lines"
   on public.invoice_line_items for update to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')))
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))))
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins can delete invoice lines"
   on public.invoice_line_items for delete to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 
 create policy "Office staff can view invoice taxes"
   on public.invoice_line_item_taxes for select to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin,dispatcher}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin,dispatcher}'))));
 create policy "Owners and admins can add invoice taxes"
   on public.invoice_line_item_taxes for insert to authenticated
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins can delete invoice taxes"
   on public.invoice_line_item_taxes for delete to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 
 create policy "Office staff can view payments"
   on public.payments for select to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin,dispatcher}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin,dispatcher}'))));
 create policy "Owners and admins can record payments"
   on public.payments for insert to authenticated
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 create policy "Owners and admins can update payments"
   on public.payments for update to authenticated
-  using (organization_id in (select private.my_org_ids('{owner,admin}')))
-  with check (organization_id in (select private.my_org_ids('{owner,admin}')));
+  using (organization_id = any (array(select private.my_org_ids('{owner,admin}'))))
+  with check (organization_id = any (array(select private.my_org_ids('{owner,admin}'))));
 
 ------------------------------------------------------------------------------
 -- Portal RPCs
@@ -772,10 +936,10 @@ as $$
          i.issue_date, i.due_date, i.period_start, i.period_end,
          i.subtotal_cents, i.tax_cents, i.total_cents, i.amount_paid_cents, i.balance_cents,
          i.message, i.terms, i.sent_at, i.paid_at
-  from public.invoices i
+  from private.portal_clients() pc
+  join public.invoices i on i.organization_id = pc.organization_id and i.client_id = pc.client_id
   join public.organizations o on o.id = i.organization_id
-  where i.client_id in (select private.portal_client_ids())
-    and i.status <> 'draft'
+  where i.status <> 'draft'
   order by i.issue_date desc nulls last, i.number desc
 $$;
 
@@ -795,11 +959,14 @@ security definer
 set search_path = ''
 as $$
   select l.id, l.position, l.description, l.quantity, l.unit_price_cents, l.amount_cents,
-         coalesce((select sum(t.amount_cents) from public.invoice_line_item_taxes t where t.line_item_id = l.id), 0)::bigint
-  from public.invoice_line_items l
-  join public.invoices i on i.id = l.invoice_id
+         coalesce((
+           select sum(t.amount_cents) from public.invoice_line_item_taxes t
+           where t.organization_id = l.organization_id and t.line_item_id = l.id
+         ), 0)::bigint
+  from private.portal_clients() pc
+  join public.invoices i on i.organization_id = pc.organization_id and i.client_id = pc.client_id
+  join public.invoice_line_items l on l.organization_id = i.organization_id and l.invoice_id = i.id
   where i.id = p_invoice_id
-    and i.client_id in (select private.portal_client_ids())
     and i.status <> 'draft'
   order by l.position
 $$;
@@ -820,14 +987,18 @@ security definer
 set search_path = ''
 as $$
   select p.id, p.invoice_id, p.method, p.status, p.amount_cents, p.refunded_cents, p.received_at
-  from public.payments p
-  where p.client_id in (select private.portal_client_ids())
+  from private.portal_clients() pc
+  join public.payments p on p.organization_id = pc.organization_id and p.client_id = pc.client_id
   order by p.received_at desc
 $$;
 
-revoke execute on function public.portal_my_invoices() from public, anon;
-revoke execute on function public.portal_invoice_lines(uuid) from public, anon;
-revoke execute on function public.portal_my_payments() from public, anon;
-grant execute on function public.portal_my_invoices() to authenticated;
-grant execute on function public.portal_invoice_lines(uuid) to authenticated;
-grant execute on function public.portal_my_payments() to authenticated;
+revoke execute on function
+  public.portal_my_invoices(),
+  public.portal_invoice_lines(uuid),
+  public.portal_my_payments()
+from public, anon;
+grant execute on function
+  public.portal_my_invoices(),
+  public.portal_invoice_lines(uuid),
+  public.portal_my_payments()
+to authenticated;

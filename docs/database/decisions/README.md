@@ -15,3 +15,5 @@ rewrite history.
 | 0007 | [Prisma queries run under RLS via `withRls()`](0007-prisma-and-rls.md)                         | Superseded by 0009 |
 | 0008 | [Stripe Connect for client payments](0008-stripe-connect.md)                                   | Accepted           |
 | 0009 | [App data access goes through supabase-js, under RLS](0009-supabase-js-data-access.md)         | Accepted           |
+| 0010 | [Rebaseline the migrations before launch](0010-pre-launch-rebaseline.md)                       | Accepted           |
+| 0011 | [Workers use RPCs, not table policies](0011-worker-rpcs.md)                                    | Accepted           |
