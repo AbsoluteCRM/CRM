@@ -19,6 +19,7 @@ Close the follow-ups listed when PR #25 merged.
 
 - Migration `20261007222040_followup_hardening`: payments can't change or be
 - Migration `20261007223559_pending_payment_fix`: a pending payment can still settle after its invoice is voided (reviewer finding).
+- Migration `20261007223741_route_stop_guard_lock_fix`: the stop-date guard locks the visit only on insert or visit change (reviewer deadlock note).
   added on a void invoice; payment, invoice-visit, and route-stop guards lock
   the parent row; optimizer runs can only name their own organization's crews
   and visits. `supabase/tests/followup_hardening_test.sql` (8 assertions).

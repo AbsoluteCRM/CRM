@@ -167,22 +167,23 @@ Domains are migrated one at a time, in FK-dependency order
 `routes`). Advisors and pgTAP tests run after each. Once the rebaseline
 lands, an applied migration is never edited; fixes go in a new migration.
 
-| #   | Migration             | Status  | Creates                                                                                                                                          |
-| --- | --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | `foundation`          | applied | Extensions, `private` schema, default privileges, `uuid_generate_v7`                                                                             |
-| 2   | `tenancy_identity`    | applied | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs, `my_memberships`                            |
-| 3   | `clients_properties`  | applied | clients, client_contacts, properties, client_portal_users, `portal_clients()`                                                                    |
-| 4   | `catalog_tax`         | applied | services, tax_rates (insert-only percentage, `archived_at`), service_default_taxes                                                               |
-| 5   | `crews`               | applied | crews, crew_members                                                                                                                              |
-| 6   | `quotes`              | applied | quotes and their lines and taxes, statement-level totals, quote RPCs, hourly `expire-quotes` cron                                                |
-| 7   | `jobs_visits`         | applied | jobs (`window_start` + `window_minutes`), job lines and `job_line_item_taxes`, visits, attachments, `org-files` bucket                           |
-| 8   | `routing`             | applied | routes, route_members (`unique (member, date)`), route_stops, optimization_runs, `reset_job_schedule`                                            |
-| 9   | `invoices_payments`   | applied | invoices, lines, invoice_visits, taxes, payments, stripe_events, per-org invoice cron, portal RPCs                                               |
-| 10  | `time_tracking`       | applied | shifts, visit_time_entries, labor_cost_report                                                                                                    |
-| 11  | `worker_api`          | applied | `worker_*` RPCs, worker storage policies ([ADR 0011](decisions/0011-worker-rpcs.md))                                                             |
-| 12  | `review_fixes`        | applied | Office-checked definer `generate_visits`/`reset_job_schedule`, `worker_join_visit`, owner-row invitation guard, safer invoice creation and terms |
-| 13  | `followup_hardening`  | applied | Payment and invoice-visit guards lock their parent, void-invoice payment freeze, route-stop date lock, optimization-run ref check                |
-| 14  | `pending_payment_fix` | applied | Pending payments may still settle after their invoice is voided                                                                                  |
+| #   | Migration                   | Status  | Creates                                                                                                                                          |
+| --- | --------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `foundation`                | applied | Extensions, `private` schema, default privileges, `uuid_generate_v7`                                                                             |
+| 2   | `tenancy_identity`          | applied | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs, `my_memberships`                            |
+| 3   | `clients_properties`        | applied | clients, client_contacts, properties, client_portal_users, `portal_clients()`                                                                    |
+| 4   | `catalog_tax`               | applied | services, tax_rates (insert-only percentage, `archived_at`), service_default_taxes                                                               |
+| 5   | `crews`                     | applied | crews, crew_members                                                                                                                              |
+| 6   | `quotes`                    | applied | quotes and their lines and taxes, statement-level totals, quote RPCs, hourly `expire-quotes` cron                                                |
+| 7   | `jobs_visits`               | applied | jobs (`window_start` + `window_minutes`), job lines and `job_line_item_taxes`, visits, attachments, `org-files` bucket                           |
+| 8   | `routing`                   | applied | routes, route_members (`unique (member, date)`), route_stops, optimization_runs, `reset_job_schedule`                                            |
+| 9   | `invoices_payments`         | applied | invoices, lines, invoice_visits, taxes, payments, stripe_events, per-org invoice cron, portal RPCs                                               |
+| 10  | `time_tracking`             | applied | shifts, visit_time_entries, labor_cost_report                                                                                                    |
+| 11  | `worker_api`                | applied | `worker_*` RPCs, worker storage policies ([ADR 0011](decisions/0011-worker-rpcs.md))                                                             |
+| 12  | `review_fixes`              | applied | Office-checked definer `generate_visits`/`reset_job_schedule`, `worker_join_visit`, owner-row invitation guard, safer invoice creation and terms |
+| 13  | `followup_hardening`        | applied | Payment and invoice-visit guards lock their parent, void-invoice payment freeze, route-stop date lock, optimization-run ref check                |
+| 14  | `pending_payment_fix`       | applied | Pending payments may still settle after their invoice is voided                                                                                  |
+| 15  | `route_stop_guard_lock_fix` | applied | Route-stop date guard locks the visit only on insert or visit change (avoids a deadlock)                                                         |
 
 ## Out of scope (for now)
 
