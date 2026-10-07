@@ -5,5 +5,5 @@ export const Route = createFileRoute('/_authed/calendar')({
 })
 
 function RouteComponent() {
-  return <div>Hello "/calendar"!</div>
+  return <div>Hello "/_authed/calendar"!</div>
 }
