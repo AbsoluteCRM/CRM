@@ -82,4 +82,6 @@ wrapping every user request in `withRls()`. Neither part earned its place:
   run, and the types file doesn't exist yet.
   (Update 2026-10-07: the remote was rebaselined to match the migrations
   ([ADR 0010](0010-pre-launch-rebaseline.md)), the types file exists, and the
-  Supabase clients are typed with `Database`.)
+  Supabase clients are typed with `Database`. `generate_visits`, `reset_job_schedule`,
+  and `create_invoice_for_visits` are now `security definer` with explicit
+  role checks, because invoker needed column grants the API withholds.)
