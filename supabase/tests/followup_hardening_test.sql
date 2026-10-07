@@ -101,6 +101,12 @@ insert into _tap (line) select lives_ok(
     select organization_id, id, (select id from _ids where key = 'visit'), 1 from public.routes
     where organization_id = (select id from _ids where key = 'pgtap-c')$$,
   'a visit can be routed on its scheduled date');
+insert into _tap (line) select lives_ok(
+  $$update public.visits set scheduled_date = '2026-06-10' where id = (select id from _ids where key = 'visit')$$,
+  'a routed visit can be rescheduled');
+insert into _tap (line) select is(
+  (select count(*) from public.route_stops where visit_id = (select id from _ids where key = 'visit')), 0::bigint,
+  'rescheduling a visit removes its stop from the old route');
 
 insert into _tap (line) select * from finish();
 select string_agg(line, e'\n' order by n) as tap from _tap;
