@@ -4,7 +4,7 @@
 - **Tier**: full (security-gated: migrations and `rls.md`), built before the
   plan-audit step existed on `main`; the reviewer and security gates apply to
   the PR
-- **Status**: implemented (pending reviewer and security)
+- **Status**: implemented (reviewer and security found issues; fixed in `review_fixes`, re-review pending)
 - **Confidence**: 95%, because the two material choices were the user's
   answers and every finding was reproduced against the live database
 - **Plan-mode file**: `~/.claude/plans/atomic-booping-planet.md`

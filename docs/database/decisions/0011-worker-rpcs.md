@@ -17,7 +17,7 @@ every query.
 Workers get no policies on domain tables. `worker_*` security definer
 functions return crew-safe columns for routes the caller is rostered on
 (published or in progress) and perform the few things a worker does:
-start, complete, or no-show a visit; attach a photo; clock in and out. All
+start, join, complete, or no-show a visit; attach a photo; clock in and out. All
 times come from the server clock. Completed routes and billed visits are
 read-only. Storage policies give workers only the
 `{org}/visits/{visit_id}/` folders of their visits. Workers keep plain reads
@@ -26,6 +26,8 @@ This is the same pattern the portal already uses.
 
 ## Consequences
 
+- Several workers can time the same visit: the first calls `worker_start_visit`,
+  the others `worker_join_visit`, and completing closes every open entry.
 - Every tenant policy is a single indexable condition.
 - The mobile app calls RPCs only. A new field a worker needs means changing
   a function, which is deliberate.

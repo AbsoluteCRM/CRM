@@ -147,8 +147,10 @@ pages), in `src/server/trusted/`. RLS admits every org a user belongs to, so
 queries and inserts must also scope to the active org. See
 [ADR 0009](decisions/0009-supabase-js-data-access.md).
 
-Trusted SQL functions (`create_invoice_for_visits`, `generate_visits`) treat a
-missing `auth.uid()` as trusted code. They are not callable by `anon`.
+`generate_visits`, `reset_job_schedule`, and `create_invoice_for_visits` are
+`security definer`: they check the caller's role in the job or client's org
+(office staff; owner/admin for invoices) and treat a missing `auth.uid()` as
+trusted code. They are not callable by `anon`.
 
 ## Accepted advisor findings
 

@@ -105,9 +105,11 @@ These rules apply to every table unless its reference doc says otherwise.
   `security definer` functions write them. `anon` has no table or function
   access. Functions are not executable by `PUBLIC` unless granted.
 - **Triggers and helpers** always filter child lookups by `organization_id`
-  (the leading column of every composite index), lock the parent row before
-  reading or re-totalling it, and recompute totals once per statement with
-  transition tables.
+  (the leading column of every composite index) and recompute totals once per
+  statement with transition tables. Line, tax, and total/paid recomputations
+  lock the parent quote or invoice. Other cross-row guards (payment vs invoice
+  status, billing a visit, routing a stop) read their parent without a lock, a
+  known gap that main shares.
 - **Workers** have no table policies on domain data. They use `worker_*` RPCs
   that return crew-safe columns ([ADR 0011](decisions/0011-worker-rpcs.md)).
 
@@ -167,19 +169,20 @@ Domains are migrated one at a time, in FK-dependency order
 `routes`). Advisors and pgTAP tests run after each. Once the rebaseline
 lands, an applied migration is never edited; fixes go in a new migration.
 
-| #   | Migration            | Status  | Creates                                                                                                                |
-| --- | -------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 1   | `foundation`         | applied | Extensions, `private` schema, default privileges, `uuid_generate_v7`                                                   |
-| 2   | `tenancy_identity`   | applied | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs, `my_memberships`  |
-| 3   | `clients_properties` | applied | clients, client_contacts, properties, client_portal_users, `portal_clients()`                                          |
-| 4   | `catalog_tax`        | applied | services, tax_rates (insert-only percentage, `archived_at`), service_default_taxes                                     |
-| 5   | `crews`              | applied | crews, crew_members                                                                                                    |
-| 6   | `quotes`             | applied | quotes and their lines and taxes, statement-level totals, quote RPCs, hourly `expire-quotes` cron                      |
-| 7   | `jobs_visits`        | applied | jobs (`window_start` + `window_minutes`), job lines and `job_line_item_taxes`, visits, attachments, `org-files` bucket |
-| 8   | `routing`            | applied | routes, route_members (`unique (member, date)`), route_stops, optimization_runs, `reset_job_schedule`                  |
-| 9   | `invoices_payments`  | applied | invoices, lines, invoice_visits, taxes, payments, stripe_events, per-org invoice cron, portal RPCs                     |
-| 10  | `time_tracking`      | applied | shifts, visit_time_entries, labor_cost_report                                                                          |
-| 11  | `worker_api`         | applied | `worker_*` RPCs, worker storage policies ([ADR 0011](decisions/0011-worker-rpcs.md))                                   |
+| #   | Migration            | Status  | Creates                                                                                                                                          |
+| --- | -------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `foundation`         | applied | Extensions, `private` schema, default privileges, `uuid_generate_v7`                                                                             |
+| 2   | `tenancy_identity`   | applied | organizations, profiles, members, invitations, pay rates, document_sequences, RLS helpers, org RPCs, `my_memberships`                            |
+| 3   | `clients_properties` | applied | clients, client_contacts, properties, client_portal_users, `portal_clients()`                                                                    |
+| 4   | `catalog_tax`        | applied | services, tax_rates (insert-only percentage, `archived_at`), service_default_taxes                                                               |
+| 5   | `crews`              | applied | crews, crew_members                                                                                                                              |
+| 6   | `quotes`             | applied | quotes and their lines and taxes, statement-level totals, quote RPCs, hourly `expire-quotes` cron                                                |
+| 7   | `jobs_visits`        | applied | jobs (`window_start` + `window_minutes`), job lines and `job_line_item_taxes`, visits, attachments, `org-files` bucket                           |
+| 8   | `routing`            | applied | routes, route_members (`unique (member, date)`), route_stops, optimization_runs, `reset_job_schedule`                                            |
+| 9   | `invoices_payments`  | applied | invoices, lines, invoice_visits, taxes, payments, stripe_events, per-org invoice cron, portal RPCs                                               |
+| 10  | `time_tracking`      | applied | shifts, visit_time_entries, labor_cost_report                                                                                                    |
+| 11  | `worker_api`         | applied | `worker_*` RPCs, worker storage policies ([ADR 0011](decisions/0011-worker-rpcs.md))                                                             |
+| 12  | `review_fixes`       | applied | Office-checked definer `generate_visits`/`reset_job_schedule`, `worker_join_visit`, owner-row invitation guard, safer invoice creation and terms |
 
 ## Out of scope (for now)
 
