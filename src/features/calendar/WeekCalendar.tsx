@@ -82,10 +82,10 @@ export function WeekCalendar({
               disabled={count === 0}
               onClick={() => setSelected(day.date)}
               className={cn(
-                'rounded-lg border bg-card p-4 text-left transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-card',
-                isToday(date) && 'border-primary',
+                'rounded-lg border border-gray-300 bg-card p-4 text-left transition hover:bg-green-900/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-card hover:cursor-pointer',
+                isToday(date) && 'border-green-900',
                 selected === day.date &&
-                'bg-primary text-primary-foreground hover:bg-primary/90',
+                'bg-green-900 text-primary-foreground hover:bg-green-900/90',
               )}
             >
               <div className="text-xs uppercase opacity-70">
