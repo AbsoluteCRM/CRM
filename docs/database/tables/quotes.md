@@ -111,11 +111,15 @@ invoice taxes.
 ## RLS
 
 Office staff (owner/admin/dispatcher) only, on all three tables. Workers and
-other orgs see nothing.
+other orgs see nothing. `subtotal_cents`, `tax_cents`, `number`, `sent_at`, and
+`approved_*` aren't writable through the API: line and tax changes re-total the
+quote once per statement (transition-table triggers that lock the quote row).
+A sent quote's client, property, title, and message are fixed; send it back to
+draft to change them. The `expire-quotes` cron runs hourly.
 
 ## Portal RPCs
 
-All are `security definer`, limited to `private.portal_client_ids()`, and
+All are `security definer`, limited to `private.portal_clients()`, and
 exclude `draft` quotes and internal columns.
 
 | Function                                                                  | Purpose                                                                                         |

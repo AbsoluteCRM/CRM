@@ -25,7 +25,7 @@ Standard columns are described in the [README](../README.md#conventions).
 | `first_name`                                                       | `text`          | yes  |                |                                                                       |
 | `last_name`                                                        | `text`          | yes  |                |                                                                       |
 | `company_name`                                                     | `text`          | yes  |                | Check: required when `kind = 'company'`                               |
-| `email`                                                            | `citext`        | yes  |                | Primary billing email                                                 |
+| `email`                                                            | `text`          | yes  |                | Primary billing email                                                 |
 | `phone`                                                            | `text`          | yes  |                |                                                                       |
 | `billing_address_line1` … `billing_postal_code`, `billing_country` | `text`          | yes  |                | Null means use the primary property's address                         |
 | `lead_source`                                                      | `text`          | yes  |                | Free text: referral, Google, door hanger…                             |
@@ -39,7 +39,7 @@ Indexes:
 
 - `unique (organization_id, id)`
 - `(organization_id, status) where archived_at is null`
-- GIN `display_name gin_trgm_ops` for fuzzy search
+- GIN `(organization_id, display_name gin_trgm_ops)` for fuzzy search within an org (needs `btree_gin`)
 - `unique (organization_id, stripe_customer_id)`
 
 ## `client_contacts`
@@ -49,7 +49,7 @@ Indexes:
 | `client_id`         | `uuid`    | no   |         | Composite FK → `clients`, on delete cascade |
 | `name`              | `text`    | no   |         |                                             |
 | `role`              | `text`    | yes  |         | "Property manager", "Spouse"…               |
-| `email`             | `citext`  | yes  |         |                                             |
+| `email`             | `text`    | yes  |         |                                             |
 | `phone`             | `text`    | yes  |         |                                             |
 | `is_primary`        | `boolean` | no   | `false` | Partial unique: one primary per client      |
 | `receives_invoices` | `boolean` | no   | `false` | CC'd on invoice emails                      |
@@ -58,30 +58,30 @@ Indexes:
 
 A service location. Its geocoded point is what routing works from.
 
-| Column           | Type                    | Null | Default | Notes                                                   |
-| ---------------- | ----------------------- | ---- | ------- | ------------------------------------------------------- |
-| `client_id`      | `uuid`                  | no   |         | Composite FK → `clients`, on delete restrict            |
-| `name`           | `text`                  | yes  |         | "Main house", "Lot 4"                                   |
-| `address_line1`  | `text`                  | no   |         |                                                         |
-| `address_line2`  | `text`                  | yes  |         |                                                         |
-| `city`           | `text`                  | no   |         |                                                         |
-| `region`         | `text`                  | yes  |         | Province or state                                       |
-| `postal_code`    | `text`                  | yes  |         |                                                         |
-| `country`        | `char(2)`               | no   | `'CA'`  |                                                         |
-| `location`       | `geography(Point,4326)` | yes  |         | Null until geocoded. Visits can't be routed without it  |
-| `latitude`       | `double precision`      | —    |         | `generated always as (st_y(location::geometry)) stored` |
-| `longitude`      | `double precision`      | —    |         | `generated always as (st_x(location::geometry)) stored` |
-| `geocoded_at`    | `timestamptz`           | yes  |         |                                                         |
-| `geocode_source` | `text`                  | yes  |         | `google`, `mapbox`, `manual` (a dragged pin)            |
-| `access_notes`   | `text`                  | yes  |         | Gate codes, dogs, parking. Visible to rostered workers  |
-| `lot_size_sqft`  | `integer`               | yes  |         | Check `> 0`. Useful for quoting                         |
-| `archived_at`    | `timestamptz`           | yes  |         |                                                         |
+| Column           | Type                    | Null | Default | Notes                                                                           |
+| ---------------- | ----------------------- | ---- | ------- | ------------------------------------------------------------------------------- |
+| `client_id`      | `uuid`                  | no   |         | Composite FK → `clients`, on delete restrict                                    |
+| `name`           | `text`                  | yes  |         | "Main house", "Lot 4"                                                           |
+| `address_line1`  | `text`                  | no   |         |                                                                                 |
+| `address_line2`  | `text`                  | yes  |         |                                                                                 |
+| `city`           | `text`                  | no   |         |                                                                                 |
+| `region`         | `text`                  | yes  |         | Province or state                                                               |
+| `postal_code`    | `text`                  | yes  |         |                                                                                 |
+| `country`        | `text`                  | no   | `'CA'`  |                                                                                 |
+| `location`       | `geography(Point,4326)` | yes  |         | Null until geocoded. Visits can't be routed without it                          |
+| `latitude`       | `double precision`      | —    |         | `generated always as (st_y(location::geometry)) stored`                         |
+| `longitude`      | `double precision`      | —    |         | `generated always as (st_x(location::geometry)) stored`                         |
+| `geocoded_at`    | `timestamptz`           | yes  |         |                                                                                 |
+| `geocode_source` | `text`                  | yes  |         | `google`, `mapbox`, `manual` (a dragged pin)                                    |
+| `access_notes`   | `text`                  | yes  |         | Gate codes, dogs, parking. Returned to rostered workers by `worker_route_stops` |
+| `lot_size_sqft`  | `integer`               | yes  |         | Check `> 0`. Useful for quoting                                                 |
+| `archived_at`    | `timestamptz`           | yes  |         |                                                                                 |
 
 Indexes:
 
 - `unique (organization_id, id)`
 - `(organization_id, client_id)`
-- GiST `(location)`
+- GiST `(organization_id, location)` (needs `btree_gist`)
 
 ## `client_portal_users`
 
@@ -94,8 +94,8 @@ can have several logins.
 | `client_id` | `uuid` | no   |         | Composite FK → `clients`, on delete cascade |
 | `user_id`   | `uuid` | no   |         | FK → `auth.users`, on delete cascade        |
 
-`unique (client_id, user_id)`. Index `(user_id)`, which
-`private.portal_client_ids()` uses. Only owner/admin/dispatcher can create
+PK `(organization_id, client_id, user_id)` (no `id` column). Index `(user_id)`, which
+`private.portal_clients()` uses. Only owner/admin/dispatcher can create
 these rows, normally by sending a portal invite.
 
 ## Portal RPCs

@@ -14,15 +14,14 @@ The org's price list. Quote, job, and invoice lines copy `description` and
 price from a service when the line is created, so later price changes never
 rewrite history.
 
-| Column                     | Type           | Null | Default  | Notes                                     |
-| -------------------------- | -------------- | ---- | -------- | ----------------------------------------- |
-| `name`                     | `text`         | no   |          | Unique per org among non-archived rows    |
-| `description`              | `text`         | yes  |          | Default line description                  |
-| `unit`                     | `service_unit` | no   | `'each'` |                                           |
-| `default_price_cents`      | `bigint`       | no   | `0`      | Check `>= 0`                              |
-| `default_duration_minutes` | `integer`      | yes  |          | Check `> 0`. Seeds the visit duration     |
-| `is_active`                | `boolean`      | no   | `true`   | Inactive services are hidden from pickers |
-| `archived_at`              | `timestamptz`  | yes  |          |                                           |
+| Column                     | Type           | Null | Default  | Notes                                                                 |
+| -------------------------- | -------------- | ---- | -------- | --------------------------------------------------------------------- |
+| `name`                     | `text`         | no   |          | Unique per org among non-archived rows                                |
+| `description`              | `text`         | yes  |          | Default line description                                              |
+| `unit`                     | `service_unit` | no   | `'each'` |                                                                       |
+| `default_price_cents`      | `bigint`       | no   | `0`      | Check `>= 0`                                                          |
+| `default_duration_minutes` | `integer`      | yes  |          | Check `> 0`. Seeds the visit duration                                 |
+| `archived_at`              | `timestamptz`  | yes  |          | Archived services are hidden from pickers and can't be newly attached |
 
 Indexes: `unique (organization_id, id)`,
 `unique (organization_id, lower(name)) where archived_at is null`.
@@ -33,15 +32,17 @@ Named, stackable tax rates, e.g. "GST 5%" plus "PST BC 7%", or "HST ON 13%".
 All rates are simple (non-compound) percentages of the line amount, which
 covers every Canadian province today.
 
-| Column                | Type           | Null | Default | Notes                                      |
-| --------------------- | -------------- | ---- | ------- | ------------------------------------------ |
-| `name`                | `text`         | no   |         | "GST", "HST ON"                            |
-| `percentage`          | `numeric(7,4)` | no   |         | `5.0000` means 5%. Check `0 <= x <= 100`   |
-| `registration_number` | `text`         | yes  |         | Printed on invoices, e.g. a GST/HST number |
-| `is_active`           | `boolean`      | no   | `true`  |                                            |
+| Column                | Type           | Null | Default | Notes                                               |
+| --------------------- | -------------- | ---- | ------- | --------------------------------------------------- |
+| `name`                | `text`         | no   |         | "GST", "HST ON"                                     |
+| `percentage`          | `numeric(7,4)` | no   |         | `5.0000` means 5%. Check `0 <= x <= 100`            |
+| `registration_number` | `text`         | yes  |         | Printed on invoices, e.g. a GST/HST number          |
+| `archived_at`         | `timestamptz`  | yes  |         | Archived rates can't be newly attached to documents |
 
-A rate's percentage is **never edited once used**. To change a rate, add a
-new one and deactivate the old one. Documents snapshot the rate anyway (see
+A rate's percentage is **insert-only**: the API grants no update on it, so
+documents can never change underneath. To change a rate, add a new one and
+archive the old one. `private.guard_tax_rate_usable()` rejects archived rates on
+new `service_default_taxes`, quote, job, and invoice tax rows. Documents snapshot the rate anyway (see
 `*_line_item_taxes.percentage`).
 
 ## `service_default_taxes`

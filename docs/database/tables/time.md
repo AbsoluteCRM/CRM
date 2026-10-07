@@ -89,12 +89,23 @@ Migration `20260929202750_time_tracking`. Tested in
   closed (`23514`).
 - `route_id` uses `on delete set null (route_id)`.
 
-**RLS** (via the new uncorrelated helper `private.my_member_ids()`):
+**Access**: office staff (owner/admin/dispatcher) have full table access to
+`shifts` and `visit_time_entries`. Workers have no table policies; they act
+through `worker_*` RPCs that stamp the server clock
+([ADR 0011](../decisions/0011-worker-rpcs.md)):
 
-| Actor        | shifts                                                                                                                  | visit_time_entries                                                              |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| office staff | S I U D                                                                                                                 | S I U D                                                                         |
-| worker       | S own. I own, unapproved only. U own only while `clock_out is null` and unapproved, and the result must stay unapproved | S own. I own, only on `worker_visit_ids()`. U own only while `ended_at is null` |
+- `worker_clock_in(org, route?)` opens a shift now, and `worker_clock_out(org,
+break_minutes)` closes it. The overlap constraint still allows at most one
+  open shift per member.
+- `worker_start_visit` opens the caller's time entry on a visit, and
+  `worker_join_visit` lets every other rostered worker open their own.
+  `worker_complete_visit` and `worker_mark_no_show` close every open entry on
+  the visit.
+- `worker_my_shifts(from, to)` lists the caller's own shifts.
+
+`shifts.approved_by` is stamped by trigger when `approved_at` is set (and
+cleared with it); it isn't writable through the API. `source` defaults to
+`manual` for office entries and `app` for RPC-created ones.
 
 **`public.labor_cost_report`** (a `security_invoker` view): one row per
 closed shift, with these columns:
@@ -104,5 +115,7 @@ closed shift, with these columns:
 - `hourly_rate_cents` (the rate in effect on `work_date`)
 - `labor_cost_cents`
 
-Because it runs as the invoker, a worker sees their own hours with a null
-rate, and owner/admin see everything. `anon` has no grant.
+Because it runs as the invoker, office staff see shift hours; the rate and
+cost columns are null unless the caller can read `member_pay_rates`
+(owner/admin). Workers have no access to the view; `worker_my_shifts` returns
+their own hours. `anon` has no grant.

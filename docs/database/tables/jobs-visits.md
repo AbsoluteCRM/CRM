@@ -36,8 +36,8 @@ Standard columns are described in the [README](../README.md#conventions).
 | `rrule`                  | `text`             | yes  |               | RFC 5545 RRULE, **without** DTSTART, e.g. `FREQ=WEEKLY;INTERVAL=1;BYDAY=TU`. Required iff `kind = 'recurring'` (check) |
 | `start_date`             | `date`             | no   |               | DTSTART (in org timezone). For one-off jobs, the target date                                                           |
 | `end_date`               | `date`             | yes  |               | Last date visits may be generated. Check `>= start_date`                                                               |
-| `window_start`           | `time`             | yes  |               | Customer arrival window, local time. Both columns null = anytime                                                       |
-| `window_end`             | `time`             | yes  |               | Check `> window_start`                                                                                                 |
+| `window_start`           | `time`             | yes  |               | Customer arrival window start, local time. Null (with `window_minutes`) = anytime                                      |
+| `window_minutes`         | `integer`          | yes  |               | Window length, 1 to 1440. Lets a window run past midnight (22:00 for 360)                                              |
 | `visit_duration_minutes` | `integer`          | no   | `60`          | Check `> 0`. Copied to each visit                                                                                      |
 | `preferred_crew_id`      | `uuid`             | yes  |               | Composite FK → `crews`, on delete set null. A hint to the optimizer                                                    |
 | `generated_through`      | `date`             | yes  |               | Materialization watermark: visits exist up to this date                                                                |
@@ -55,19 +55,27 @@ The price of **one visit**, and the template for invoice lines. Periodic
 billing bills each completed visit in the period at these lines, grouped on
 one invoice.
 
-| Column             | Type            | Null | Default | Notes                                                                  |
-| ------------------ | --------------- | ---- | ------- | ---------------------------------------------------------------------- |
-| `job_id`           | `uuid`          | no   |         | Composite FK → `jobs`, on delete cascade                               |
-| `service_id`       | `uuid`          | yes  |         | Composite FK → `services`, on delete set null                          |
-| `position`         | `integer`       | no   |         |                                                                        |
-| `description`      | `text`          | no   |         |                                                                        |
-| `quantity`         | `numeric(10,2)` | no   | `1`     | Check `> 0`                                                            |
-| `unit_price_cents` | `bigint`        | no   |         | Check `>= 0`                                                           |
-| `amount_cents`     | `bigint`        | no   | —       | Generated: `round(quantity * unit_price_cents)`                        |
-| `tax_rate_ids`     | `uuid[]`        | no   | `'{}'`  | Rates to apply at invoicing (validated by trigger against `tax_rates`) |
+| Column             | Type            | Null | Default | Notes                                           |
+| ------------------ | --------------- | ---- | ------- | ----------------------------------------------- |
+| `job_id`           | `uuid`          | no   |         | Composite FK → `jobs`, on delete cascade        |
+| `service_id`       | `uuid`          | yes  |         | Composite FK → `services`, on delete set null   |
+| `position`         | `integer`       | no   |         |                                                 |
+| `description`      | `text`          | no   |         |                                                 |
+| `quantity`         | `numeric(10,2)` | no   | `1`     | Check `> 0`                                     |
+| `unit_price_cents` | `bigint`        | no   |         | Check `>= 0`                                    |
+| `amount_cents`     | `bigint`        | no   | —       | Generated: `round(quantity * unit_price_cents)` |
 
-Workers can read this table only when `organizations.settings.workers_see_prices`
-is true.
+Workers don't read this table directly; `worker_route_stops` returns a visit price
+only when `organizations.settings.workers_see_prices` is true.
+
+## `job_line_item_taxes`
+
+Which tax rates apply to a job line (replaces the old `tax_rate_ids uuid[]`,
+which couldn't have a foreign key). Has no `id` column. PK
+`(organization_id, line_item_id, tax_rate_id)`; composite FKs to
+`job_line_items` (cascade) and `tax_rates` (restrict). Invoices snapshot the
+rate when they are created. `guard_tax_rate_usable` rejects archived rates for
+API inserts.
 
 ## `visits`
 
@@ -155,31 +163,30 @@ Migrations `20260929201255_jobs_visits` and
   - `kind = 'recurring'` if and only if `rrule` is set
   - the rrule has `FREQ=` and no `DTSTART`
   - `periodic` billing requires `billing_period`
-  - window columns are both set or both null, with end after start
+  - `window_start` and `window_minutes` are both set or both null
 - **From a quote** (after insert, when `quote_id` is set): the quote must be
   `approved` and for the same client. It moves to `converted`, and its
-  counted lines are copied into `job_line_items`, with `tax_rate_ids` taken
+  counted lines are copied into `job_line_items`, with their `job_line_item_taxes` taken
   from the quote line taxes. Otherwise `23514`.
 - **One-off jobs** (after insert, `kind = 'one_off'`): the single visit is
   created on `start_date` and `generated_through = start_date`.
 - **Property change**: `unscheduled` and `scheduled` visits move with the job.
-
-**Job line items**: `tax_rate_ids` is validated by trigger against the org's
-`tax_rates` (`23503`).
 
 **Visits**
 
 - Before insert: `property_id` is always copied from the job, and
   `duration_minutes` defaults to the job's.
 - Before update:
+  - A visit with a live invoice (`invoice_visits` row, not void) can't change
+    `status`, `scheduled_date`, `property_id`, or `duration_minutes` (`55000`).
   - `in_progress` stamps `actual_start`.
   - `completed` stamps both actuals when they're unset.
   - For generated visits (`occurrence_date` set), changing the date, window,
     or duration, or moving to `skipped`, `cancelled`, or `unscheduled`, sets
     `is_exception = true`.
 
-**Generation RPCs** (`security invoker`, so RLS applies: office staff or the
-service role):
+**Generation RPCs** (`security definer`: office staff, checked against the job's
+organization, or trusted code with no `auth.uid()`):
 
 | Function                                              | Does                                                                                                                                                                                                                  |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -189,16 +196,17 @@ service role):
 The nightly job that calls the app-side RRULE expander (pg_cron plus
 `pg_net`) is **not scheduled yet**. It's added once the endpoint exists.
 
-**Storage**: private bucket `org-files`. Policies on `storage.objects` check
-the first path segment against `private.my_org_ids()`:
+**Storage**: private bucket `org-files`, paths
+`{org}/{clients|properties|jobs|visits|quotes}/{parent id}/{file}` (enforced on
+`attachments.storage_path` by a check). Policies on `storage.objects`:
 
-- **Read and upload**: any staff member of the org.
+- **Read and upload**: office staff in their org's folder, and workers under
+  `{org}/visits/{visit_id}/` for visits on their routes (upload only while the
+  route is published or in progress).
 - **Update and delete**: office staff only.
 
-Tested in `supabase/tests/storage_policies_test.sql`.
-
-**RLS**: office staff only on `jobs`, `job_line_items`, `visits`, and
-`attachments`. Worker policies arrive with routing.
+**RLS**: office staff only on `jobs`, `job_line_items`, `job_line_item_taxes`,
+`visits`, and `attachments`. Workers act through `worker_*` RPCs.
 
 **Portal RPCs**:
 

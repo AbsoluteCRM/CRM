@@ -271,8 +271,7 @@ In addition:
   Before running `pnpm db:types`, the project's migrations must equal
   `main`'s plus this branch's plus other open PRs'; if they don't, stop and
   tell the user. Regenerate after merging `main` in; never hand-merge
-  `database.ts`. (Today the project has drifted, so this check fails until
-  `db/reconcile-remote` lands.)
+  `database.ts`. (The remote was rebaselined to match the migrations on 2026-10-07.)
 - New app-callable functions: put them in `public`, `revoke execute … from
 public, anon`, and grant to `authenticated`. Supabase also grants
   `service_role` execute by default, so revoke it explicitly where it should
@@ -376,7 +375,7 @@ as part of its slice, and lists it in its plan:
 
 | Piece                                 | Notes                                                                                                                                                                                                                                                        |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Generated types                       | `pnpm db:types`, then wire `createServerClient<Database>` and `createBrowserClient<Database>` in `src/lib/supabase/`. Done by `db/reconcile-remote`; until then `src/types/database.ts` doesn't exist                                                        |
+| Generated types                       | `pnpm db:types`, then wire `createServerClient<Database>` and `createBrowserClient<Database>` in `src/lib/supabase/`. `src/types/database.ts` exists; the Supabase clients aren't typed with `Database` yet                                                  |
 | Org-scoped procedure + `ctx.supabase` | Build on `protectedProcedure` from `origin/feature/trpc-auth`; don't write a second one. If that branch hasn't merged, ask the user whether to rebase onto it. Add `ctx.supabase` (the per-request server client) and the resolved active org to its context |
 | SSR auth for tRPC                     | Forward the incoming request's cookie header in the SSR link in `root-provider.tsx`, or use a per-request server caller. Add a server-side `beforeLoad` guard on `_authed`; today the guard is client-only                                                   |
 | Sentry tRPC middleware                | See Observability                                                                                                                                                                                                                                            |
