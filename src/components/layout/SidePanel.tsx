@@ -1,44 +1,148 @@
 import {
   Calendar,
-  HomeIcon,
   Group,
   HardHat,
   Handshake,
+  HomeIcon,
   MessageSquareDiff,
+  Settings,
+  Toolbox,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
+
+import { LogoMark } from '#/components/crm/Logo'
+import { canSee, useTenant } from '#/components/crm/store'
+import type { Section } from '#/components/crm/store'
+
+const NAV = [
+  {
+    label: 'Dashboard',
+    icon: HomeIcon,
+    to: '/dashboard',
+    section: 'dashboard',
+  },
+  {
+    label: 'Requests',
+    icon: MessageSquareDiff,
+    to: '/requests',
+    section: 'requests',
+  },
+  { label: 'Calendar', icon: Calendar, to: '/calendar', section: 'calendar' },
+  { label: 'Jobs', icon: HardHat, to: '/jobs', section: 'jobs' },
+  { label: 'Clients', icon: Handshake, to: '/clients', section: 'clients' },
+  { label: 'Team', icon: Group, to: '/teams', section: 'teams' },
+  { label: 'Services', icon: Toolbox, to: '/services', section: 'services' },
+] as const satisfies ReadonlyArray<{
+  label: string
+  icon: React.ElementType
+  to: string
+  section: Section
+}>
 
 function IconRow({
   label,
   icon: Icon,
   route,
+  badge,
 }: {
   label: string
   icon: React.ElementType
-  route: string
+  route: (typeof NAV)[number]['to'] | '/settings'
+  badge?: number
 }) {
   return (
     <Link
       to={route}
-      className="flex items-center space-x-2 px-4 hover:cursor-pointer text-primary"
+      className="group/item relative flex h-11 items-center gap-3 rounded-2xl px-[13px] text-[14px] font-semibold text-(--cream)/70 no-underline transition-colors hover:bg-white/8 hover:text-(--cream)"
+      activeProps={{
+        className:
+          '!bg-(--lime) !text-(--leaf-950) shadow-[0_8px_20px_-10px_rgba(198,239,106,0.8)]',
+      }}
     >
-      <Icon className="shrink-0" />
-      <span className="text-md font-bold whitespace-nowrap opacity-0 max-w-0 overflow-hidden transition-all duration-200 group-hover:opacity-100 group-hover:max-w-xs">
+      <Icon className="size-[20px] shrink-0" />
+      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover:max-w-xs group-hover:opacity-100">
         {label}
       </span>
+      {badge ? (
+        <span className="absolute top-1.5 left-7 flex h-4 min-w-4 items-center justify-center rounded-full bg-(--clay) px-1 text-[10px] font-bold text-white group-hover:static group-hover:ml-auto">
+          {badge}
+        </span>
+      ) : null}
     </Link>
   )
 }
 
+/**
+ * Fixed sidebar. A spacer keeps the page content clear of the collapsed rail;
+ * hovering expands the rail over the content.
+ */
 export default function SidePanel() {
+  const t = useTenant()
+  const newRequests = t.requests.filter((r) => r.status === 'submitted').length
+
   return (
-    <div className="group flex flex-col space-y-4 border-r border-border pt-10 w-16 hover:w-64 overflow-hidden transition-all duration-200">
-      <IconRow label="Dashboard" icon={HomeIcon} route="/dashboard" />
-      <IconRow label="Requests" icon={MessageSquareDiff} route="/requests" />
-      <IconRow label="Calendar" icon={Calendar} route="/calendar" />
-      <IconRow label="Jobs" icon={HardHat} route="/jobs" />
-      <IconRow label="Clients" icon={Handshake} route="/clients" />
-      <IconRow label="Team" icon={Group} route="/teams" />
-    </div>
+    <>
+      <div className="w-[76px] shrink-0" aria-hidden />
+      <nav
+        aria-label="Main"
+        className="group fixed top-0 bottom-0 left-0 z-50 flex w-[76px] flex-col overflow-hidden bg-(--leaf-900) px-[14px] pt-3 pb-4 transition-[width] duration-200 hover:w-60 hover:shadow-2xl"
+      >
+        <div
+          className="crm-leaf-pattern pointer-events-none absolute inset-0 opacity-60"
+          aria-hidden
+        />
+        <Link
+          to="/dashboard"
+          className="relative mb-6 flex h-10 items-center gap-3 px-[2px] no-underline"
+        >
+          <LogoMark size={44} className="shrink-0" />
+          <span className="crm-display max-w-0 overflow-hidden text-lg font-semibold whitespace-nowrap text-(--cream) opacity-0 transition-all duration-200 group-hover:max-w-xs group-hover:opacity-100">
+            Absolute<span className="text-(--lime)">CRM</span>
+          </span>
+        </Link>
+
+        <div className="relative flex flex-1 flex-col gap-1.5">
+          {NAV.filter((n) => canSee(t.role, n.section)).map((n) => (
+            <IconRow
+              key={n.to}
+              label={n.label}
+              icon={n.icon}
+              route={n.to}
+              badge={n.section === 'requests' ? newRequests : undefined}
+            />
+          ))}
+        </div>
+
+        <div className="relative flex flex-col gap-1.5">
+          {canSee(t.role, 'settings') && (
+            <IconRow label="Settings" icon={Settings} route="/settings" />
+          )}
+          <div className="mt-2 flex items-center gap-3 rounded-2xl bg-white/6 p-1.5">
+            <span
+              className="flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
+              style={{ background: t.org.brandColor }}
+            >
+              {t.org.logoDataUrl ? (
+                <img
+                  src={t.org.logoDataUrl}
+                  alt=""
+                  className="size-9 rounded-xl object-cover"
+                />
+              ) : (
+                t.org.name.charAt(0)
+              )}
+            </span>
+            <span className="max-w-0 min-w-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:max-w-xs group-hover:opacity-100">
+              <span className="block truncate text-[13px] font-bold text-(--cream)">
+                {t.org.name}
+              </span>
+              <span className="block text-[11px] text-(--cream)/55 capitalize">
+                {t.org.plan} plan
+              </span>
+            </span>
+          </div>
+        </div>
+      </nav>
+    </>
   )
 }

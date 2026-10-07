@@ -31,7 +31,7 @@
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.141 0.005 285.823);
-  --border: oklch(35.618% 0.00004 271.152);
+  --border: oklch(93.531% 0.08902 155.202);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
   --primary: oklch(0.21 0.006 285.885);
@@ -44,7 +44,7 @@
   --accent-foreground: oklch(0.21 0.006 285.885);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
+  --border: oklch(44.683% 0.03802 157.125);
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.871 0.006 286.286);
   --chart-1: oklch(0.646 0.222 41.116);
@@ -61,6 +61,41 @@
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.871 0.006 286.286);
+}
+
+/* AbsoluteCRM brand tokens (LeafLife-inspired: forest greens, lime accent, cream
+   surfaces). Read in Tailwind with the v4 variable shorthand, e.g. bg-(--leaf-900). */
+:root {
+  --leaf-950: #0a1d12;
+  --leaf-900: #11301f;
+  --leaf-800: #18402a;
+  --leaf-700: #235a3c;
+  --leaf-600: #2f7350;
+  --leaf-500: #4a9467;
+  --leaf-300: #9cc8a8;
+  --lime: #c6ef6a;
+  --lime-400: #b4e04f;
+  --lime-200: #e1f7ae;
+  --lime-100: #f1fbd9;
+  --cream: #f4f2ea;
+  --cream-2: #ece9dc;
+  --paper: #fffdf8;
+  --sage: #e7ecdf;
+  --sage-2: #d6dfcb;
+  --ink: #13241a;
+  --ink-2: #4c5e53;
+  --ink-3: #85928a;
+  /* Warmer hairline for the CRM UI (overrides the scaffold value above). */
+  --line: #e3e1d4;
+  --line-2: #d3d2c3;
+  --clay: #c2582f;
+  --clay-100: #fbe8df;
+  --sun: #c98d12;
+  --sun-100: #fbf0d3;
+  --sky: #3f7fa8;
+  --sky-100: #e2eef6;
+  --violet: #7d5ba6;
+  --violet-100: #eee7f6;
 }
 
 .dark {
@@ -156,6 +191,7 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --border: var(--border);
 }
 
 html,
@@ -223,15 +259,18 @@ body::after {
   mask-image: radial-gradient(circle at 50% 30%, black, transparent 78%);
 }
 
-a {
-  color: var(--lagoon-deep);
-  text-decoration-color: rgba(50, 143, 151, 0.4);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-}
+/* In the base layer so text-* / decoration utilities on a link win over these defaults. */
+@layer base {
+  a {
+    color: var(--lagoon-deep);
+    text-decoration-color: rgba(50, 143, 151, 0.4);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
 
-a:hover {
-  color: #246f76;
+  a:hover {
+    color: #246f76;
+  }
 }
 
 code {
@@ -368,5 +407,104 @@ a {
   body {
     background-color: var(--background);
     color: var(--foreground);
+  }
+}
+
+/* ---- AbsoluteCRM helpers ---- */
+.crm-display {
+  font-family: 'Fraunces', Georgia, serif;
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+}
+
+.crm-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.crm-scroll::-webkit-scrollbar-thumb {
+  background: var(--sage-2);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.crm-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.crm-leaf-pattern {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgba(198, 239, 106, 0.16) 1px,
+    transparent 0
+  );
+  background-size: 18px 18px;
+}
+
+.crm-rise {
+  animation: crm-rise 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.crm-fade {
+  animation: crm-fade 200ms ease both;
+}
+
+.crm-slide {
+  animation: crm-slide 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.crm-pop {
+  animation: crm-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes crm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes crm-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes crm-slide {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes crm-pop {
+  from {
+    transform: translateY(10px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-rise,
+  .crm-fade,
+  .crm-slide,
+  .crm-pop {
+    animation: none;
   }
 }
