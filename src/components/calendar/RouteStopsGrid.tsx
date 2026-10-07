@@ -45,7 +45,7 @@ export function RouteStopsGrid({ stops }: { stops: Array<RouteStop> }) {
                     {!isLastInRow && (
                       <div
                         aria-hidden="true"
-                        className="flex w-5 shrink-0 grow-0 items-center justify-center text-muted-foreground"
+                        className="flex w-5 shrink-0 grow-0 items-center justify-center text-(--leaf-600)"
                       >
                         <ArrowRight
                           className={`size-8 ${reversed ? 'rotate-180' : ''}`}
@@ -60,7 +60,7 @@ export function RouteStopsGrid({ stops }: { stops: Array<RouteStop> }) {
               <div
                 aria-hidden="true"
                 className={cn(
-                  'flex text-muted-foreground',
+                  'flex text-(--leaf-600)',
                   reversed ? 'justify-start pl-32' : 'justify-end pr-32',
                 )}
               >

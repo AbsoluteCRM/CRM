@@ -24,9 +24,9 @@ behavior, responsive layout, and content.
 
 ## Decisions
 
-| # | Question | Answer |
-| --- | --- | --- |
-| Q1 | Which visual direction and scope? | Apply the current CRM brand styling throughout the Calendar experience (user-confirmed). |
+| #   | Question                          | Answer                                                                                   |
+| --- | --------------------------------- | ---------------------------------------------------------------------------------------- |
+| Q1  | Which visual direction and scope? | Apply the current CRM brand styling throughout the Calendar experience (user-confirmed). |
 
 Agent defaults (minor; the user may veto them):
 
@@ -40,9 +40,9 @@ Agent defaults (minor; the user may veto them):
 
 ## Assumptions
 
-| Assumption | User-confirmed? |
-| ---------- | --------------- |
-| Calendar's current layout and interactions should remain unchanged. | yes, as part of styling-only direction |
+| Assumption                                                             | User-confirmed?                                |
+| ---------------------------------------------------------------------- | ---------------------------------------------- |
+| Calendar's current layout and interactions should remain unchanged.    | yes, as part of styling-only direction         |
 | Existing CRM brand tokens in `src/styles.css` are the source of truth. | yes, via the requested current CRM brand style |
 
 ## Design refs
@@ -71,8 +71,8 @@ Security-gated paths touched: none.
 
 ### Routes and UI
 
-| Route | Screen | States (loading, empty, error, populated) |
-| ----- | ------ | ----------------------------------------- |
+| Route       | Screen                                 | States (loading, empty, error, populated)                                                       |
+| ----------- | -------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `/calendar` | Weekly calendar and selected-day route | Existing populated/empty-day and map-key-unavailable states; no data or route behavior changes. |
 
 Restyle the existing Calendar view and route-stop/map components in

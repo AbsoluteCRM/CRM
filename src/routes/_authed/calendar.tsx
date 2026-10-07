@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { WeekCalendar } from '#/features/calendar/WeekCalendar'
+import { WeekCalendar } from '#/components/calendar/WeekCalendar'
 
 export const Route = createFileRoute('/_authed/calendar')({
   component: RouteComponent,
@@ -8,7 +8,7 @@ export const Route = createFileRoute('/_authed/calendar')({
 
 function RouteComponent() {
   return (
-    <div className="space-y-4 p-6 flex w-full">
+    <div className="flex w-full bg-(--cream) p-6 text-(--ink)">
       <WeekCalendar />
     </div>
   )
