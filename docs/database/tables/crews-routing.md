@@ -164,15 +164,15 @@ Migration `routing`.
 
 **Triggers**:
 
-| Table               | Trigger                 | Does                                                                                                                   |
-| ------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `routes`            | before insert           | Copies start and end location and `planned_start` (route date + crew start time, org timezone) from the crew           |
-| `routes`            | after insert            | Seeds `route_members` from active `crew_members`; anyone already routed that day is skipped (`on conflict do nothing`) |
-| `routes`            | before update of status | Stamps `published_at` when the route is published                                                                      |
-| `route_members`     | before insert           | Copies `route_date` from the route (the composite FK proves it)                                                        |
-| `route_stops`       | before insert/update    | The visit's `scheduled_date` must equal `route_date` (`23514`); the visit row is locked on insert or a visit change    |
-| `visits`            | after update of date    | A rescheduled visit's stop on the old date is deleted                                                                  |
-| `optimization_runs` | before insert/update    | `crew_ids` and `unassigned_visit_ids` may only name this organization's crews and visits (`23503`)                     |
+| Table               | Trigger                 | Does                                                                                                                                                                    |
+| ------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `routes`            | before insert           | Copies start and end location and `planned_start` (route date + crew start time, org timezone) from the crew                                                            |
+| `routes`            | after insert            | Seeds `route_members` from active `crew_members`; anyone already routed that day is skipped (`on conflict do nothing`)                                                  |
+| `routes`            | before update of status | Stamps `published_at` when the route is published                                                                                                                       |
+| `route_members`     | before insert           | Copies `route_date` from the route (the composite FK proves it)                                                                                                         |
+| `route_stops`       | before insert/update    | The visit's `scheduled_date` must equal `route_date` (`23514`); the visit row is locked on every write (a concurrent reschedule can deadlock with it: retry on `40P01`) |
+| `visits`            | after update of date    | A rescheduled visit's stop on the old date is deleted                                                                                                                   |
+| `optimization_runs` | before insert/update    | `crew_ids` and `unassigned_visit_ids` may only name this organization's crews and visits (`23503`)                                                                      |
 
 Routes' `crew_id` and `route_date` aren't updatable through the API: build a
 new route instead of moving one.

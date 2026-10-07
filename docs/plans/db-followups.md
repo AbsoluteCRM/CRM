@@ -27,6 +27,7 @@ Close the follow-ups listed when PR #25 merged.
   the stop-date guard locks the visit only on insert or visit change.
 - Migration `20261007223941_void_payment_refund_fix` (reviewer finding): on a
   void invoice a settled payment can still move toward refunded.
+- Migration `20261007224517_route_stop_race_fix` (security finding): reverts the guard to lock the visit on every stop write (route move vs reschedule race) and makes the reschedule unroute delete use NOT EXISTS.
 - `supabase/tests/followup_hardening_test.sql`: 12 assertions, all passing.
 - `createServerClient<Database>` / `createBrowserClient<Database>` in `src/lib/supabase/`.
 - Full suites re-run on the final schema: `audit_regressions_test.sql` 36/36,
