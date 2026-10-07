@@ -121,11 +121,15 @@ Bucket `org-files` (private). Object paths start with `{organization_id}/`.
 - Portal users: read files only through signed URLs issued by server code,
   and only for `attachments.is_client_visible`.
 
-## Prisma and RLS
+## App access and RLS
 
-Prisma connects as `postgres`, which **bypasses RLS**. User-facing server
-code must go through `withRls()`. See
-[ADR 0007](decisions/0007-prisma-and-rls.md).
+User requests reach the database through the per-request Supabase server
+client, which carries the user's session, so every policy here applies as
+written. The service role bypasses RLS, so service-role clients are for
+trusted code only (webhooks, cron, the optimizer write-back, public token
+pages), in `src/server/trusted/`. RLS admits every org a user belongs to, so
+queries and inserts must also scope to the active org. See
+[ADR 0009](decisions/0009-supabase-js-data-access.md).
 
 ## Accepted advisor findings
 

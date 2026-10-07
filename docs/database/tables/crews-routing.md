@@ -124,7 +124,7 @@ and update runs.
 
 The raw solver request and response, one row per run. It's a separate table
 instead of revoked columns on `optimization_runs`, because a column-level
-REVOKE breaks `select *`, which Prisma issues by default (ADR 0007). RLS is
+REVOKE breaks `select *`, which supabase-js issues by default ([ADR 0009](../decisions/0009-supabase-js-data-access.md)). RLS is
 enabled with **no policies**, so it's service role only. PK
 `(organization_id, run_id)`, a composite FK to `optimization_runs`, on
 delete cascade.

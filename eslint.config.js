@@ -22,8 +22,9 @@ export default [
     ignores: [
       'eslint.config.js',
       'prettier.config.js',
-      'src/generated/**',
       '.claude/worktrees/**',
+      '.output/**',
+      'src/types/database.ts',
     ],
   },
   ...storybook.configs['flat/recommended'],
