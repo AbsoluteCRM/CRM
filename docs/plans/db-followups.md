@@ -1,7 +1,7 @@
 # Plan: Database follow-ups after the rebaseline
 
 - **Slug / branch**: `db-followups` / `db/followups`
-- **Tier**: full (db/ work; plan-auditor skipped by the user's instruction to keep moving, reviewer and security gates run)
+- **Tier**: full (db/ work). The plan-auditor round was not run; reviewer and security gates were.
 - **Status**: implemented
 - **Confidence**: 95%, because every item came from the reviewer and security
   reports or from checks against the live database
