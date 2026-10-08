@@ -80,17 +80,7 @@ export const ROLE_DESCRIPTION: Record<OrgRole, string> = {
   worker: 'Sees and completes the jobs assigned to their crew.',
 }
 
-export const can = {
-  viewRevenue: (r: OrgRole) => r === 'owner' || r === 'admin',
-  manageJobs: (r: OrgRole) => r !== 'worker',
-  manageClients: (r: OrgRole) => r !== 'worker',
-  manageRequests: (r: OrgRole) => r !== 'worker',
-  manageServices: (r: OrgRole) => r === 'owner' || r === 'admin',
-  manageTeam: (r: OrgRole) => r === 'owner' || r === 'admin',
-  viewTeam: (r: OrgRole) => r !== 'worker',
-  manageSettings: (r: OrgRole) => r === 'owner' || r === 'admin',
-  manageBilling: (r: OrgRole) => r === 'owner',
-}
+export { can } from '#/integrations/organization/permissions'
 
 export type Section =
   | 'dashboard'

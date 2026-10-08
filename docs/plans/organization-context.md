@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `organization-context` / `feat/organization-context`
 - **Tier**: full, because the provider handles tenancy.
-- **Status**: approved
+- **Status**: implemented (local; PR publication and merge blocked)
 - **Confidence**: 95%; membership schema, provider consumers, and capability rules are verified in the repository; selection and permission behavior are user-confirmed.
 - **Plan-mode file**: this file; native plan mode is unavailable.
 
@@ -138,4 +138,25 @@ User approved the audited plan on October 7, 2026.
 
 ## Scope-change log
 
-None.
+No behavior changes. The user denied `git push`, so implementation and review continued locally without publishing a PR. Freshly fetched main includes generated database types; the implementation uses them.
+
+## Implementation verification
+
+- Exact plan commands passed in the main checkout: TypeScript, changed-file ESLint, and changed-file Prettier.
+- Mounted-provider verification passed in Chromium using temporary harness `/tmp/verify-organization-context.mjs`: all roles, membership filters/order, malformed rows, auth loading, switching and reload persistence, invalid IDs, per-user isolation, same-ID rerenders, stale responses, query errors and rejection, empty results, blocked storage, and sign-out during lookup.
+- Baseline repository formatting passed. Baseline repository lint failed at unrelated `src/components/ui/button/button.tsx:2:15` (`import/consistent-type-specifier-style`); left unchanged.
+- Signed-in remote lookup could not be verified: local environment lacks `VITE_SUPABASE_PUBLISHABLE_KEY` and test-user credentials. No database writes were performed.
+- PR creation and merge remain blocked by denied push permission and the verification limitations above.
+
+### Review (`reviewer`): pass, confidence high
+
+- No blocking findings or unresolved questions.
+- Checked request coverage, query/RLS compatibility, role validation, preserved capability rules, persistence, account isolation, errors, and Chromium harness assertions.
+- Non-blocking alias-import convention note recorded; neighboring code uses relative imports and no runtime failure was identified.
+- Pre-existing lint failure recorded above.
+
+### Review (`security`): pass, confidence high
+
+- No security findings.
+- Checked membership filters and RLS policies, publishable browser client, foreign key and uniqueness constraints, selection validation, unknown-role denial, account isolation, and absence of privileged credentials or new server paths.
+- Live signed-in verification remains unavailable, as recorded above. This pass does not authorize merge without the remaining workflow gates.
