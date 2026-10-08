@@ -7,6 +7,7 @@ import {
   Clock,
   Crown,
   GripVertical,
+  Link,
   Mail,
   Phone,
   Plus,
@@ -32,7 +33,6 @@ import {
   IconBtn,
   Modal,
   Progress,
-  SearchInput,
   SelectInput,
   StatusBadge,
   Tabs,
@@ -51,11 +51,13 @@ import {
 import {
   addDays,
   fmtDate,
-  fmtTime,
   fmtWeekday,
   isWeekend,
   todayISO,
 } from '#/components/crm/format'
+import MembersTab from '#/components/team/MembersTab'
+import { useInviteTeamMember, useTeamMembers } from '#/integrations/teams/teams'
+import type { InviteRole } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
 import type { Availability, Tenant } from '#/components/crm/store'
 import type { Member, OrgRole, TimeOff, Weekday } from '#/components/crm/types'
@@ -117,6 +119,7 @@ function useMetrics(t: Tenant) {
 
 function TeamsPage() {
   const t = useTenant()
+  const team = useTeamMembers()
   const [tab, setTab] = useState<Tab>('members')
   const [inviting, setInviting] = useState(false)
   const [profile, setProfile] = useState<string | null>(null)
@@ -125,6 +128,8 @@ function TeamsPage() {
     date?: string
   } | null>(null)
   const editable = can.manageTeam(t.role)
+  const realMembers = team.data ?? []
+  const realActive = realMembers.filter((m) => m.status === 'active')
   const active = t.members.filter((m) => m.status === 'active')
 
   return (
@@ -155,8 +160,8 @@ function TeamsPage() {
         {[
           {
             label: 'Team members',
-            value: active.length,
-            sub: `${t.members.filter((m) => m.status === 'invited').length} invited`,
+            value: realActive.length,
+            sub: `${realMembers.filter((m) => m.status === 'invited').length} invited`,
           },
           {
             label: 'Crews',
@@ -195,14 +200,20 @@ function TeamsPage() {
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: 'members', label: 'Team list', count: t.members.length },
+          { value: 'members', label: 'Team list', count: team.data?.length },
           { value: 'crews', label: 'Crew builder', count: t.crews.length },
           { value: 'availability', label: 'Availability' },
           { value: 'performance', label: 'Performance' },
         ]}
       />
 
-      {tab === 'members' && <MembersTab t={t} onOpen={setProfile} />}
+      {tab === 'members' && (
+        <MembersTab
+          members={team.data ?? []}
+          isLoading={team.isLoading}
+          error={team.error}
+        />
+      )}
       {tab === 'crews' && (
         <CrewBuilder t={t} editable={editable} onOpen={setProfile} />
       )}
@@ -233,157 +244,6 @@ function TeamsPage() {
 }
 
 // ---------------------------------------------------------------------------
-
-function currentAssignment(t: Tenant, m: Member) {
-  const today = todayISO()
-  const avail = memberAvailability(m, today)
-  if (m.status === 'invited')
-    return { text: 'Invitation pending', sub: m.email }
-  if (avail !== 'available')
-    return {
-      text: AVAILABILITY_LABEL[avail],
-      sub:
-        m.timeOff.find((x) => x.start <= today && x.end >= today)?.note ??
-        (avail === 'off_day' ? 'Not a scheduled work day' : ''),
-    }
-  const crew = t.crews.find((c) => c.memberIds.includes(m.id))
-  if (!crew)
-    return {
-      text: m.role === 'worker' ? 'Not on a crew' : ROLE_LABEL[m.role],
-      sub: m.role === 'worker' ? 'Add them in the crew builder' : 'Office',
-    }
-  const jobs = t.jobs
-    .filter(
-      (j) =>
-        j.crew_id === crew.id && j.date === today && j.status !== 'cancelled',
-    )
-    .sort((a, b) => a.start.localeCompare(b.start))
-  const now =
-    jobs.find((j) => j.status === 'in_progress') ??
-    jobs.find((j) => j.status === 'assigned')
-  if (now)
-    return {
-      text: `${now.status === 'in_progress' ? 'On site' : 'Next'}: ${t.client(now.client_id)?.display_name}`,
-      sub: `${crew.name} · ${fmtTime(now.start)}`,
-    }
-  return {
-    text: crew.name,
-    sub: jobs.length ? 'Done for today' : 'No jobs today',
-  }
-}
-
-function MembersTab({
-  t,
-  onOpen,
-}: {
-  t: Tenant
-  onOpen: (id: string) => void
-}) {
-  const [q, setQ] = useState('')
-  const [role, setRole] = useState<'all' | OrgRole>('all')
-  const rows = t.members
-    .filter(
-      (m) =>
-        (role === 'all' || m.role === role) &&
-        `${m.display_name} ${m.email} ${m.title}`
-          .toLowerCase()
-          .includes(q.toLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        ['owner', 'admin', 'dispatcher', 'worker'].indexOf(a.role) -
-          ['owner', 'admin', 'dispatcher', 'worker'].indexOf(b.role) ||
-        a.display_name.localeCompare(b.display_name),
-    )
-  return (
-    <Card>
-      <div className="flex flex-wrap items-center gap-3 border-b border-(--line) p-4">
-        <SearchInput
-          value={q}
-          onChange={setQ}
-          placeholder="Search team"
-          className="w-full sm:w-72"
-        />
-        <SelectInput
-          value={role}
-          onChange={(e) => setRole(e.target.value as 'all' | OrgRole)}
-          className="w-44"
-          aria-label="Role"
-        >
-          <option value="all">All roles</option>
-          {(Object.keys(ROLE_LABEL) as Array<OrgRole>).map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABEL[r]}
-            </option>
-          ))}
-        </SelectInput>
-      </div>
-      <div className="crm-scroll overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead>
-            <tr className="text-xs font-semibold tracking-wide text-(--ink-3) uppercase">
-              <th className="px-5 py-3">Name</th>
-              <th className="px-3 py-3">Role</th>
-              <th className="px-3 py-3">Status</th>
-              <th className="px-5 py-3">Current assignment</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((m) => {
-              const crew = t.crews.find((c) => c.memberIds.includes(m.id))
-              const a = currentAssignment(t, m)
-              return (
-                <tr
-                  key={m.id}
-                  onClick={() => onOpen(m.id)}
-                  className="cursor-pointer border-t border-(--line) hover:bg-(--cream)"
-                >
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar
-                        name={m.display_name}
-                        color={
-                          crew?.color
-                            ? `color-mix(in oklab, ${crew.color} 45%, white)`
-                            : undefined
-                        }
-                        size={36}
-                      />
-                      <div>
-                        <p className="font-bold">{m.display_name}</p>
-                        <p className="text-xs text-(--ink-3)">{m.title}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3">
-                    <Badge
-                      tone={
-                        m.role === 'owner'
-                          ? 'dark'
-                          : m.role === 'worker'
-                            ? 'gray'
-                            : 'lime'
-                      }
-                    >
-                      {ROLE_LABEL[m.role]}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-3">
-                    <StatusBadge status={m.status} />
-                  </td>
-                  <td className="px-5 py-3">
-                    <p className="font-semibold">{a.text}</p>
-                    <p className="text-xs text-(--ink-3)">{a.sub}</p>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Crew builder
@@ -1307,87 +1167,145 @@ function MemberProfile({
 }
 
 function InviteModal({ onClose }: { onClose: () => void }) {
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<OrgRole>('worker')
+  const [role, setRole] = useState<InviteRole>('worker')
+  const [result, setResult] = useState<{
+    inviteLink: string
+    resent: boolean
+  } | null>(null)
+  const invite = useInviteTeamMember()
   const valid = /\S+@\S+\.\S+/.test(email)
+
+  const copyLink = async (link: string) => {
+    await navigator.clipboard.writeText(link)
+  }
+
+  const submit = async () => {
+    try {
+      const created = await invite.mutateAsync({ email, role })
+      // Best-effort: the write can fail silently, so the toast never claims it worked.
+      copyLink(created.inviteLink).catch(() => {})
+      toast(
+        created.resent
+          ? `New invite link ready for ${email}`
+          : `Invite link ready for ${email}`,
+      )
+      setResult(created)
+    } catch (e) {
+      toast(
+        e instanceof Error ? e.message : 'Could not create the invite.',
+        'warning',
+      )
+    }
+  }
+
   return (
     <Modal
       open
       onClose={onClose}
       width={520}
       title="Invite a team member"
-      subtitle="They’ll get an email to join this company’s workspace."
+      subtitle="Create an invite link to share with them."
       footer={
-        <>
-          <Btn variant="ghost" onClick={onClose}>
-            Cancel
-          </Btn>
-          <Btn
-            icon={Mail}
-            disabled={!valid}
-            onClick={() => {
-              actions.inviteMember({ name, email, role })
-              toast(`Invitation sent to ${email}`)
-              onClose()
-            }}
-          >
-            Send invite
-          </Btn>
-        </>
+        result ? (
+          <Btn onClick={onClose}>Done</Btn>
+        ) : (
+          <>
+            <Btn variant="ghost" onClick={onClose}>
+              Cancel
+            </Btn>
+            <Btn
+              icon={Link}
+              disabled={!valid || invite.isPending}
+              onClick={submit}
+            >
+              Create invite link
+            </Btn>
+          </>
+        )
       }
     >
-      <div className="grid gap-4">
-        <Field label="Name">
-          <TextInput
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-        </Field>
-        <Field label="Email">
-          <TextInput
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@company.com"
-          />
-        </Field>
-        <Field label="Role">
-          <div className="grid gap-2">
-            {(['admin', 'dispatcher', 'worker'] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRole(r)}
-                className={cn(
-                  'flex cursor-pointer items-start gap-3 rounded-2xl border p-3 text-left',
-                  role === r
-                    ? 'border-(--leaf-600) bg-(--lime-100)'
-                    : 'border-(--line-2) hover:border-(--leaf-500)',
-                )}
+      {result ? (
+        <div className="grid gap-4">
+          <p className="text-sm text-(--ink-2)">
+            {result.resent
+              ? 'A new link replaced the earlier invite for '
+              : 'Invite created for '}
+            <span className="font-semibold">{email}</span>. Share this link with
+            them to join — it’s not emailed automatically.
+          </p>
+          <Field label="Invite link">
+            <div className="flex gap-2">
+              <TextInput
+                readOnly
+                value={result.inviteLink}
+                onFocus={(e) => e.target.select()}
+              />
+              <Btn
+                variant="outline"
+                onClick={() => {
+                  copyLink(result.inviteLink).then(
+                    () => toast('Link copied'),
+                    () =>
+                      toast(
+                        'Couldn’t copy; select the link instead.',
+                        'warning',
+                      ),
+                  )
+                }}
               >
-                <span
+                Copy
+              </Btn>
+            </div>
+          </Field>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          <Field label="Email">
+            <TextInput
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@company.com"
+              autoFocus
+            />
+          </Field>
+          <Field label="Role">
+            <div className="grid gap-2">
+              {(['admin', 'dispatcher', 'worker'] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRole(r)}
                   className={cn(
-                    'mt-0.5 size-4 shrink-0 rounded-full border-2',
+                    'flex cursor-pointer items-start gap-3 rounded-2xl border p-3 text-left',
                     role === r
-                      ? 'border-(--leaf-700) bg-(--leaf-700) ring-2 ring-white ring-inset'
-                      : 'border-(--line-2)',
+                      ? 'border-(--leaf-600) bg-(--lime-100)'
+                      : 'border-(--line-2) hover:border-(--leaf-500)',
                   )}
-                />
-                <span>
-                  <span className="block text-sm font-bold">
-                    {ROLE_LABEL[r]}
+                >
+                  <span
+                    className={cn(
+                      'mt-0.5 size-4 shrink-0 rounded-full border-2',
+                      role === r
+                        ? 'border-(--leaf-700) bg-(--leaf-700) ring-2 ring-white ring-inset'
+                        : 'border-(--line-2)',
+                    )}
+                  />
+                  <span>
+                    <span className="block text-sm font-bold">
+                      {ROLE_LABEL[r]}
+                    </span>
+                    <span className="block text-xs text-(--ink-3)">
+                      {ROLE_DESCRIPTION[r]}
+                    </span>
                   </span>
-                  <span className="block text-xs text-(--ink-3)">
-                    {ROLE_DESCRIPTION[r]}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </Field>
-      </div>
+                </button>
+              ))}
+            </div>
+          </Field>
+        </div>
+      )}
     </Modal>
   )
 }
