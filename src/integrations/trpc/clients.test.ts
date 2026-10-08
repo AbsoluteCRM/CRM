@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
-  user: { id: 'u1' } as { id: string } | null,
+  user: null as { id: string } | null,
   rows: [] as Array<Record<string, unknown>>,
   error: null as { message: string } | null,
   calls: [] as Array<[string, ...Array<unknown>]>,
