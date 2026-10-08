@@ -7,6 +7,7 @@ import {
   Clock,
   Crown,
   GripVertical,
+  Link,
   Mail,
   Phone,
   Plus,
@@ -55,7 +56,8 @@ import {
   todayISO,
 } from '#/components/crm/format'
 import MembersTab from '#/components/team/MembersTab'
-import { useTeamMembers } from '#/integrations/teams/teams'
+import { useInviteTeamMember, useTeamMembers } from '#/integrations/teams/teams'
+import type { InviteRole } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
 import type { Availability, Tenant } from '#/components/crm/store'
 import type { Member, OrgRole, TimeOff, Weekday } from '#/components/crm/types'
@@ -1165,87 +1167,145 @@ function MemberProfile({
 }
 
 function InviteModal({ onClose }: { onClose: () => void }) {
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<OrgRole>('worker')
+  const [role, setRole] = useState<InviteRole>('worker')
+  const [result, setResult] = useState<{
+    inviteLink: string
+    resent: boolean
+  } | null>(null)
+  const invite = useInviteTeamMember()
   const valid = /\S+@\S+\.\S+/.test(email)
+
+  const copyLink = async (link: string) => {
+    await navigator.clipboard.writeText(link)
+  }
+
+  const submit = async () => {
+    try {
+      const created = await invite.mutateAsync({ email, role })
+      // Best-effort: the write can fail silently, so the toast never claims it worked.
+      copyLink(created.inviteLink).catch(() => {})
+      toast(
+        created.resent
+          ? `New invite link ready for ${email}`
+          : `Invite link ready for ${email}`,
+      )
+      setResult(created)
+    } catch (e) {
+      toast(
+        e instanceof Error ? e.message : 'Could not create the invite.',
+        'warning',
+      )
+    }
+  }
+
   return (
     <Modal
       open
       onClose={onClose}
       width={520}
       title="Invite a team member"
-      subtitle="They’ll get an email to join this company’s workspace."
+      subtitle="Create an invite link to share with them."
       footer={
-        <>
-          <Btn variant="ghost" onClick={onClose}>
-            Cancel
-          </Btn>
-          <Btn
-            icon={Mail}
-            disabled={!valid}
-            onClick={() => {
-              actions.inviteMember({ name, email, role })
-              toast(`Invitation sent to ${email}`)
-              onClose()
-            }}
-          >
-            Send invite
-          </Btn>
-        </>
+        result ? (
+          <Btn onClick={onClose}>Done</Btn>
+        ) : (
+          <>
+            <Btn variant="ghost" onClick={onClose}>
+              Cancel
+            </Btn>
+            <Btn
+              icon={Link}
+              disabled={!valid || invite.isPending}
+              onClick={submit}
+            >
+              Create invite link
+            </Btn>
+          </>
+        )
       }
     >
-      <div className="grid gap-4">
-        <Field label="Name">
-          <TextInput
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-        </Field>
-        <Field label="Email">
-          <TextInput
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@company.com"
-          />
-        </Field>
-        <Field label="Role">
-          <div className="grid gap-2">
-            {(['admin', 'dispatcher', 'worker'] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRole(r)}
-                className={cn(
-                  'flex cursor-pointer items-start gap-3 rounded-2xl border p-3 text-left',
-                  role === r
-                    ? 'border-(--leaf-600) bg-(--lime-100)'
-                    : 'border-(--line-2) hover:border-(--leaf-500)',
-                )}
+      {result ? (
+        <div className="grid gap-4">
+          <p className="text-sm text-(--ink-2)">
+            {result.resent
+              ? 'A new link replaced the earlier invite for '
+              : 'Invite created for '}
+            <span className="font-semibold">{email}</span>. Share this link with
+            them to join — it’s not emailed automatically.
+          </p>
+          <Field label="Invite link">
+            <div className="flex gap-2">
+              <TextInput
+                readOnly
+                value={result.inviteLink}
+                onFocus={(e) => e.target.select()}
+              />
+              <Btn
+                variant="outline"
+                onClick={() => {
+                  copyLink(result.inviteLink).then(
+                    () => toast('Link copied'),
+                    () =>
+                      toast(
+                        'Couldn’t copy; select the link instead.',
+                        'warning',
+                      ),
+                  )
+                }}
               >
-                <span
+                Copy
+              </Btn>
+            </div>
+          </Field>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          <Field label="Email">
+            <TextInput
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@company.com"
+              autoFocus
+            />
+          </Field>
+          <Field label="Role">
+            <div className="grid gap-2">
+              {(['admin', 'dispatcher', 'worker'] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRole(r)}
                   className={cn(
-                    'mt-0.5 size-4 shrink-0 rounded-full border-2',
+                    'flex cursor-pointer items-start gap-3 rounded-2xl border p-3 text-left',
                     role === r
-                      ? 'border-(--leaf-700) bg-(--leaf-700) ring-2 ring-white ring-inset'
-                      : 'border-(--line-2)',
+                      ? 'border-(--leaf-600) bg-(--lime-100)'
+                      : 'border-(--line-2) hover:border-(--leaf-500)',
                   )}
-                />
-                <span>
-                  <span className="block text-sm font-bold">
-                    {ROLE_LABEL[r]}
+                >
+                  <span
+                    className={cn(
+                      'mt-0.5 size-4 shrink-0 rounded-full border-2',
+                      role === r
+                        ? 'border-(--leaf-700) bg-(--leaf-700) ring-2 ring-white ring-inset'
+                        : 'border-(--line-2)',
+                    )}
+                  />
+                  <span>
+                    <span className="block text-sm font-bold">
+                      {ROLE_LABEL[r]}
+                    </span>
+                    <span className="block text-xs text-(--ink-3)">
+                      {ROLE_DESCRIPTION[r]}
+                    </span>
                   </span>
-                  <span className="block text-xs text-(--ink-3)">
-                    {ROLE_DESCRIPTION[r]}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </Field>
-      </div>
+                </button>
+              ))}
+            </div>
+          </Field>
+        </div>
+      )}
     </Modal>
   )
 }

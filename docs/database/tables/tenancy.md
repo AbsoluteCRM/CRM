@@ -108,13 +108,15 @@ links the `organization_members` row.
 | `email`       | `text`        | no   |                             |                                                      |
 | `role`        | `org_role`    | no   | `'worker'`                  | Can't be `owner`                                     |
 | `member_id`   | `uuid`        | yes  |                             | Composite FK. Links to an existing login-less member |
-| `token_hash`  | `text`        | no   |                             | SHA-256 of the emailed token. Unique                 |
+| `token_hash`  | `text`        | no   |                             | SHA-256 of the invite token. Unique                  |
 | `invited_by`  | `uuid`        | yes  |                             | FK → `auth.users`                                    |
 | `expires_at`  | `timestamptz` | no   | `now() + interval '7 days'` |                                                      |
 | `accepted_at` | `timestamptz` | yes  |                             |                                                      |
 
 Partial unique index: `(organization_id, email) where accepted_at is null`.
 Invitations are accepted via the `public.accept_invitation(token)` RPC.
+Rows are created by a direct client insert (owner/admin only, via RLS); the
+client generates the token, hashes it, and stores only the hash.
 
 ## `member_pay_rates`
 
