@@ -15,10 +15,10 @@ A `clients.list` tRPC query returns the non-archived clients of one organization
 
 ## Decisions
 
-| #   | Question                    | Answer                                                                           |
-| --- | --------------------------- | -------------------------------------------------------------------------------- |
-| Q1  | Browser Supabase or tRPC?   | tRPC procedure.                                                                  |
-| Q2  | Scope                       | Backend only: auth middleware, `clients.list`, `useClients` hook. No page rewire. |
+| #   | Question                  | Answer                                                                            |
+| --- | ------------------------- | --------------------------------------------------------------------------------- |
+| Q1  | Browser Supabase or tRPC? | tRPC procedure.                                                                   |
+| Q2  | Scope                     | Backend only: auth middleware, `clients.list`, `useClients` hook. No page rewire. |
 
 Agent defaults (the user may veto):
 
@@ -34,10 +34,10 @@ Agent defaults (the user may veto):
 
 ## Assumptions
 
-| Assumption                                                              | User-confirmed? |
-| ----------------------------------------------------------------------- | --------------- |
-| Pagination is not needed yet (return all rows)                          | no              |
-| `clients` RLS allows select for owner/admin/dispatcher; workers get []  | no (verify)     |
+| Assumption                                                             | User-confirmed? |
+| ---------------------------------------------------------------------- | --------------- |
+| Pagination is not needed yet (return all rows)                         | no              |
+| `clients` RLS allows select for owner/admin/dispatcher; workers get [] | no (verify)     |
 
 ## Layers touched
 
@@ -60,8 +60,8 @@ Security-gated paths touched: tRPC, Supabase client use, `api.trpc.$.tsx`. `secu
 
 ### Procedures
 
-| Procedure      | Input                   | Output                | Roles allowed                               |
-| -------------- | ----------------------- | --------------------- | ------------------------------------------- |
+| Procedure      | Input                      | Output             | Roles allowed                      |
+| -------------- | -------------------------- | ------------------ | ---------------------------------- |
 | `clients.list` | `{ organizationId: uuid }` | `Array<ClientRow>` | Whatever RLS allows (office staff) |
 
 ## Commits
