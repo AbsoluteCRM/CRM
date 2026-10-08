@@ -94,6 +94,7 @@ function membershipOrganization(row: unknown): Organization | null {
   }
 }
 
+// Create a context for managing the current organization and its related state.
 const OrganizationContext = createContext<OrganizationContextValue | null>(null)
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
@@ -101,6 +102,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const userId = isAuthenticated ? (user?.id ?? null) : null
   const [state, setState] = useState<OrganizationState>(() => emptyState())
 
+
+  // Fetch context on user authentication change
   useEffect(() => {
     if (isAuthLoading || !userId) {
       setState(emptyState())
@@ -115,7 +118,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         const supabase = createSupabaseBrowserClient()
         const { data, error } = await supabase
           .from('organization_members')
-          .select('role, organizations(id, name)')
+          .select(
+            'role, organizations!organization_members_organization_id_fkey(id, name)',
+          )
           .eq('user_id', userId!)
           .eq('status', 'active')
           .order('created_at', { ascending: true })
@@ -148,7 +153,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           ...emptyState(userId),
           isLoading: false,
           error:
-            error instanceof Error
+            typeof error === 'object' &&
+            error !== null &&
+            'message' in error &&
+            typeof error.message === 'string'
               ? error.message
               : 'Failed to load organizations',
         })

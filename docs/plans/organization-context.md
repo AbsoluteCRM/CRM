@@ -138,6 +138,15 @@ User approved the audited plan on October 7, 2026.
 
 ## Scope-change log
 
+### Corrective lookup fix
+
+The user reported empty context with a generic error. A read-only live request reproduced `PGRST201`: multiple relationships connect memberships and organizations. The lookup now specifies `organization_members_organization_id_fkey` and preserves plain-object Supabase error messages. This corrects the approved lookup without changing its behavior or authorization scope.
+
+- TypeScript and focused ESLint passed.
+- The corrected anonymous request resolves the relationship and reaches expected table permission denial; authenticated loading awaits user confirmation. No grants or database writes were made.
+- Fresh reviewer and security verdicts both passed with high confidence and no blocking findings. Live signed-in verification remains a merge gate.
+- Existing user edits in the provider were preserved; the correction is left uncommitted.
+
 No behavior changes. The user denied `git push`, so implementation and review continued locally without publishing a PR. Freshly fetched main includes generated database types; the implementation uses them.
 
 ## Implementation verification
