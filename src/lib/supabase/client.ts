@@ -6,6 +6,6 @@ import type { Database } from '#/types/database'
 export function createSupabaseBrowserClient() {
   return createBrowserClient<Database>(
     env.VITE_SUPABASE_URL,
-    env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    env.VITE_SUPABASE_ANON_KEY,
   )
 }
