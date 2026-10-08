@@ -18,6 +18,8 @@
     typescript.enable = true;
   };
 
+  dotenv.enable = true;
+
   # Screenshots under docs/ are stored with Git LFS (docs/design/README.md).
   enterShell = ''
     git rev-parse --git-dir >/dev/null 2>&1 && git lfs install --local >/dev/null
