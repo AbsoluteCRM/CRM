@@ -659,7 +659,7 @@ function WeatherCard({ t }: { t: Tenant }) {
           to="/calendar"
           className="mt-auto inline-flex items-center gap-1 pt-3 text-[13px] font-semibold text-(--leaf-700) no-underline"
         >
-          Open weather planner <ArrowRight className="size-3.5" />
+          Open calendar <ArrowRight className="size-3.5" />
         </Link>
       </div>
     </Card>
