@@ -22,7 +22,7 @@ Every change follows [docs/process/feature-workflow.md](docs/process/feature-wor
 
 ## Commands
 
-Package manager is **pnpm**. Env vars come from `.env.local` (gitignored). It holds the Supabase keys (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), and the Sentry `VITE_SENTRY_*` / `SENTRY_AUTH_TOKEN` values. Scripts that need these values wrap themselves in `dotenv -e .env.local`.
+Package manager is **pnpm**. Env vars come from `.env.local` (gitignored). It holds the Supabase keys (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), and the Sentry `VITE_SENTRY_*` / `SENTRY_AUTH_TOKEN` values. Scripts that need these values wrap themselves in `dotenv -e .env.local`.
 
 The toolchain comes from **devenv** (`devenv.nix`: Node 22, TypeScript, git-lfs, supabase-cli). Enter it with `devenv shell`; the repo has no `.envrc` for direnv. devenv generates the gitignored `.pre-commit-config.yaml`, so change `devenv.nix` rather than that file. `.devcontainer/devcontainer.json` is committed by hand. On commit, the git hooks run prettier (the repo's pinned version) on staged files and nixfmt on `.nix` files. Entering the shell also runs `git lfs install --local`, because screenshots under `docs/` are stored in Git LFS.
 
@@ -35,7 +35,7 @@ pnpm format              # prettier --write + eslint --fix
 pnpm check               # prettier --check
 pnpm exec tsc --noEmit   # typecheck (no script for it)
 
-pnpm db:types            # supabase gen types → src/types/database.ts (inside devenv shell; not usable until db/reconcile-remote lands)
+pnpm db:types            # supabase gen types → src/types/database.ts (inside devenv shell; needs `supabase login` or `SUPABASE_ACCESS_TOKEN`)
 
 pnpm storybook           # Storybook on :6006
 pnpm exec vitest run                                   # all tests
@@ -62,11 +62,11 @@ The README says the build output goes to `dist/`. It's wrong: Nitro writes to `.
   - `src/routes/_authed.tsx` is the layout for signed-in pages. Its guard is client-only.
 - **Schema design**: `docs/database/` is the design record. It holds the conventions, ERD, per-table reference, RLS model, and ADRs. Read it before touching the schema, and update it in the same change.
   - The schema's source of truth is hand-written SQL in `supabase/migrations/`. It is applied to the remote Supabase project through the Supabase MCP `apply_migration` tool under the same name, and then the local file is renamed to the version the tool assigned.
-  - **The remote has drifted from the migrations** (it re-applied 8 of the 13 on 2026-10-02, with different content, and lacks invoicing and time tracking, plus the seed). Don't run `pnpm db:types` or apply schema changes until the follow-up `db/reconcile-remote` lands. See `docs/database/README.md`.
+  - The remote matches the migrations (rebaselined 2026-10-07, [ADR 0010](docs/database/decisions/0010-pre-launch-rebaseline.md)). Compare `list_migrations` with `supabase/migrations/` before applying anything.
   - Service-role Supabase clients bypass RLS, so they are for trusted code only (`src/server/trusted/`). See ADR 0009.
-- **Database access**: supabase-js with the user's session, so RLS applies ([ADR 0009](docs/database/decisions/0009-supabase-js-data-access.md)). Use the per-request `createSupabaseServerClient()` in `src/lib/supabase/server.ts`. Multi-step or transactional writes are SQL functions called with `.rpc()`. There is no ORM and no direct Postgres connection. Generated types (`src/types/database.ts`, from `pnpm db:types`) are **pending**: the file doesn't exist until `db/reconcile-remote` lands.
+- **Database access**: supabase-js with the user's session, so RLS applies ([ADR 0009](docs/database/decisions/0009-supabase-js-data-access.md)). Use the per-request `createSupabaseServerClient()` in `src/lib/supabase/server.ts`. Multi-step or transactional writes are SQL functions called with `.rpc()`. There is no ORM and no direct Postgres connection. Generated types are in `src/types/database.ts` (from `pnpm db:types`); regenerate them after every schema change.
 - **Client-side collections**: `@tanstack/react-db` collections go in `src/db-collections/`. Only a local-only example exists so far; `@tanstack/query-db-collection` is installed for query-backed collections.
-- **Env**: `src/env.ts` uses t3 `createEnv`. Client vars must be prefixed `VITE_`. It validates `SERVER_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_APP_TITLE`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`.
+- **Env**: `src/env.ts` uses t3 `createEnv`. Client vars must be prefixed `VITE_`. It validates `SERVER_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_APP_TITLE`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 - **UI**: shadcn/ui (new-york, zinc, lucide) in `src/components/ui`, Tailwind v4 through `src/styles.css`, and `cn()` in `src/lib/utils.ts`. Add components with `pnpm dlx shadcn@latest add <name>`.
 - **Imports**: use the `#/*` alias for `src/*`. It's defined in both `package.json` `imports` and `tsconfig` paths, and it's what shadcn uses. `@/*` also resolves but is not the convention.
 

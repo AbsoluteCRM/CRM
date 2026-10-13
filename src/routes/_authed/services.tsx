@@ -1,285 +1,718 @@
+import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Pencil, Trash } from 'lucide-react'
+import {
+  CalendarRange,
+  Clock,
+  Pencil,
+  Plus,
+  Repeat,
+  Snowflake,
+  Wrench,
+  X,
+} from 'lucide-react'
+
+import PageShell from '#/components/crm/PageShell'
+import {
+  Badge,
+  Btn,
+  Card,
+  CardHeader,
+  CheckPill,
+  EmptyState,
+  Field,
+  FilterChip,
+  IconBtn,
+  Modal,
+  SearchInput,
+  SelectInput,
+  TextArea,
+  TextInput,
+  Toggle,
+  toast,
+} from '#/components/crm/ui'
+import { actions, can, inSeason, useTenant } from '#/components/crm/store'
+import {
+  MONTHS,
+  addDays,
+  fmtDuration,
+  money,
+  parseDate,
+  todayISO,
+} from '#/components/crm/format'
+import { cn } from '#/lib/utils'
+import type { Frequency, Service, ServiceUnit } from '#/components/crm/types'
 
 export const Route = createFileRoute('/_authed/services')({
-  component: RouteComponent,
+  component: ServicesPage,
 })
 
-function RouteComponent() {
-  const DATA = [
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Weekly Lawn Mowing',
-      description:
-        'Weekly lawn mowing, trimming, and cleanup of grass clippings for residential properties.',
-      service_type: 'recurring',
-      base_price: 55.0,
-      estimated_duration_minutes: 60,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Bi-Weekly Lawn Maintenance',
-      description:
-        'Lawn mowing, edging, and general yard maintenance performed every two weeks.',
-      service_type: 'recurring',
-      base_price: 75.0,
-      estimated_duration_minutes: 90,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Garden Bed Maintenance',
-      description:
-        'Regular weeding, soil cultivation, deadheading, and general garden bed upkeep.',
-      service_type: 'recurring',
-      base_price: 85.0,
-      estimated_duration_minutes: 90,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Commercial Grounds Maintenance',
-      description:
-        'Routine lawn care, edging, litter removal, and landscape maintenance for commercial properties.',
-      service_type: 'recurring',
-      base_price: 250.0,
-      estimated_duration_minutes: 180,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Snow Removal',
-      description:
-        'Scheduled driveway and walkway snow clearing during the winter season.',
-      service_type: 'recurring',
-      base_price: 65.0,
-      estimated_duration_minutes: 45,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Property Maintenance',
-      description:
-        'Ongoing exterior property upkeep including lawn care, garden maintenance, and debris removal.',
-      service_type: 'recurring',
-      base_price: 150.0,
-      estimated_duration_minutes: 120,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Spring Yard Cleanup',
-      description:
-        'Comprehensive spring cleanup including debris removal, leaf collection, and garden bed preparation.',
-      service_type: 'one_time',
-      base_price: 225.0,
-      estimated_duration_minutes: 180,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Fall Leaf Cleanup',
-      description:
-        'Removal and disposal of fallen leaves and seasonal debris from lawns and garden beds.',
-      service_type: 'one_time',
-      base_price: 175.0,
-      estimated_duration_minutes: 150,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Lawn Aeration',
-      description:
-        'Core aeration to improve soil oxygen, water absorption, and overall lawn health.',
-      service_type: 'one_time',
-      base_price: 120.0,
-      estimated_duration_minutes: 60,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Power Raking',
-      description:
-        'Mechanical removal of excess thatch and dead grass to encourage healthy lawn growth.',
-      service_type: 'one_time',
-      base_price: 150.0,
-      estimated_duration_minutes: 90,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Sod Installation',
-      description:
-        'Removal of existing turf, soil preparation, and installation of fresh sod.',
-      service_type: 'one_time',
-      base_price: 1200.0,
-      estimated_duration_minutes: 480,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Mulch Installation',
-      description:
-        'Supply and installation of decorative mulch in garden beds and landscaped areas.',
-      service_type: 'one_time',
-      base_price: 275.0,
-      estimated_duration_minutes: 180,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Hedge and Shrub Trimming',
-      description:
-        'Pruning and shaping of hedges, shrubs, and ornamental bushes.',
-      service_type: 'one_time',
-      base_price: 135.0,
-      estimated_duration_minutes: 120,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Tree Pruning',
-      description:
-        'Removal of small dead or overgrown branches to maintain tree health and appearance.',
-      service_type: 'one_time',
-      base_price: 300.0,
-      estimated_duration_minutes: 180,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Garden Bed Installation',
-      description:
-        'Preparation and installation of new garden beds including edging, soil, and planting.',
-      service_type: 'one_time',
-      base_price: 650.0,
-      estimated_duration_minutes: 360,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Pressure Washing',
-      description:
-        'Pressure washing of driveways, patios, walkways, and other exterior hard surfaces.',
-      service_type: 'one_time',
-      base_price: 225.0,
-      estimated_duration_minutes: 150,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Irrigation System Winterization',
-      description:
-        'Seasonal draining and winterization of residential irrigation systems.',
-      service_type: 'one_time',
-      base_price: 125.0,
-      estimated_duration_minutes: 60,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Landscape Consultation',
-      description:
-        'On-site consultation to assess landscaping needs, discuss project options, and prepare recommendations.',
-      service_type: 'one_time',
-      base_price: 0.0,
-      estimated_duration_minutes: 60,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Retaining Wall Installation',
-      description:
-        'Design and construction of residential retaining walls using landscape blocks or natural stone.',
-      service_type: 'one_time',
-      base_price: null,
-      estimated_duration_minutes: 960,
-      is_active: true,
-    },
-    {
-      organization_id: 'YOUR_ORGANIZATION_UUID',
-      name: 'Seasonal Flower Planting',
-      description:
-        'Installation of seasonal flowers and ornamental plants in existing garden beds.',
-      service_type: 'one_time',
-      base_price: 180.0,
-      estimated_duration_minutes: 120,
-      is_active: false,
-    },
-  ]
+const UNIT_LABEL: Record<ServiceUnit, string> = {
+  each: 'per job',
+  visit: 'per visit',
+  hour: 'per hour',
+  sqft: 'per sq ft',
+  linear_ft: 'per linear ft',
+  yard: 'per yard',
+  bag: 'per bag',
+}
 
-  const SERVICE_TYPE = [
-    {
-      value: 'one_time',
-      label: 'One Time',
-    },
-    {
-      value: 'recurring',
-      label: 'Recurring',
-    },
-  ]
+const FREQ_LABEL: Record<Frequency, string> = {
+  one_time: 'One-time',
+  weekly: 'Weekly',
+  biweekly: 'Bi-weekly',
+  monthly: 'Monthly',
+}
+
+const SWATCHES = [
+  '#7fb547',
+  '#3f8f5b',
+  '#a5c25a',
+  '#6aa6c9',
+  '#d98a3d',
+  '#c8d96a',
+  '#5c7c3a',
+  '#8bbf9f',
+  '#b9a46b',
+  '#4fa3a5',
+  '#8a5a3c',
+  '#e07a8f',
+]
+
+type Filter = 'all' | 'recurring' | 'one_time' | 'in_season' | 'inactive'
+
+function seasonText(s: Service) {
+  if (!s.season) return 'Year-round'
+  return `${MONTHS[s.season.start - 1]} → ${MONTHS[s.season.end - 1]}`
+}
+
+function SeasonBar({
+  service,
+  className,
+}: {
+  service: Service
+  className?: string
+}) {
+  const now = parseDate(todayISO()).getMonth() + 1
+  return (
+    <div
+      className={cn('grid grid-cols-12 gap-0.5', className)}
+      aria-label={`Available ${seasonText(service)}`}
+    >
+      {MONTHS.map((m, i) => {
+        const on = inSeason(service, i + 1)
+        return (
+          <div key={m} className="flex flex-col items-center gap-1">
+            <span
+              className={cn(
+                'h-2 w-full rounded-full',
+                i + 1 === now && 'ring-2 ring-(--leaf-900) ring-offset-1',
+              )}
+              style={{ background: on ? service.color : 'var(--sage)' }}
+            />
+            <span
+              className={cn(
+                'text-[9px] font-semibold',
+                i + 1 === now ? 'text-(--ink)' : 'text-(--ink-3)',
+              )}
+            >
+              {m[0]}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ServicesPage() {
+  const t = useTenant()
+  const [filter, setFilter] = useState<Filter>('all')
+  const [q, setQ] = useState('')
+  const [editing, setEditing] = useState<Service | 'new' | null>(null)
+  const month = parseDate(todayISO()).getMonth() + 1
+  const editable = can.manageServices(t.role)
+
+  const since = addDays(todayISO(), -30)
+  const usage = (id: string) => {
+    const jobs = t.jobs.filter(
+      (j) =>
+        j.service_ids.includes(id) &&
+        j.status === 'completed' &&
+        j.date >= since,
+    )
+    return {
+      count: jobs.length,
+      revenue: jobs.reduce(
+        (s, j) => s + j.price_cents / j.service_ids.length,
+        0,
+      ),
+    }
+  }
+
+  const isRecurring = (s: Service) =>
+    s.frequencies.some((f) => f !== 'one_time')
+  const rows = t.services
+    .filter((s) => {
+      if (filter === 'recurring' && !isRecurring(s)) return false
+      if (filter === 'one_time' && isRecurring(s)) return false
+      if (filter === 'in_season' && !(s.is_active && inSeason(s, month)))
+        return false
+      if (filter === 'inactive' && s.is_active) return false
+      const needle = q.trim().toLowerCase()
+      return (
+        !needle ||
+        `${s.name} ${s.description} ${s.equipment.join(' ')}`
+          .toLowerCase()
+          .includes(needle)
+      )
+    })
+    .sort(
+      (a, b) =>
+        Number(b.is_active) - Number(a.is_active) ||
+        a.name.localeCompare(b.name),
+    )
 
   return (
-    <div className="pt-16 px-8 overflow-scroll">
-      <div className="flex justify-between items-center mb-2">
-        <div>
-          <h1 className="text-2xl font-bold">Services</h1>
-          <p>Manage the services offered by your organization</p>
+    <PageShell
+      kicker="Service catalog"
+      title="Services"
+      subtitle="Standardize pricing, duration, equipment, and when each service is offered."
+      allowed={can.manageClients(t.role)}
+      section="Services"
+      actions={
+        editable && (
+          <Btn icon={Plus} onClick={() => setEditing('new')}>
+            Add service
+          </Btn>
+        )
+      }
+    >
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <SearchInput
+          value={q}
+          onChange={setQ}
+          placeholder="Search services or equipment"
+          className="w-full sm:w-72"
+        />
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ['all', `All ${t.services.length}`],
+              ['recurring', 'Recurring'],
+              ['one_time', 'One-time'],
+              ['in_season', `In season (${MONTHS[month - 1]})`],
+              ['inactive', 'Inactive'],
+            ] as Array<[Filter, string]>
+          ).map(([k, label]) => (
+            <FilterChip
+              key={k}
+              active={filter === k}
+              onClick={() => setFilter(k)}
+            >
+              {label}
+            </FilterChip>
+          ))}
         </div>
-        <button className="bg-blue-600 hover:cursor-pointer hover:bg-blue-700 text-white px-4 py-2 rounded">
-          Add Service
-        </button>
       </div>
 
-      <table className="min-w-full border-collapse border border-gray-200">
-        <thead className="bg-green-800">
-          <tr className="text-left text-white">
-            <th className="px-4 py-2 border border-gray-200">Name</th>
-            <th className="px-4 py-2 border border-gray-200">Description</th>
-            <th className="px-4 py-2 border border-gray-200">Service Type</th>
-            <th className="px-4 py-2 border border-gray-200">Base Price</th>
-            <th className="px-4 py-2 border border-gray-200">
-              Estimated Duration (minutes)
-            </th>
-            <th className="px-4 py-2 border border-gray-200">Active</th>
-            <th className="px-4 py-2 border border-gray-200">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {DATA.map((service, index) => (
-            <tr
-              className={`text-left hover:cursor-pointer hover:bg-gray-200 duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-100'}`}
-              key={service.name}
-            >
-              <td className="font-bold px-2 py-2">{service.name}</td>
-              <td className="px-2 py-2">{service.description}</td>
-              <td className="px-2 py-2">
-                {SERVICE_TYPE.find(
-                  (type) => type.value === service.service_type,
-                )?.label || 'N/A'}
-              </td>
-              <td className="px-2 py-2">
-                {service.base_price != null
-                  ? `$${service.base_price.toFixed(2)}`
-                  : 'N/A'}
-              </td>
-              <td className="px-2 py-2">
-                {service.estimated_duration_minutes}
-              </td>
-              <td className="px-2 py-2">{service.is_active ? 'Yes' : 'No'}</td>
-              <td className="px-2 py-2">
-                <button className="text-gray-500 px-2 py-2 py-1 rounded mr-2 hover:cursor-pointer hover:text-gray-700 duration-200">
-                  <Pencil size={16} />
+      {rows.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="No services match"
+            action={
+              editable && (
+                <Btn icon={Plus} onClick={() => setEditing('new')}>
+                  Add service
+                </Btn>
+              )
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {rows.map((s) => {
+            const u = usage(s.id)
+            const seasonal = inSeason(s, month)
+            return (
+              <Card
+                key={s.id}
+                className={cn(
+                  'crm-rise flex flex-col overflow-hidden',
+                  !s.is_active && 'opacity-70',
+                )}
+              >
+                <div className="flex items-start gap-3 p-5 pb-3">
+                  <span
+                    className="flex size-11 shrink-0 items-center justify-center rounded-2xl"
+                    style={{
+                      background: `color-mix(in oklab, ${s.color} 22%, white)`,
+                      color: s.color,
+                    }}
+                  >
+                    {s.name === 'Snow Removal' ? (
+                      <Snowflake className="size-5" />
+                    ) : (
+                      <Wrench className="size-5" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-[15px] font-bold">{s.name}</h3>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                      {!s.is_active ? (
+                        <Badge>Inactive</Badge>
+                      ) : seasonal ? (
+                        <Badge tone="green" dot>
+                          In season
+                        </Badge>
+                      ) : (
+                        <Badge tone="sun" dot>
+                          Off-season
+                        </Badge>
+                      )}
+                    </p>
+                  </div>
+                  {editable && (
+                    <div className="flex items-center gap-1">
+                      <Toggle
+                        checked={s.is_active}
+                        label={`${s.name} active`}
+                        onChange={(v) => {
+                          actions.updateService(s.id, { is_active: v })
+                          toast(
+                            `${s.name} ${v ? 'activated' : 'hidden from pickers'}`,
+                            'info',
+                          )
+                        }}
+                      />
+                      <IconBtn
+                        icon={Pencil}
+                        label={`Edit ${s.name}`}
+                        onClick={() => setEditing(s)}
+                      />
+                    </div>
+                  )}
+                </div>
+                <p className="line-clamp-2 px-5 text-[13px] text-(--ink-2)">
+                  {s.description}
+                </p>
+                <div className="mt-4 flex items-end justify-between gap-3 px-5">
+                  <div>
+                    <p className="crm-display text-[26px] leading-none font-semibold">
+                      {s.default_price_cents
+                        ? money(s.default_price_cents)
+                        : 'Quote'}
+                    </p>
+                    <p className="mt-1 text-xs text-(--ink-3)">
+                      {UNIT_LABEL[s.unit]}
+                    </p>
+                  </div>
+                  <p className="flex items-center gap-1 text-[13px] font-semibold text-(--ink-2)">
+                    <Clock className="size-3.5" />{' '}
+                    {fmtDuration(s.default_duration_minutes)}
+                  </p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-1.5 px-5">
+                  {s.frequencies.map((f) => (
+                    <Badge key={f} tone={f === 'one_time' ? 'gray' : 'lime'}>
+                      {f !== 'one_time' && <Repeat className="size-3" />}
+                      {FREQ_LABEL[f]}
+                    </Badge>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5 px-5">
+                  {s.equipment.map((e) => (
+                    <span
+                      key={e}
+                      className="rounded-lg border border-(--line) px-2 py-0.5 text-[11px] font-medium text-(--ink-2)"
+                    >
+                      {e}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-auto px-5 pt-4 pb-4">
+                  <p className="mb-2 flex items-center justify-between text-[11px] font-semibold text-(--ink-3)">
+                    <span className="flex items-center gap-1">
+                      <CalendarRange className="size-3" /> {seasonText(s)}
+                    </span>
+                    <span>
+                      {u.count} jobs · 30d
+                      {can.viewRevenue(t.role)
+                        ? ` · ${money(Math.round(u.revenue / 100) * 100)}`
+                        : ''}
+                    </span>
+                  </p>
+                  <SeasonBar service={s} />
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      <Card className="mt-6">
+        <CardHeader
+          title="Seasonal availability"
+          subtitle="When each active service is offered. The outlined column is this month."
+        />
+        <div className="crm-scroll overflow-x-auto p-5">
+          <div className="min-w-[720px]">
+            <div className="grid grid-cols-[200px_repeat(12,minmax(0,1fr))] gap-1 pb-2 text-[11px] font-semibold text-(--ink-3)">
+              <span />
+              {MONTHS.map((m, i) => (
+                <span
+                  key={m}
+                  className={cn(
+                    'text-center',
+                    i + 1 === month && 'text-(--ink)',
+                  )}
+                >
+                  {m}
+                </span>
+              ))}
+            </div>
+            {t.services
+              .filter((s) => s.is_active)
+              .map((s) => (
+                <div
+                  key={s.id}
+                  className="grid grid-cols-[200px_repeat(12,minmax(0,1fr))] items-center gap-1 py-1"
+                >
+                  <span className="truncate pr-3 text-[13px] font-semibold">
+                    {s.name}
+                  </span>
+                  {MONTHS.map((m, i) => (
+                    <span
+                      key={m}
+                      className={cn(
+                        'h-5 rounded-md',
+                        i + 1 === month && 'ring-2 ring-(--leaf-900)/60',
+                      )}
+                      style={{
+                        background: inSeason(s, i + 1)
+                          ? s.color
+                          : 'var(--cream-2)',
+                      }}
+                      title={`${s.name}: ${inSeason(s, i + 1) ? 'offered' : 'not offered'} in ${m}`}
+                    />
+                  ))}
+                </div>
+              ))}
+          </div>
+        </div>
+      </Card>
+
+      {editing && (
+        <ServiceModal
+          service={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </PageShell>
+  )
+}
+
+function ServiceModal({
+  service,
+  onClose,
+}: {
+  service: Service | null
+  onClose: () => void
+}) {
+  const [form, setForm] = useState({
+    name: service?.name ?? '',
+    description: service?.description ?? '',
+    price: service ? (service.default_price_cents / 100).toFixed(2) : '',
+    unit: service?.unit ?? 'visit',
+    duration: String(service?.default_duration_minutes ?? 60),
+    equipment: service?.equipment ?? [],
+    frequencies: service?.frequencies ?? (['one_time'] as Array<Frequency>),
+    yearRound: !service?.season,
+    seasonStart: service?.season?.start ?? 4,
+    seasonEnd: service?.season?.end ?? 10,
+    color: service?.color ?? SWATCHES[0],
+    is_active: service?.is_active ?? true,
+  })
+  const [equip, setEquip] = useState('')
+  const valid =
+    form.name.trim() && Number(form.duration) > 0 && form.frequencies.length > 0
+
+  const addEquip = () => {
+    const v = equip.trim()
+    if (v && !form.equipment.includes(v))
+      setForm((f) => ({ ...f, equipment: [...f.equipment, v] }))
+    setEquip('')
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      width={680}
+      title={service ? `Edit ${service.name}` : 'Add a service'}
+      subtitle="Defaults used when quoting and scheduling. You can still override price per job."
+      footer={
+        <>
+          <Btn variant="ghost" onClick={onClose}>
+            Cancel
+          </Btn>
+          <Btn
+            disabled={!valid}
+            onClick={() => {
+              actions.saveService({
+                id: service?.id,
+                name: form.name.trim(),
+                description: form.description,
+                default_price_cents: Math.round(
+                  (Number(form.price) || 0) * 100,
+                ),
+                unit: form.unit,
+                default_duration_minutes: Number(form.duration),
+                equipment: form.equipment,
+                frequencies: form.frequencies,
+                season: form.yearRound
+                  ? null
+                  : { start: form.seasonStart, end: form.seasonEnd },
+                color: form.color,
+                is_active: form.is_active,
+              })
+              toast(service ? 'Service updated' : 'Service added')
+              onClose()
+            }}
+          >
+            {service ? 'Save changes' : 'Add service'}
+          </Btn>
+        </>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Name" className="sm:col-span-2">
+          <TextInput
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="e.g. Lawn Mowing"
+            autoFocus
+          />
+        </Field>
+        <Field label="Description" className="sm:col-span-2">
+          <TextArea
+            value={form.description}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, description: e.target.value }))
+            }
+            className="min-h-20"
+          />
+        </Field>
+        <Field label="Price">
+          <div className="relative">
+            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-(--ink-3)">
+              $
+            </span>
+            <TextInput
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.price}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, price: e.target.value }))
+              }
+              className="pl-6"
+              placeholder="0.00"
+            />
+          </div>
+        </Field>
+        <Field label="Priced">
+          <SelectInput
+            value={form.unit}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, unit: e.target.value as ServiceUnit }))
+            }
+          >
+            {Object.entries(UNIT_LABEL).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        <Field label="Typical duration (minutes)">
+          <TextInput
+            type="number"
+            min={15}
+            step={15}
+            value={form.duration}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, duration: e.target.value }))
+            }
+          />
+        </Field>
+        <Field label="Color">
+          <div className="flex flex-wrap gap-1.5">
+            {SWATCHES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                aria-label={`Color ${c}`}
+                aria-pressed={form.color === c}
+                onClick={() => setForm((f) => ({ ...f, color: c }))}
+                className={cn(
+                  'size-7 cursor-pointer rounded-full border-2',
+                  form.color === c ? 'border-(--ink)' : 'border-transparent',
+                )}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+        </Field>
+        <Field
+          label="Equipment required"
+          className="sm:col-span-2"
+          hint="Press Enter to add."
+        >
+          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-(--line-2) bg-(--paper) p-1.5">
+            {form.equipment.map((e) => (
+              <span
+                key={e}
+                className="inline-flex items-center gap-1 rounded-lg bg-(--sage) py-1 pr-1 pl-2 text-xs font-semibold"
+              >
+                {e}
+                <button
+                  type="button"
+                  aria-label={`Remove ${e}`}
+                  className="cursor-pointer rounded p-0.5 hover:bg-white"
+                  onClick={() =>
+                    setForm((f) => ({
+                      ...f,
+                      equipment: f.equipment.filter((x) => x !== e),
+                    }))
+                  }
+                >
+                  <X className="size-3" />
                 </button>
-                <button className="text-red-500 px-2 py-2 py-1 rounded hover:cursor-pointer hover:text-red-700 duration-200">
-                  <Trash size={16} />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              </span>
+            ))}
+            <input
+              value={equip}
+              onChange={(e) => setEquip(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault()
+                  addEquip()
+                }
+              }}
+              onBlur={addEquip}
+              placeholder="Mower, trimmer…"
+              className="min-w-32 flex-1 bg-transparent px-1.5 py-1 text-sm outline-none"
+            />
+          </div>
+        </Field>
+        <Field label="Recurring options" className="sm:col-span-2">
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(FREQ_LABEL) as Array<Frequency>).map((f) => (
+              <CheckPill
+                key={f}
+                checked={form.frequencies.includes(f)}
+                onChange={(v) =>
+                  setForm((x) => ({
+                    ...x,
+                    frequencies: v
+                      ? [...x.frequencies, f]
+                      : x.frequencies.filter((y) => y !== f),
+                  }))
+                }
+              >
+                {FREQ_LABEL[f]}
+              </CheckPill>
+            ))}
+          </div>
+        </Field>
+        <div className="rounded-2xl border border-(--line) bg-(--cream)/60 p-4 sm:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold">Seasonal availability</p>
+              <p className="text-xs text-(--ink-3)">
+                Off-season services are flagged when scheduling. Example: Snow
+                Removal, November → March.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-[13px] font-semibold">
+              Year-round
+              <Toggle
+                checked={form.yearRound}
+                label="Year-round"
+                onChange={(v) => setForm((f) => ({ ...f, yearRound: v }))}
+              />
+            </label>
+          </div>
+          {!form.yearRound && (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Field label="From">
+                <SelectInput
+                  value={form.seasonStart}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      seasonStart: Number(e.target.value),
+                    }))
+                  }
+                >
+                  {MONTHS.map((m, i) => (
+                    <option key={m} value={i + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <Field label="To">
+                <SelectInput
+                  value={form.seasonEnd}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      seasonEnd: Number(e.target.value),
+                    }))
+                  }
+                >
+                  {MONTHS.map((m, i) => (
+                    <option key={m} value={i + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <SeasonBar
+                className="col-span-2 mt-1"
+                service={{
+                  id: 'preview',
+                  organization_id: '',
+                  name: form.name,
+                  description: '',
+                  unit: form.unit,
+                  default_price_cents: 0,
+                  default_duration_minutes: 60,
+                  is_active: true,
+                  color: form.color,
+                  equipment: [],
+                  frequencies: [],
+                  season: { start: form.seasonStart, end: form.seasonEnd },
+                }}
+              />
+            </div>
+          )}
+        </div>
+        <label className="flex items-center justify-between gap-3 sm:col-span-2">
+          <span>
+            <span className="block text-sm font-bold">Active</span>
+            <span className="text-xs text-(--ink-3)">
+              Inactive services are hidden from quote and job pickers.
+            </span>
+          </span>
+          <Toggle
+            checked={form.is_active}
+            label="Active"
+            onChange={(v) => setForm((f) => ({ ...f, is_active: v }))}
+          />
+        </label>
+      </div>
+    </Modal>
   )
 }

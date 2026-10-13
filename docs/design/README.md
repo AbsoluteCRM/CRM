@@ -27,11 +27,12 @@ Tailwind v4. Its tokens are in `src/styles.css`.
 
 ## Feature specs
 
-| Spec | Covers | Screens |
-| ---- | ------ | ------- |
+| Spec                          | Covers                                 | Screens  |
+| ----------------------------- | -------------------------------------- | -------- |
+| [Calendar](../calendar/ui.md) | Weekly schedule and selected-day route | Calendar |
 
-_None yet._ The existing `_authed/*` pages predate this record. Each one gets
-its `ui.md` the next time a feature changes it.
+Other existing `_authed/*` pages predate this record. Each one gets its
+`ui.md` the next time a feature changes it.
 
 ## How to write a screen section
 

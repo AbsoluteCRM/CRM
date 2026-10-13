@@ -17,6 +17,7 @@ import { Route as AuthedCalendarRouteImport } from './routes/_authed/calendar'
 import { Route as AuthedClientsRouteImport } from './routes/_authed/clients'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedJobsRouteImport } from './routes/_authed/jobs'
+import { Route as AuthedOnboardingRouteImport } from './routes/_authed/onboarding'
 import { Route as AuthedRequestsRouteImport } from './routes/_authed/requests'
 import { Route as AuthedServicesRouteImport } from './routes/_authed/services'
 import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
@@ -62,6 +63,11 @@ const AuthedJobsRoute = AuthedJobsRouteImport.update({
   path: '/jobs',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedOnboardingRoute = AuthedOnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedRequestsRoute = AuthedRequestsRouteImport.update({
   id: '/requests',
   path: '/requests',
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/clients': typeof AuthedClientsRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/jobs': typeof AuthedJobsRoute
+  '/onboarding': typeof AuthedOnboardingRoute
   '/requests': typeof AuthedRequestsRoute
   '/services': typeof AuthedServicesRoute
   '/settings': typeof AuthedSettingsRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/clients': typeof AuthedClientsRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/jobs': typeof AuthedJobsRoute
+  '/onboarding': typeof AuthedOnboardingRoute
   '/requests': typeof AuthedRequestsRoute
   '/services': typeof AuthedServicesRoute
   '/settings': typeof AuthedSettingsRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/_authed/clients': typeof AuthedClientsRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
   '/_authed/jobs': typeof AuthedJobsRoute
+  '/_authed/onboarding': typeof AuthedOnboardingRoute
   '/_authed/requests': typeof AuthedRequestsRoute
   '/_authed/services': typeof AuthedServicesRoute
   '/_authed/settings': typeof AuthedSettingsRoute
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/dashboard'
     | '/jobs'
+    | '/onboarding'
     | '/requests'
     | '/services'
     | '/settings'
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/dashboard'
     | '/jobs'
+    | '/onboarding'
     | '/requests'
     | '/services'
     | '/settings'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/_authed/clients'
     | '/_authed/dashboard'
     | '/_authed/jobs'
+    | '/_authed/onboarding'
     | '/_authed/requests'
     | '/_authed/services'
     | '/_authed/settings'
@@ -244,6 +256,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedJobsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/onboarding': {
+      id: '/_authed/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof AuthedOnboardingRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/requests': {
       id: '/_authed/requests'
       path: '/requests'
@@ -287,6 +306,7 @@ interface AuthedRouteChildren {
   AuthedClientsRoute: typeof AuthedClientsRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
   AuthedJobsRoute: typeof AuthedJobsRoute
+  AuthedOnboardingRoute: typeof AuthedOnboardingRoute
   AuthedRequestsRoute: typeof AuthedRequestsRoute
   AuthedServicesRoute: typeof AuthedServicesRoute
   AuthedSettingsRoute: typeof AuthedSettingsRoute
@@ -298,6 +318,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedClientsRoute: AuthedClientsRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
   AuthedJobsRoute: AuthedJobsRoute,
+  AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedRequestsRoute: AuthedRequestsRoute,
   AuthedServicesRoute: AuthedServicesRoute,
   AuthedSettingsRoute: AuthedSettingsRoute,

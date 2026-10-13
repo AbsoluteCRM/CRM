@@ -49,7 +49,7 @@ begin
   -- Staff: the owner has a login. The dispatcher and crew don't yet
   -- (invite them later).
   insert into public.organization_members (organization_id, user_id, role, display_name, email)
-  select v_org, v_owner, 'owner', coalesce(p.full_name, u.email), u.email
+  select v_org, v_owner, 'owner', coalesce(p.full_name, u.email), lower(u.email)
   from auth.users u left join public.profiles p on p.id = u.id where u.id = v_owner;
   insert into public.organization_members (organization_id, role, display_name, color)
   values (v_org, 'dispatcher', 'Dana Dispatch', '#2563eb');
@@ -105,13 +105,17 @@ begin
   returning id into v_bob_prop;
 
   -- Jane: weekly Tuesday mowing, billed per visit.
-  insert into public.jobs (organization_id, client_id, property_id, title, kind, rrule, start_date, window_start, window_end,
+  insert into public.jobs (organization_id, client_id, property_id, title, kind, rrule, start_date, window_start, window_minutes,
                            visit_duration_minutes, preferred_crew_id, billing_mode)
-  values (v_org, v_jane, v_jane_prop, 'Weekly mowing', 'recurring', 'FREQ=WEEKLY;BYDAY=TU', v_today, '08:00', '12:00',
+  values (v_org, v_jane, v_jane_prop, 'Weekly mowing', 'recurring', 'FREQ=WEEKLY;BYDAY=TU', v_today, '08:00', 240,
           45, v_crew, 'per_visit')
   returning id into v_job;
-  insert into public.job_line_items (organization_id, job_id, service_id, position, description, unit_price_cents, tax_rate_ids)
-  values (v_org, v_job, v_mow, 1, 'Weekly mowing', 4500, array[v_gst]);
+  with l as (
+    insert into public.job_line_items (organization_id, job_id, service_id, position, description, unit_price_cents)
+    values (v_org, v_job, v_mow, 1, 'Weekly mowing', 4500)
+    returning id
+  )
+  insert into public.job_line_item_taxes (organization_id, line_item_id, tax_rate_id) select v_org, id, v_gst from l;
   -- Stand-in for the app-side RRULE expander: the next 8 Tuesdays.
   perform public.generate_visits(v_job,
     array(select d::date from generate_series(v_today, v_today + 55, interval '1 day') d where extract(isodow from d) = 2),
@@ -123,19 +127,27 @@ begin
   values (v_org, v_hoa, v_hoa_prop, 'Common green maintenance', 'recurring', 'FREQ=WEEKLY;BYDAY=TH', v_today, 120,
           v_crew, 'periodic', 'monthly')
   returning id into v_job;
-  insert into public.job_line_items (organization_id, job_id, service_id, position, description, quantity, unit_price_cents, tax_rate_ids)
-  values (v_org, v_job, v_mow, 1, 'Mowing and trimming (common green)', 3, 4500, array[v_gst]);
+  with l as (
+    insert into public.job_line_items (organization_id, job_id, service_id, position, description, quantity, unit_price_cents)
+    values (v_org, v_job, v_mow, 1, 'Mowing and trimming (common green)', 3, 4500)
+    returning id
+  )
+  insert into public.job_line_item_taxes (organization_id, line_item_id, tax_rate_id) select v_org, id, v_gst from l;
   perform public.generate_visits(v_job,
     array(select d::date from generate_series(v_today, v_today + 55, interval '1 day') d where extract(isodow from d) = 4),
     v_today + 55);
 
   -- Bob: a one-off spring cleanup next week (its visit is created
   -- automatically).
-  insert into public.jobs (organization_id, client_id, property_id, title, start_date, window_start, window_end, visit_duration_minutes)
-  values (v_org, v_bob, v_bob_prop, 'Spring cleanup', v_today + 7, '13:00', '17:00', 180)
+  insert into public.jobs (organization_id, client_id, property_id, title, start_date, window_start, window_minutes, visit_duration_minutes)
+  values (v_org, v_bob, v_bob_prop, 'Spring cleanup', v_today + 7, '13:00', 240, 180)
   returning id into v_job;
-  insert into public.job_line_items (organization_id, job_id, service_id, position, description, unit_price_cents, tax_rate_ids)
-  values (v_org, v_job, v_cleanup, 1, 'Spring cleanup', 25000, array[v_gst]);
+  with l as (
+    insert into public.job_line_items (organization_id, job_id, service_id, position, description, unit_price_cents)
+    values (v_org, v_job, v_cleanup, 1, 'Spring cleanup', 25000)
+    returning id
+  )
+  insert into public.job_line_item_taxes (organization_id, line_item_id, tax_rate_id) select v_org, id, v_gst from l;
 
   -- Bob: a draft quote for hedge trimming, with an optional add-on.
   insert into public.quotes (organization_id, client_id, property_id, title, message, valid_until)
