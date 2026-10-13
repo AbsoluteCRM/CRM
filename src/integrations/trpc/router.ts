@@ -1,8 +1,16 @@
+
+import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
 import { clientsRouter } from './clients'
 import { crewsRouter } from './crews'
-import { createTRPCRouter, publicProcedure } from './init'
+import {
+  createTRPCRouter,
+  organizationProcedure,
+  protectedProcedure,
+  publicProcedure,
+  requireOrgPermission,
+} from './init'
 
 import type { TRPCRouterRecord } from '@trpc/server'
 
@@ -14,6 +22,7 @@ const todos = [
 
 const todosRouter = {
   list: publicProcedure.query(() => todos),
+
   add: publicProcedure
     .input(z.object({ name: z.string() }))
     .mutation(({ input }) => {
@@ -23,9 +32,54 @@ const todosRouter = {
     }),
 } satisfies TRPCRouterRecord
 
+const authRouter = {
+  me: protectedProcedure.query(({ ctx }) => ({
+    id: ctx.user.id,
+    email: ctx.user.email,
+  })),
+
+  memberships: protectedProcedure.query(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase.rpc('my_memberships')
+
+    if (error) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to retrieve organization memberships',
+        cause: error,
+      })
+    }
+
+    return data
+  }),
+} satisfies TRPCRouterRecord
+
+const organizationRouter = {
+  checkAccess: organizationProcedure.query(({ ctx }) => ({
+    organizationId: ctx.organizationId,
+    memberId: ctx.memberId,
+    role: ctx.role,
+    authorized: true,
+  })),
+
+  testManageJobs: requireOrgPermission('manageJobs').query(({ ctx }) => ({
+    authorized: true,
+    role: ctx.role,
+    permission: 'manageJobs',
+  })),
+
+  testManageBilling: requireOrgPermission('manageBilling').query(({ ctx }) => ({
+    authorized: true,
+    role: ctx.role,
+    permission: 'manageBilling',
+  })),
+} satisfies TRPCRouterRecord
+
 export const trpcRouter = createTRPCRouter({
   todos: todosRouter,
+  auth: authRouter,
+  organization: organizationRouter,
   clients: clientsRouter,
   crews: crewsRouter,
 })
+
 export type TRPCRouter = typeof trpcRouter
