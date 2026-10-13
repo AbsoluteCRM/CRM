@@ -2,6 +2,13 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { CalendarPlus } from 'lucide-react'
 import { useCallback, useState } from 'react'
 
+import type {
+  DayRoute,
+  RouteStop,
+  StopStatus,
+  StopUpdate,
+} from '#/components/calendar/mock-routes'
+import { WeekCalendar } from '#/components/calendar/WeekCalendar'
 import { addDays, startOfWeek, toISODate } from '#/components/crm/format'
 import JobFormModal from '#/components/crm/JobFormModal'
 import PageShell from '#/components/crm/PageShell'
@@ -9,13 +16,6 @@ import type { Tenant } from '#/components/crm/store'
 import { actions, can, useTenant } from '#/components/crm/store'
 import type { Job } from '#/components/crm/types'
 import { Btn } from '#/components/crm/ui'
-import type {
-  DayRoute,
-  RouteStop,
-  StopStatus,
-  StopUpdate,
-} from '#/features/calendar/mock-routes'
-import { WeekCalendar } from '#/features/calendar/WeekCalendar'
 
 export const Route = createFileRoute('/_authed/calendar')({
   validateSearch: (search: Record<string, unknown>): { new?: boolean } => ({
