@@ -15,16 +15,16 @@ An owner or admin on the Team page can invite someone by email and role. Submitt
 
 ## Decisions
 
-| #   | Question | Answer (user's words or a faithful summary) |
-| --- | -------- | ------------------------------------------- |
-| Q1  | Branch/PR scope | Keep adding to the current `feat/team-members` branch/PR, rather than a new branch |
-| Q2  | Data-access mechanism | Direct Supabase browser client in `teams.ts`, matching `useTeamMembers()`'s existing pattern; no tRPC (tRPC's `protectedProcedure`/org context only exists on the separate, unmerged `origin/feature/trpc-auth`) |
-| Q3  | Email delivery | Out of scope. Create the invitation row only; show a copyable invite link to the admin. No email provider is integrated in this PR |
-| Q4  | Link destination | Out of scope. Generate the link text/URL only; the `/accept-invite` page that reads it is a separate, later PR |
-| Q5  | UI wiring | Wire end to end: update the existing `InviteModal` in `routes/_authed/teams.tsx` to call the real mutation (replacing the mock `actions.inviteMember`), show the link, and surface insert errors |
-| Q6  | "Name" field in the modal | Drop it. `organization_invitations` has no name column; the invitee's own profile name is used when they accept (`accept_invitation`'s `coalesce(nullif(trim(p.full_name), ''), u.email)`), so a name entered here would never be saved |
-| Q7  | Invite button gated by a role a real worker also has | Map the RLS rejection to a friendly message only ("You don't have permission to invite team members."). Leave the button's visibility (`editable = can.manageTeam(t.role)`, reading the mock tenant) as-is — pre-existing, out of scope |
-| Q8  | Re-inviting an email with an already-pending (possibly expired) invite | Resend: on a `23505` conflict, update the existing pending row's `token_hash`, `expires_at` and `role` (allowed by the existing update grant) instead of only erroring, and return a fresh link |
+| #   | Question                                                               | Answer (user's words or a faithful summary)                                                                                                                                                                                             |
+| --- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Branch/PR scope                                                        | Keep adding to the current `feat/team-members` branch/PR, rather than a new branch                                                                                                                                                      |
+| Q2  | Data-access mechanism                                                  | Direct Supabase browser client in `teams.ts`, matching `useTeamMembers()`'s existing pattern; no tRPC (tRPC's `protectedProcedure`/org context only exists on the separate, unmerged `origin/feature/trpc-auth`)                        |
+| Q3  | Email delivery                                                         | Out of scope. Create the invitation row only; show a copyable invite link to the admin. No email provider is integrated in this PR                                                                                                      |
+| Q4  | Link destination                                                       | Out of scope. Generate the link text/URL only; the `/accept-invite` page that reads it is a separate, later PR                                                                                                                          |
+| Q5  | UI wiring                                                              | Wire end to end: update the existing `InviteModal` in `routes/_authed/teams.tsx` to call the real mutation (replacing the mock `actions.inviteMember`), show the link, and surface insert errors                                        |
+| Q6  | "Name" field in the modal                                              | Drop it. `organization_invitations` has no name column; the invitee's own profile name is used when they accept (`accept_invitation`'s `coalesce(nullif(trim(p.full_name), ''), u.email)`), so a name entered here would never be saved |
+| Q7  | Invite button gated by a role a real worker also has                   | Map the RLS rejection to a friendly message only ("You don't have permission to invite team members."). Leave the button's visibility (`editable = can.manageTeam(t.role)`, reading the mock tenant) as-is — pre-existing, out of scope |
+| Q8  | Re-inviting an email with an already-pending (possibly expired) invite | Resend: on a `23505` conflict, update the existing pending row's `token_hash`, `expires_at` and `role` (allowed by the existing update grant) instead of only erroring, and return a fresh link                                         |
 
 Agent defaults (minor; the user may veto them):
 
@@ -43,10 +43,10 @@ Agent defaults (minor; the user may veto them):
 
 ## Assumptions
 
-| Assumption | User-confirmed? |
-| ---------- | --------------- |
-| Inviting an email that already belongs to an active `organization_members` row isn't specifically blocked at the app layer (no DB constraint catches it either); it's left as a known gap, not handled in this PR | no — not asked; flagged as an unhappy-path note below instead of a question, since it doesn't change any decision above |
-| The "Invite member" button's existing visibility gate (`can.manageTeam(t.role)` from the mock tenant store, which defaults every signed-in user to `'owner'`) is untouched; the mutation itself enforces real authorization via RLS, with the 42501 case mapped to a friendly message (Q7) | yes (Q7) |
+| Assumption                                                                                                                                                                                                                                                                                 | User-confirmed?                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Inviting an email that already belongs to an active `organization_members` row isn't specifically blocked at the app layer (no DB constraint catches it either); it's left as a known gap, not handled in this PR                                                                          | no — not asked; flagged as an unhappy-path note below instead of a question, since it doesn't change any decision above |
+| The "Invite member" button's existing visibility gate (`can.manageTeam(t.role)` from the mock tenant store, which defaults every signed-in user to `'owner'`) is untouched; the mutation itself enforces real authorization via RLS, with the 42501 case mapped to a friendly message (Q7) | yes (Q7)                                                                                                                |
 
 ## Design refs
 
@@ -84,8 +84,8 @@ None.
 
 No tRPC procedure. Instead, a client-side mutation hook:
 
-| Hook | Input | Output | Enforced by |
-| --- | --- | --- | --- |
+| Hook                                                                                          | Input                                                | Output                                    | Enforced by                                                                                                 |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `useInviteTeamMember()` (in [teams.ts](/home/nicko/code/CRM/src/integrations/teams/teams.ts)) | `{ email: string; role: Exclude<OrgRole, 'owner'> }` | `{ inviteLink: string; resent: boolean }` | RLS: "Owners and admins manage invitations" (insert/update restricted to `owner`/`admin` of the active org) |
 
 Implementation: reads the active `organization.id` from `useOrganization()`; generates the token and hash (D2); normalizes the email once (`const email = input.email.trim().toLowerCase()`) and reuses that value for both calls below. Tries to insert `{ organization_id, email, role, token_hash }` into `organization_invitations` via `createSupabaseBrowserClient()`. On `23505`, instead updates the existing pending row (`.update({ role, token_hash, expires_at }).eq('organization_id', organizationId).eq('email', email).is('accepted_at', null).select('id')`, so the response row count is observable) and returns `{ inviteLink, resent: true }`, or throws "Could not resend the invite; try again." if that update matches zero rows (D4/Q8 — an unlikely race where the pending row was accepted or removed between the insert attempt and the update). On `42501` from the insert throws a friendly "no permission" `Error` (Q7/D4) — this is the only place `42501` can occur, since a non-admin's `WITH CHECK` fails on the insert itself, before the unique index is ever touched; the resend's `update` is filtered by the same policy's `USING` clause, which for a non-admin simply matches zero rows (not an error), so it reuses the same "could not resend" message rather than needing its own `42501` handling. Any other error rethrows the Postgres error message. On success (insert or update) returns `{ inviteLink: `${window.location.origin}/accept-invite?token=${token}`, resent }`.
@@ -98,8 +98,8 @@ Implementation: reads the active `organization.id` from `useOrganization()`; gen
 
 ### Routes and UI
 
-| Route | Screen | States (loading, empty, error, populated) |
-| --- | --- | --- |
+| Route    | Screen                                 | States (loading, empty, error, populated)                                                                                                                                                                    |
+| -------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `/teams` | `InviteModal` (overlay, Team list tab) | form (email + role, Name field removed) → submitting (submit disabled) → success (read-only link field + Copy button + Done; copy differs slightly when `resent`) → error (toast, form stays open for retry) |
 
 `InviteModal` changes in [teams.tsx](/home/nicko/code/CRM/src/routes/_authed/teams.tsx):
@@ -109,7 +109,7 @@ Implementation: reads the active `organization.id` from `useOrganization()`; gen
 - Replace the modal's `subtitle` — "They'll get an email to join this company's workspace." claims an email is sent, which contradicts Q3 — with copy that doesn't promise one, e.g. "Create an invite link to share with them." The success state's own copy (below) states the link must be shared manually.
 - Rename the submit button from "Send invite" (with the `Mail` icon) to "Create invite link" (swap to a `Link` icon import from `lucide-react`), since no email is sent.
 - Replace the footer's `onClick` (currently `actions.inviteMember(...)`, which also fires `toast(`Invitation sent to ${email}`)` — also contradicts Q3) with `useInviteTeamMember().mutateAsync({ email, role })`.
-- On success: `navigator.clipboard.writeText(inviteLink)` (best-effort; ignore a rejected promise — D8), `toast(resent ? `New invite link ready for ${email}` : `Invite link ready for ${email}`)` (not "copied", since the clipboard write may have silently failed), and switch the modal body to the success state showing the link with copy "Share this link with them to join — it's not emailed automatically." plus a visible Copy button for a manual retry.
+- On success: `navigator.clipboard.writeText(inviteLink)` (best-effort; ignore a rejected promise — D8), `toast(resent ? `New invite link ready for ${email}`:`Invite link ready for ${email}`)` (not "copied", since the clipboard write may have silently failed), and switch the modal body to the success state showing the link with copy "Share this link with them to join — it's not emailed automatically." plus a visible Copy button for a manual retry.
 - On error: `toast(message, 'warning')` (D4's mapped message for `42501`/the resend-failure case, or the raw Postgres message otherwise), keep the form open.
 
 ### Acceptance criteria
@@ -164,11 +164,11 @@ The Definition of done from the workflow, plus:
 
 ### Round 1 (`plan-auditor`): needs-changes, confidence high
 
-| #   | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
-| --- | ------------------------------ | --------------------------------------------------- |
+| #   | Blocking finding (recurring?)                                                                                                                                              | Resolution (fixed / rejected: reason / escalated)                                                                                                          |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Unhappy-paths/Assumptions claimed a non-admin can't reach the Invite button; false, since the gate reads the mock tenant's role, which defaults everyone to `'owner'` (no) | Escalated to the user (Q7); fixed by mapping the RLS `42501` rejection to a friendly message (D4), while leaving the pre-existing gate itself out of scope |
-| 2   | Modal subtitle and the old success toast both claimed an email is sent, contradicting Q3 (no) | Fixed: subtitle and success copy reworded to not promise an email; `Routes and UI` / `Changes` sections updated |
-| 3   | No `docs/design/decisions.md` entry for the Q3/Q4 and Q6 design decisions, required by the workflow's Definition of done (no) | Fixed: added a `Documentation` subsection and a commit-1 line covering two new dated entries in `decisions.md` |
+| 2   | Modal subtitle and the old success toast both claimed an email is sent, contradicting Q3 (no)                                                                              | Fixed: subtitle and success copy reworded to not promise an email; `Routes and UI` / `Changes` sections updated                                            |
+| 3   | No `docs/design/decisions.md` entry for the Q3/Q4 and Q6 design decisions, required by the workflow's Definition of done (no)                                              | Fixed: added a `Documentation` subsection and a commit-1 line covering two new dated entries in `decisions.md`                                             |
 
 - **Non-blocking**: phone shots are only added if the modal turns out to have a distinct phone layout.
 - **Acted on**: switched the code commit from "main agent" to the dispatched `implementer` agent, matching the standard Phase-4 process rather than deviating from it; screenshot capture stays with the main agent since it needs a running dev server and browser tools the isolated worktree doesn't have.
@@ -177,8 +177,8 @@ The Definition of done from the workflow, plus:
 
 ### Round 2 (`plan-auditor`): needs-changes, confidence high
 
-| #   | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
-| --- | ------------------------------ | --------------------------------------------------- |
+| #   | Blocking finding (recurring?)                                                                                                                                                                                                                                       | Resolution (fixed / rejected: reason / escalated)                                                                                                                                                                                                                                                |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1   | The Unhappy-paths claim that waiting out `expires_at` lets the admin re-invite was false: the partial unique index only checks `accepted_at is null`, not `expires_at`, so an expired-but-unaccepted row blocks re-inviting indefinitely with no recovery path (no) | Escalated to the user (Q8); fixed by adding a resend-on-conflict: `23505` now triggers an `update` of the existing pending row's `token_hash`/`expires_at`/`role` instead of only erroring. `Procedures`, `Routes and UI`, `Acceptance criteria`, `Unhappy paths` and `Out of scope` all updated |
 
 - **Non-blocking, acted on anyway**: reworded the success toast so it no longer claims the clipboard write itself succeeded (D8); renamed the submit button from "Send invite"/`Mail` icon to "Create invite link"/`Link` icon since no email is sent; moved `autoFocus` from the removed Name field to the Email input; fixed `tenancy.md`'s pre-existing "SHA-256 of the emailed token" wording in the same sentence this plan already touches.
@@ -190,12 +190,12 @@ The Definition of done from the workflow, plus:
 
 No blocking findings. Non-blocking items (all acted on, since they were cheap and correctness-affecting):
 
-| # | Non-blocking observation | Resolution |
-| --- | --- | --- |
-| 1 | The insert normalizes the email (`.trim().toLowerCase()`) but the resend's `.eq('email', email)` could use the raw input if the implementer isn't careful, breaking the resend match for mixed-case input | Implementation text now specifies a single normalized `email` variable reused by both the insert and the resend update |
-| 2 | "Zero rows matched" on the resend update isn't observable without `.select()` | Implementation text now specifies `.select('id')` on the update |
-| 3 | The claim that RLS rejects "the resend's update" with `42501` was inaccurate — a non-admin never reaches the update, because the insert's `WITH CHECK` fails first | Unhappy paths and Procedures reworded to say the `update` path is unreachable for a non-admin, and would match zero rows (not error) if it were reached |
-| 4 | "No delete grant/revoke path" was wrong — `authenticated` keeps the default DELETE grant, filtered by the same RLS policy | Out of scope and the round-2 pre-existing note both corrected |
+| #   | Non-blocking observation                                                                                                                                                                                  | Resolution                                                                                                                                              |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | The insert normalizes the email (`.trim().toLowerCase()`) but the resend's `.eq('email', email)` could use the raw input if the implementer isn't careful, breaking the resend match for mixed-case input | Implementation text now specifies a single normalized `email` variable reused by both the insert and the resend update                                  |
+| 2   | "Zero rows matched" on the resend update isn't observable without `.select()`                                                                                                                             | Implementation text now specifies `.select('id')` on the update                                                                                         |
+| 3   | The claim that RLS rejects "the resend's update" with `42501` was inaccurate — a non-admin never reaches the update, because the insert's `WITH CHECK` fails first                                        | Unhappy paths and Procedures reworded to say the `update` path is unreachable for a non-admin, and would match zero rows (not error) if it were reached |
+| 4   | "No delete grant/revoke path" was wrong — `authenticated` keeps the default DELETE grant, filtered by the same RLS policy                                                                                 | Out of scope and the round-2 pre-existing note both corrected                                                                                           |
 
 Not acted on: a third `decisions.md` entry for Q7's error copy (judged unnecessary — that state belongs in `docs/team/ui.md`'s States section, not the cross-feature decisions log), and documenting that `invited_by` stays the original inviter after a resend (minor, doesn't change behavior or any acceptance criterion).
 

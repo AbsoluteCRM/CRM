@@ -2,6 +2,8 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
+import { clientsRouter } from './clients'
+import { crewsRouter } from './crews'
 import {
   createTRPCRouter,
   organizationProcedure,
@@ -76,6 +78,8 @@ export const trpcRouter = createTRPCRouter({
   todos: todosRouter,
   auth: authRouter,
   organization: organizationRouter,
+  clients: clientsRouter,
+  crews: crewsRouter,
 })
 
 export type TRPCRouter = typeof trpcRouter

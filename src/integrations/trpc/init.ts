@@ -4,25 +4,33 @@ import superjson from 'superjson'
 import { z } from 'zod'
 
 import { can, isOrgRole } from '#/integrations/organization/permissions'
+import { createSupabaseServerClient } from '#/lib/supabase/server'
 
-import type { SupabaseClient, User } from '@supabase/supabase-js'
-import type { Database } from '#/types/database'
+import type { OrgRole } from '#/integrations/organization/permissions'
 
-export interface TRPCContext {
-  user: User | null
-  supabase: SupabaseClient<Database>
+// Create a new Supabase client for each request.
+// This preserves the authentication cookies for the current request.
+export function createTRPCContext() {
+  return {
+    supabase: createSupabaseServerClient(),
+  }
 }
 
-const t = initTRPC.context<TRPCContext>().create({
+const t = initTRPC.context<ReturnType<typeof createTRPCContext>>().create({
   transformer: superjson,
 })
 
 export const createTRPCRouter = t.router
 export const publicProcedure = t.procedure
 
-// Require a signed-in Supabase user
-export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
-  if (!ctx.user) {
+// Require a valid Supabase user.
+export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
+  const {
+    data: { user },
+    error,
+  } = await ctx.supabase.auth.getUser()
+
+  if (error || !user) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
     })
@@ -31,12 +39,12 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   return next({
     ctx: {
       ...ctx,
-      user: ctx.user,
+      user,
     },
   })
 })
 
-// Require active membership in the requested organization
+// Require active membership in the requested organization.
 export const organizationProcedure = protectedProcedure
   .input(
     z.object({
@@ -72,12 +80,12 @@ export const organizationProcedure = protectedProcedure
         ...ctx,
         organizationId: data.organization_id,
         memberId: data.id,
-        role: data.role,
+        role: data.role as OrgRole,
       },
     })
   })
 
-// Require a specific permission within the verified organization
+// Require a specific permission within the verified organization.
 export function requireOrgPermission(permission: keyof typeof can) {
   return organizationProcedure.use(({ ctx, next }) => {
     if (!can[permission](ctx.role)) {

@@ -11,6 +11,17 @@ export interface RouteStop {
   status: StopStatus
   durationMinutes: number
   notes?: string
+  /** Set when stops come from real crews; the calendar then shows one route per crew. */
+  crew?: { id: string; name: string; color: string }
+}
+
+/** What the "Update" dialog can change on a stop. */
+export interface StopUpdate {
+  status: StopStatus
+  date: string // yyyy-MM-dd
+  time: string // HH:mm
+  durationMinutes: number
+  notes: string
 }
 
 export interface DayRoute {
