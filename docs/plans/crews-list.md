@@ -3,7 +3,7 @@
 - **Slug / branch**: `crews-list` / `feat/crews-list`
 - **Tier**: full (new tRPC procedure, touches `src/integrations/trpc/**`, a
   security-gated path)
-- **Status**: approved (audit skipped by user: plan-auditor model unavailable)
+- **Status**: implemented
 - **Confidence**: 95%; scope and member/lead inclusion are user-confirmed.
   Column selection and the exact response shape are agent defaults the user
   may veto below.
@@ -167,8 +167,28 @@ pnpm lint && pnpm check && pnpm exec vitest run && pnpm exec tsc --noEmit
 
 ## Audit log
 
-_Skipped by user: plan-auditor model (opus) is unavailable in this
+_Plan audit skipped by user: plan-auditor model (opus) is unavailable in this
 environment._
+
+### Review (`reviewer`): pass, confidence high
+
+No blocking findings. Non-blocking notes: roster embed has no explicit
+ordering (fine, not promised by the plan); mocked tests don't exercise real
+RLS (same as `clients.test.ts`); `protectedProcedure` has no active-org
+resolution (matches `clients.list`'s existing pattern). Pre-existing, unrelated:
+vitest's storybook-project noise, and a stale CLAUDE.md line about `init.ts`.
+
+### Review (`security`): pass, confidence high
+
+No blocking findings. Verified: `protectedProcedure` gates on auth; the query
+runs through `ctx.supabase` (RLS applies); the `organization_id` filter is
+required in addition to RLS; the `crews`/`crew_members` select policies and
+`anon` grants prevent cross-tenant and unauthenticated reads; `CREW_COLUMNS`
+is a fixed allowlist excluding the PostGIS columns; `organizationId` is
+validated with `z.uuid()` and bound, not interpolated. Pre-existing, unrelated:
+no active-org resolution middleware yet (shared with `clients.list`); Postgres
+error messages are passed through to the client (shared with `clients.list`);
+`init.ts` lacks the `Sentry.trpcMiddleware` called for in the workflow doc.
 
 ## Scope-change log
 
