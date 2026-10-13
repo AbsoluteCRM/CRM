@@ -25,10 +25,10 @@ data, exactly as `clients.list` shipped without touching the clients page.
 
 ## Decisions
 
-| #   | Question                                         | Answer                                                                                           |
-| --- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Q1  | Scope: backend only, or also wire into the teams page? | Backend only: `crews.list` tRPC procedure + `useCrews` hook. No UI rewire.                     |
-| Q2  | Include each crew's roster?                      | Yes: include each crew's members and who's the lead, by joining `crew_members`.                   |
+| #   | Question                                               | Answer                                                                          |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Q1  | Scope: backend only, or also wire into the teams page? | Backend only: `crews.list` tRPC procedure + `useCrews` hook. No UI rewire.      |
+| Q2  | Include each crew's roster?                            | Yes: include each crew's members and who's the lead, by joining `crew_members`. |
 
 Agent defaults (the user may veto):
 
@@ -48,7 +48,7 @@ Agent defaults (the user may veto):
   included.
 - **D4**: The roster comes back as a nested `crew_members` array via a
   Supabase embedded select (`crews.select('..., crew_members(member_id,
-  is_lead)')`), each entry `{ member_id, is_lead }`. No join to
+is_lead)')`), each entry `{ member_id, is_lead }`. No join to
   `organization_members` for names — `useTeamMembers` already fetches the
   full roster and the caller can cross-reference by id, matching how
   `clients.list` does no incidental joins.
@@ -63,11 +63,11 @@ Agent defaults (the user may veto):
 
 ## Assumptions
 
-| Assumption                                                                 | User-confirmed? |
-| --------------------------------------------------------------------------- | --------------- |
-| Pagination is not needed yet (return all rows)                            | no              |
+| Assumption                                                                                                                                           | User-confirmed?        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Pagination is not needed yet (return all rows)                                                                                                       | no                     |
 | `crews`/`crew_members` RLS allows select for owner/admin/dispatcher/worker (verified in `docs/database/rls.md` and the `crews` migration's policies) | yes (verified in repo) |
-| Excluding the two geography columns is acceptable for this fetch           | no              |
+| Excluding the two geography columns is acceptable for this fetch                                                                                     | no                     |
 
 ## Design refs
 
@@ -92,8 +92,8 @@ agent gates the merge.
 
 ### Procedures
 
-| Procedure    | Input                      | Output                                                        | Roles allowed                  |
-| ------------ | --------------------------- | -------------------------------------------------------------- | -------------------------------- |
+| Procedure    | Input                      | Output                                                             | Roles allowed                   |
+| ------------ | -------------------------- | ------------------------------------------------------------------ | ------------------------------- |
 | `crews.list` | `{ organizationId: uuid }` | `Array<CrewRow & { crew_members: Array<{ member_id, is_lead }> }>` | Whatever RLS allows (all staff) |
 
 `CrewRow` = `id, organization_id, name, color, vehicle, default_start_time,
