@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `crew-builder-live-data` / `feat/crew-builder-live-data`
 - **Tier**: full (routes/UI change, `src/routes/**` is a security-gated path)
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%; scope, display fields, and the local-state approach are
   user-confirmed. Internal naming/structure are agent defaults.
 
@@ -206,9 +206,34 @@ pnpm lint && pnpm check && pnpm exec vitest run && pnpm exec tsc --noEmit
 
 ## Audit log
 
-_Skipped by user: plan-auditor model (opus) is unavailable in this
+_Plan audit skipped by user: plan-auditor model (opus) is unavailable in this
 environment (same constraint hit on the crews-list plan just before this
 one)._
+
+### Review (`reviewer`): pass, confidence medium
+
+No blocking findings. Non-blocking notes: no drag-and-drop interaction test
+(HTML5 DnD isn't reliably testable via Testing Library, per the plan); a
+one-commit flash of "all workers in Unassigned" before the seed effect runs;
+local edits reset when switching away from the Crews tab and back (component
+unmounts; not a violation of Q4/AC3, which only promise reset-on-reload, but
+worth noting as a known limitation); a few documented edge cases around
+non-worker/disabled crew members and a stale lead selection. None are
+security- or correctness-blocking.
+
+### Review (`security`): pass, confidence high
+
+No blocking findings. Confirmed: no new server/schema/tRPC code; all crew
+edits are local `setLocalCrews` calls with no network effect; `useCrews`
+remains org-scoped via `useOrganization()` and `protectedProcedure`; no
+secrets, no `dangerouslySetInnerHTML`, no raw SQL/filter construction; drag
+data (`text/member-id`) is only resolved against the already-fetched member
+list, so a forged id renders nothing. One `could_not_verify` item asked
+whether `crews`/`crew_members` RLS actually covers the `worker` role — this
+was already verified in the prior `crews-list` PR's security review
+(`docs/plans/crews-list.md`'s Review section), which read
+`docs/database/rls.md` and the `crews` migration directly and confirmed S
+(select) for worker as well as staff. This diff changes no RLS.
 
 ## Scope-change log
 
