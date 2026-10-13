@@ -5,8 +5,6 @@ import {
   BadgeCheck,
   CalendarOff,
   Clock,
-  Crown,
-  GripVertical,
   Link,
   Mail,
   Phone,
@@ -14,7 +12,6 @@ import {
   Star,
   Truck,
   UserPlus,
-  Users,
   X,
 } from 'lucide-react'
 
@@ -26,7 +23,6 @@ import {
   Card,
   CardHeader,
   CheckPill,
-  ColorDot,
   Drawer,
   EmptyState,
   Field,
@@ -55,7 +51,9 @@ import {
   isWeekend,
   todayISO,
 } from '#/components/crm/format'
+import CrewBuilder from '#/components/team/CrewBuilder'
 import MembersTab from '#/components/team/MembersTab'
+import { useCrews } from '#/integrations/crews/crews'
 import { useInviteTeamMember, useTeamMembers } from '#/integrations/teams/teams'
 import type { InviteRole } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
@@ -76,16 +74,6 @@ const WEEKDAYS: Array<[Weekday, string]> = [
   ['sat', 'Sat'],
   ['sun', 'Sun'],
 ]
-const CREW_COLORS = [
-  '#7fb547',
-  '#5b9bc4',
-  '#e0a03c',
-  '#b0759c',
-  '#8a8f6a',
-  '#4fa3a5',
-  '#d9734e',
-]
-
 const AVAIL_STYLE: Record<Availability, string> = {
   available: 'bg-(--lime-200) text-(--leaf-900)',
   off_day: 'bg-(--cream-2) text-(--ink-3)',
@@ -120,6 +108,7 @@ function useMetrics(t: Tenant) {
 function TeamsPage() {
   const t = useTenant()
   const team = useTeamMembers()
+  const crews = useCrews()
   const [tab, setTab] = useState<Tab>('members')
   const [inviting, setInviting] = useState(false)
   const [profile, setProfile] = useState<string | null>(null)
@@ -129,6 +118,7 @@ function TeamsPage() {
   } | null>(null)
   const editable = can.manageTeam(t.role)
   const realMembers = team.data ?? []
+  const realCrews = crews.data ?? []
   const realActive = realMembers.filter((m) => m.status === 'active')
   const active = t.members.filter((m) => m.status === 'active')
 
@@ -165,8 +155,8 @@ function TeamsPage() {
           },
           {
             label: 'Crews',
-            value: t.crews.filter((c) => c.memberIds.length).length,
-            sub: `${t.crews.filter((c) => !c.memberIds.length).length} without members`,
+            value: realCrews.filter((c) => c.crew_members.length).length,
+            sub: `${realCrews.filter((c) => !c.crew_members.length).length} without members`,
           },
           {
             label: 'Out today',
@@ -201,7 +191,7 @@ function TeamsPage() {
         onChange={setTab}
         tabs={[
           { value: 'members', label: 'Team list', count: team.data?.length },
-          { value: 'crews', label: 'Crew builder', count: t.crews.length },
+          { value: 'crews', label: 'Crew builder', count: realCrews.length },
           { value: 'availability', label: 'Availability' },
           { value: 'performance', label: 'Performance' },
         ]}
@@ -215,7 +205,13 @@ function TeamsPage() {
         />
       )}
       {tab === 'crews' && (
-        <CrewBuilder t={t} editable={editable} onOpen={setProfile} />
+        <CrewBuilder
+          members={realMembers}
+          crews={crews.data}
+          crewsLoading={crews.isLoading}
+          crewsError={crews.error}
+          editable={editable}
+        />
       )}
       {tab === 'availability' && (
         <AvailabilityTab t={t} editable={editable} onAdd={setTimeOffFor} />
@@ -240,266 +236,6 @@ function TeamsPage() {
         />
       )}
     </PageShell>
-  )
-}
-
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Crew builder
-// ---------------------------------------------------------------------------
-
-function MemberCard({
-  m,
-  crewLead,
-  editable,
-  onOpen,
-}: {
-  m: Member
-  crewLead?: boolean
-  editable: boolean
-  onOpen: (id: string) => void
-}) {
-  const avail = memberAvailability(m, todayISO())
-  return (
-    <div
-      draggable={editable}
-      onDragStart={(e) => e.dataTransfer.setData('text/member-id', m.id)}
-      onClick={() => onOpen(m.id)}
-      className={cn(
-        'flex cursor-pointer items-center gap-2.5 rounded-xl border border-(--line) bg-(--paper) p-2 hover:border-(--leaf-500)',
-        editable && 'active:cursor-grabbing',
-      )}
-    >
-      {editable && <GripVertical className="size-4 shrink-0 text-(--ink-3)" />}
-      <Avatar name={m.display_name} size={30} />
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-1 truncate text-[13px] font-bold">
-          {m.display_name}
-          {crewLead && (
-            <Crown className="size-3.5 text-(--sun)" aria-label="Crew lead" />
-          )}
-        </p>
-        <p className="truncate text-[11px] text-(--ink-3)">
-          {m.status === 'invited' ? 'Invited' : m.title}
-        </p>
-      </div>
-      {avail !== 'available' && (
-        <span
-          className={cn(
-            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-            AVAIL_STYLE[avail],
-          )}
-        >
-          {AVAILABILITY_LABEL[avail]}
-        </span>
-      )}
-    </div>
-  )
-}
-
-function CrewColumn({
-  t,
-  crew,
-  editable,
-  onOpen,
-}: {
-  t: Tenant
-  crew: Tenant['crews'][number] | null
-  editable: boolean
-  onOpen: (id: string) => void
-}) {
-  const [over, setOver] = useState(false)
-  const workers = t.members.filter(
-    (m) => m.role === 'worker' && m.status !== 'disabled',
-  )
-  const members = crew
-    ? crew.memberIds.map((id) => t.member(id)).filter((m): m is Member => !!m)
-    : workers.filter((m) => !t.crews.some((c) => c.memberIds.includes(m.id)))
-  const todayJobs = crew
-    ? t.jobs.filter(
-        (j) =>
-          j.crew_id === crew.id &&
-          j.date === todayISO() &&
-          j.status !== 'cancelled',
-      ).length
-    : 0
-
-  return (
-    <div
-      onDragOver={(e) => {
-        if (editable && e.dataTransfer.types.includes('text/member-id')) {
-          e.preventDefault()
-          setOver(true)
-        }
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        setOver(false)
-        const id = e.dataTransfer.getData('text/member-id')
-        if (!id) return
-        actions.moveMemberToCrew(id, crew?.id ?? null)
-        toast(`${t.member(id)?.display_name} → ${crew?.name ?? 'Unassigned'}`)
-      }}
-      className={cn(
-        'flex w-72 shrink-0 flex-col rounded-[22px] border p-3 transition-colors',
-        crew
-          ? 'border-(--line) bg-(--paper)'
-          : 'border-dashed border-(--line-2) bg-(--cream)',
-        over && 'border-(--leaf-500) bg-(--lime-100)',
-      )}
-    >
-      <div className="mb-3 px-1">
-        {crew ? (
-          <>
-            <div className="flex items-center gap-2">
-              <ColorDot color={crew.color} className="size-3" />
-              {editable ? (
-                <input
-                  defaultValue={crew.name}
-                  aria-label="Crew name"
-                  onBlur={(e) =>
-                    e.target.value.trim() &&
-                    e.target.value !== crew.name &&
-                    actions.updateCrew(crew.id, { name: e.target.value.trim() })
-                  }
-                  className="min-w-0 flex-1 rounded-md bg-transparent px-1 text-[15px] font-bold outline-none focus:bg-(--cream)"
-                />
-              ) : (
-                <p className="text-[15px] font-bold">{crew.name}</p>
-              )}
-            </div>
-            <p className="mt-1 flex items-center gap-3 px-1 text-xs text-(--ink-3)">
-              <span className="flex items-center gap-1">
-                <Users className="size-3" /> {members.length}
-              </span>
-              <span>{todayJobs} jobs today</span>
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="text-[15px] font-bold">Unassigned</p>
-            <p className="mt-1 text-xs text-(--ink-3)">
-              Drag people onto a crew
-            </p>
-          </>
-        )}
-      </div>
-      <div className="flex min-h-24 flex-1 flex-col gap-2">
-        {members.map((m) => (
-          <MemberCard
-            key={m.id}
-            m={m}
-            crewLead={crew?.leadId === m.id}
-            editable={editable}
-            onOpen={onOpen}
-          />
-        ))}
-        {members.length === 0 && (
-          <p className="rounded-xl border border-dashed border-(--line-2) px-3 py-6 text-center text-xs text-(--ink-3)">
-            Drop team members here
-          </p>
-        )}
-      </div>
-      {crew && editable && (
-        <div className="mt-3 space-y-2 border-t border-(--line) pt-3">
-          <label className="flex items-center gap-2 text-xs font-semibold text-(--ink-3)">
-            <Crown className="size-3.5" />
-            <select
-              value={crew.leadId ?? ''}
-              onChange={(e) =>
-                actions.updateCrew(crew.id, { leadId: e.target.value || null })
-              }
-              className="flex-1 cursor-pointer rounded-lg bg-(--cream) px-2 py-1.5 text-[13px] text-(--ink) outline-none"
-              aria-label="Crew lead"
-            >
-              <option value="">No lead</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.display_name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-xs font-semibold text-(--ink-3)">
-            <Truck className="size-3.5" />
-            <input
-              defaultValue={crew.vehicle ?? ''}
-              placeholder="Assign a vehicle"
-              aria-label="Crew vehicle"
-              onBlur={(e) =>
-                e.target.value !== (crew.vehicle ?? '') &&
-                actions.updateCrew(crew.id, { vehicle: e.target.value || null })
-              }
-              className="flex-1 rounded-lg bg-(--cream) px-2 py-1.5 text-[13px] text-(--ink) outline-none"
-            />
-          </label>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CrewBuilder({
-  t,
-  editable,
-  onOpen,
-}: {
-  t: Tenant
-  editable: boolean
-  onOpen: (id: string) => void
-}) {
-  const [name, setName] = useState('')
-  return (
-    <div>
-      {editable && (
-        <form
-          className="mb-4 flex flex-wrap items-center gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!name.trim()) return
-            actions.addCrew(
-              name.trim(),
-              CREW_COLORS[t.crews.length % CREW_COLORS.length],
-            )
-            toast(`${name.trim()} created`)
-            setName('')
-          }}
-        >
-          <TextInput
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="New crew name, e.g. Crew F"
-            className="w-64"
-            aria-label="New crew name"
-          />
-          <Btn
-            type="submit"
-            variant="outline"
-            icon={Plus}
-            disabled={!name.trim()}
-          >
-            Create crew
-          </Btn>
-          <p className="text-xs text-(--ink-3)">
-            Drag people between columns to build crews. Each crew gets a lead
-            and a vehicle.
-          </p>
-        </form>
-      )}
-      <div className="crm-scroll flex gap-4 overflow-x-auto pb-3">
-        <CrewColumn t={t} crew={null} editable={editable} onOpen={onOpen} />
-        {t.crews.map((c) => (
-          <CrewColumn
-            key={c.id}
-            t={t}
-            crew={c}
-            editable={editable}
-            onOpen={onOpen}
-          />
-        ))}
-      </div>
-    </div>
   )
 }
 

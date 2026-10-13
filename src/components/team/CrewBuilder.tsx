@@ -230,7 +230,7 @@ export default function CrewBuilder({
   members: Array<TeamMember>
   crews: Array<Crew> | undefined
   crewsLoading: boolean
-  crewsError: Error | null
+  crewsError: { message: string } | null
   editable: boolean
 }) {
   const [name, setName] = useState('')
