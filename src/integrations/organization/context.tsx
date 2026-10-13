@@ -102,7 +102,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const userId = isAuthenticated ? (user?.id ?? null) : null
   const [state, setState] = useState<OrganizationState>(() => emptyState())
 
-
   // Fetch context on user authentication change
   useEffect(() => {
     if (isAuthLoading || !userId) {
