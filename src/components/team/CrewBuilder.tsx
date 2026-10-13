@@ -263,7 +263,7 @@ export default function CrewBuilder({
   )
   const crewMembers = (c: LocalCrew) =>
     c.memberIds
-      .map((id) => workers.find((m) => m.id === id))
+      .map((id) => members.find((m) => m.id === id))
       .filter((m): m is TeamMember => !!m)
 
   const updateCrew = (crewId: string, patch: Partial<LocalCrew>) =>
