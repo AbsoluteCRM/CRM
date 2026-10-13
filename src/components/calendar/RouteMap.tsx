@@ -16,9 +16,19 @@ export function RouteMap({
 
   if (!apiKey) {
     return (
-      <div className="flex h-124 items-center justify-center gap-2 rounded-2xl border border-dashed border-(--line-2) bg-(--paper) px-5 text-center text-sm text-(--ink-2) shadow-[0_1px_0_rgba(255,255,255,0.8)_inset,0_10px_30px_-18px_rgba(17,48,31,0.25)]">
-        <MapPin className="size-4" />
-        Set VITE_GOOGLE_MAPS_API_KEY to show the route map
+      <div className="crm-leaf-pattern flex h-full min-h-80 flex-col items-center justify-center gap-3 rounded-[22px] border border-dashed border-(--line-2) bg-(--sage) p-6 text-center">
+        <span className="flex size-12 items-center justify-center rounded-2xl bg-(--paper) text-(--leaf-700) shadow-sm">
+          <MapPin className="size-5" />
+        </span>
+        <div>
+          <p className="text-sm font-bold text-(--ink)">
+            Route map unavailable
+          </p>
+          <p className="mt-1 max-w-xs text-xs text-(--ink-3)">
+            Add <code>VITE_GOOGLE_MAPS_API_KEY</code> to <code>.env.local</code>{' '}
+            to show this route on Google Maps.
+          </p>
+        </div>
       </div>
     )
   }
@@ -48,7 +58,7 @@ export function RouteMap({
       loading="lazy"
       referrerPolicy="no-referrer-when-downgrade"
       allowFullScreen
-      className="h-124 w-full rounded-2xl border border-(--line) shadow-[0_1px_0_rgba(255,255,255,0.8)_inset,0_10px_30px_-18px_rgba(17,48,31,0.25)]"
+      className="h-full min-h-80 w-full rounded-[22px] border border-(--line) bg-(--sage)"
     />
   )
 }
