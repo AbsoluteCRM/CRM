@@ -235,6 +235,9 @@ export default function CrewBuilder({
 }) {
   const [name, setName] = useState('')
   const [localCrews, setLocalCrews] = useState<Array<LocalCrew>>([])
+
+  console.log(members)
+
   // Seed once so a later refetch doesn't clobber in-progress local edits.
   const seeded = useRef(false)
   useEffect(() => {
@@ -255,11 +258,10 @@ export default function CrewBuilder({
     return <p className="p-5 text-sm text-(--ink-3)">Loading crews…</p>
   }
 
-  const workers = members.filter(
-    (m) => m.role === 'worker' && m.status !== 'disabled',
-  )
-  const unassigned = workers.filter(
-    (m) => !localCrews.some((c) => c.memberIds.includes(m.id)),
+  const unassigned = members.filter(
+    (m) =>
+      m.status !== 'disabled' &&
+      !localCrews.some((c) => c.memberIds.includes(m.id)),
   )
   const crewMembers = (c: LocalCrew) =>
     c.memberIds
