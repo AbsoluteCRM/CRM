@@ -45,7 +45,7 @@ const meta = {
   args: {
     editable: true,
     actions: {
-      createCrew: fn(() => Promise.resolve()),
+      createCrew: fn(() => Promise.resolve({ id: 'new' })),
       renameCrew: fn(),
       setVehicle: fn(),
       moveMember: fn(),
@@ -108,16 +108,35 @@ export const Empty: Story = {
 }
 
 export const CreateCrew: Story = {
-  args: { crews: [] },
+  args: {
+    crews: [],
+    actions: {
+      createCrew: fn(() => Promise.resolve({ id: 'new' })),
+      renameCrew: fn(),
+      setVehicle: fn(),
+      moveMember: fn(),
+      setLead: fn(),
+    },
+  },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.type(canvas.getByLabelText('New crew name'), 'Crew Z')
     await userEvent.click(canvas.getByRole('button', { name: /create crew/i }))
     await expect(args.actions.createCrew).toHaveBeenCalledWith(
-      'Crew Z',
+      'New crew',
       expect.stringMatching(/^#[0-9a-f]{6}$/i),
     )
-    await expect(canvas.getByLabelText('New crew name')).toHaveValue('')
+  },
+}
+
+export const CreateCrewPicksUniqueName: Story = {
+  args: { crews: [crew('c1', 'New crew', [])] },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /create crew/i }))
+    await expect(args.actions.createCrew).toHaveBeenCalledWith(
+      'New crew 2',
+      expect.any(String),
+    )
   },
 }
 

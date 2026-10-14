@@ -7,8 +7,6 @@ import {
   Btn,
   ColorDot,
   StatusBadge,
-  TextInput,
-  toast,
 } from '#/components/crm/ui'
 import type { OrgRole } from '#/components/crm/types'
 import type { Crew } from '#/integrations/crews/crews'
@@ -43,7 +41,7 @@ type LocalCrew = {
 }
 
 export type CrewActions = {
-  createCrew: (name: string, color: string) => Promise<unknown>
+  createCrew: (name: string, color: string) => Promise<{ id: string }>
   renameCrew: (crewId: string, name: string) => void
   setVehicle: (crewId: string, vehicle: string | null) => void
   moveMember: (memberId: string, crewId: string | null) => void
@@ -102,11 +100,13 @@ function CrewColumn({
   members,
   editable,
   actions,
+  focusName,
 }: {
   crew: LocalCrew | null
   members: Array<TeamMember>
   editable: boolean
   actions: CrewActions
+  focusName?: boolean
 }) {
   const [over, setOver] = useState(false)
 
@@ -145,6 +145,8 @@ function CrewColumn({
                 <input
                   key={crew.name}
                   defaultValue={crew.name}
+                  autoFocus={focusName}
+                  onFocus={(e) => focusName && e.target.select()}
                   aria-label="Crew name"
                   onBlur={(e) =>
                     e.target.value.trim() &&
@@ -240,8 +242,8 @@ export default function CrewBuilder({
   editable: boolean
   actions: CrewActions
 }) {
-  const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [newCrewId, setNewCrewId] = useState<string | null>(null)
   const localCrews = (crews ?? []).map(toLocalCrew)
 
   if (crewsError) {
@@ -272,40 +274,29 @@ export default function CrewBuilder({
           className="mb-4 flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault()
-            const crewName = name.trim()
-            if (!crewName || creating) return
+            if (creating) return
+            const taken = new Set(localCrews.map((c) => c.name.toLowerCase()))
+            let crewName = 'New crew'
+            for (let n = 2; taken.has(crewName.toLowerCase()); n++) {
+              crewName = `New crew ${n}`
+            }
             setCreating(true)
             actions
               .createCrew(
                 crewName,
                 CREW_COLORS[localCrews.length % CREW_COLORS.length],
               )
-              .then(() => {
-                toast(`${crewName} created`)
-                setName('')
-              })
+              .then((created) => setNewCrewId(created.id))
               .catch(() => undefined)
               .finally(() => setCreating(false))
           }}
         >
-          <TextInput
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="New crew name, e.g. Crew F"
-            className="w-64"
-            aria-label="New crew name"
-          />
-          <Btn
-            type="submit"
-            variant="outline"
-            icon={Plus}
-            disabled={!name.trim() || creating}
-          >
+          <Btn type="submit" variant="outline" icon={Plus} disabled={creating}>
             Create crew
           </Btn>
           <p className="text-xs text-(--ink-3)">
-            Drag people between columns to build crews. Each crew gets a lead
-            and a vehicle.
+            Create a crew, then name it and drag people into it. Each crew gets
+            a lead and a vehicle.
           </p>
         </form>
       )}
@@ -320,6 +311,7 @@ export default function CrewBuilder({
           <CrewColumn
             key={c.id}
             crew={c}
+            focusName={c.id === newCrewId}
             members={crewMembers(c)}
             editable={editable}
             actions={actions}
