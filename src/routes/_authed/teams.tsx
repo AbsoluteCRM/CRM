@@ -53,7 +53,7 @@ import {
 } from '#/components/crm/format'
 import CrewBuilder from '#/components/team/CrewBuilder'
 import MembersTab from '#/components/team/MembersTab'
-import { useCrews } from '#/integrations/crews/crews'
+import { useCrewMutations, useCrews } from '#/integrations/crews/crews'
 import { useInviteTeamMember, useTeamMembers } from '#/integrations/teams/teams'
 import type { InviteRole } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
@@ -109,6 +109,7 @@ function TeamsPage() {
   const t = useTenant()
   const team = useTeamMembers()
   const crews = useCrews()
+  const crewActions = useCrewMutations()
   const [tab, setTab] = useState<Tab>('members')
   const [inviting, setInviting] = useState(false)
   const [profile, setProfile] = useState<string | null>(null)
@@ -211,6 +212,7 @@ function TeamsPage() {
           crewsLoading={crews.isLoading}
           crewsError={crews.error}
           editable={editable}
+          actions={crewActions}
         />
       )}
       {tab === 'availability' && (

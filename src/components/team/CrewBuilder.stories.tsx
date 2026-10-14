@@ -1,4 +1,4 @@
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fireEvent, fn, userEvent, within } from 'storybook/test'
 import type { Meta, StoryObj } from '@storybook/tanstack-react'
 
 import CrewBuilder from './CrewBuilder'
@@ -44,6 +44,13 @@ const meta = {
   component: CrewBuilder,
   args: {
     editable: true,
+    actions: {
+      createCrew: fn(() => Promise.resolve()),
+      renameCrew: fn(),
+      setVehicle: fn(),
+      moveMember: fn(),
+      setLead: fn(),
+    },
     crewsLoading: false,
     crewsError: null,
     members: [
@@ -69,8 +76,7 @@ type Story = StoryObj<typeof meta>
 export const Populated: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Crews are seeded into local state by an effect after the first render.
-    await expect(await canvas.findByDisplayValue('Crew A')).toBeInTheDocument()
+    await expect(canvas.getByDisplayValue('Crew A')).toBeInTheDocument()
     await expect(canvas.getByText('Unassigned')).toBeInTheDocument()
     await expect(canvas.getByDisplayValue('Crew B')).toBeInTheDocument()
     await expect(canvas.getAllByLabelText('Crew name')).toHaveLength(2)
@@ -81,9 +87,9 @@ export const Populated: Story = {
     await expect(
       canvas.getByText('Wendy Worker', { selector: 'p' }),
     ).toBeInTheDocument()
-    // Wade is the only worker without a crew; the owner and disabled worker are excluded.
+    // Every non-disabled member without a crew is unassigned, whatever their role.
     await expect(canvas.getByText('Wade Worker')).toBeInTheDocument()
-    await expect(canvas.queryByText('Ava Owner')).not.toBeInTheDocument()
+    await expect(canvas.getByText('Ava Owner')).toBeInTheDocument()
     await expect(canvas.queryByText('Dee Disabled')).not.toBeInTheDocument()
     await expect(
       canvas.getByLabelText('Crew lead', { selector: 'svg' }),
@@ -103,12 +109,52 @@ export const Empty: Story = {
 
 export const CreateCrew: Story = {
   args: { crews: [] },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.type(canvas.getByLabelText('New crew name'), 'Crew Z')
     await userEvent.click(canvas.getByRole('button', { name: /create crew/i }))
-    await expect(canvas.getByDisplayValue('Crew Z')).toBeInTheDocument()
+    await expect(args.actions.createCrew).toHaveBeenCalledWith(
+      'Crew Z',
+      expect.stringMatching(/^#[0-9a-f]{6}$/i),
+    )
     await expect(canvas.getByLabelText('New crew name')).toHaveValue('')
+  },
+}
+
+export const DragToCrew: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const card = canvas.getByText('Wade Worker', { selector: 'p' })
+    const column = canvas
+      .getByDisplayValue('Crew B')
+      .closest('[class*="w-72"]')!
+    const dataTransfer = new DataTransfer()
+    await fireEvent.dragStart(card, { dataTransfer })
+    await fireEvent.drop(column, { dataTransfer })
+    await expect(args.actions.moveMember).toHaveBeenCalledWith('wade', 'c2')
+  },
+}
+
+export const DragToUnassigned: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const card = canvas.getByText('Walt Worker', { selector: 'p' })
+    const column = canvas.getByText('Unassigned').closest('[class*="w-72"]')!
+    const dataTransfer = new DataTransfer()
+    await fireEvent.dragStart(card, { dataTransfer })
+    await fireEvent.drop(column, { dataTransfer })
+    await expect(args.actions.moveMember).toHaveBeenCalledWith('walt', null)
+  },
+}
+
+export const SetLead: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.selectOptions(
+      canvas.getAllByLabelText('Crew lead')[0],
+      'wendy',
+    )
+    await expect(args.actions.setLead).toHaveBeenCalledWith('c1', 'wendy')
   },
 }
 

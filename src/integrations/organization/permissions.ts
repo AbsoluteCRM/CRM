@@ -16,6 +16,7 @@ export const can = {
   manageJobs: (r: OrgRole) => r !== 'worker',
   manageClients: (r: OrgRole) => r !== 'worker',
   manageRequests: (r: OrgRole) => r !== 'worker',
+  manageCrews: (r: OrgRole) => r !== 'worker',
   manageServices: (r: OrgRole) => r === 'owner' || r === 'admin',
   manageTeam: (r: OrgRole) => r === 'owner' || r === 'admin',
   viewTeam: (r: OrgRole) => r !== 'worker',

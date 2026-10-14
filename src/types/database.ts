@@ -2302,6 +2302,14 @@ export type Database = {
         Args: { p_dates: string[]; p_job_id: string; p_through: string }
         Returns: number
       }
+      move_crew_member: {
+        Args: {
+          p_crew_id: string | null
+          p_member_id: string
+          p_organization_id: string
+        }
+        Returns: undefined
+      }
       my_memberships: {
         Args: never
         Returns: {
@@ -2449,6 +2457,14 @@ export type Database = {
       reset_job_schedule: {
         Args: { p_from?: string; p_job_id: string }
         Returns: number
+      }
+      set_crew_lead: {
+        Args: {
+          p_crew_id: string
+          p_member_id: string | null
+          p_organization_id: string
+        }
+        Returns: undefined
       }
       worker_add_attachment: {
         Args: {

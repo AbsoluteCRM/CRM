@@ -44,8 +44,16 @@ Has no `id` column.
 | `member_id`       | `uuid`    | no   |         | Composite FK → `organization_members`, on delete cascade. PK part |
 | `is_lead`         | `boolean` | no   | `false` | Partial unique: one lead per crew                                 |
 
-Index `(organization_id, member_id)`. A worker may belong to more than one
-crew's default roster.
+Index `(organization_id, member_id)`. The table allows a member on more than
+one crew's default roster, but the Crew builder keeps each member on one crew.
+
+The builder writes through two `security invoker` functions, so RLS (office
+staff only) still decides access and each change commits as one unit:
+
+| Function                                                      | Does                                                                                      |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `move_crew_member(p_organization_id, p_member_id, p_crew_id)` | Removes the member from every other crew, then adds them to `p_crew_id` (null = unassign) |
+| `set_crew_lead(p_organization_id, p_crew_id, p_member_id)`    | Sets the crew's lead, or clears it when null; the member must already be in the crew      |
 
 ## `routes`
 

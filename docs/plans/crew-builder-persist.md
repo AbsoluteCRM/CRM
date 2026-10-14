@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `crew-builder-persist` / `feature/update-crews`
 - **Tier**: full (migration, tRPC, `src/routes/**` consumer)
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: ~92%. Scope, save timing, and the one-crew rule are user-confirmed. Procedure shapes and the missing DELETE grant fix are agent defaults.
 
 ## Original request
@@ -15,12 +15,12 @@ On `/teams` → Crew builder, every board edit is saved: create crew, rename, se
 
 ## Decisions
 
-| #   | Question                         | Answer                                                          |
-| --- | -------------------------------- | --------------------------------------------------------------- |
-| Q1  | Which edits persist?             | All: create, rename, lead, vehicle, moves.                      |
-| Q2  | When saved?                      | Immediately per action; optimistic with rollback on error.      |
-| Q3  | Multiple crews per member?       | No. One crew; move replaces. Enforced on save.                  |
-| Q4  | Unassigned column contents       | All non-disabled org members not in a crew (done earlier).      |
+| #   | Question                   | Answer                                                     |
+| --- | -------------------------- | ---------------------------------------------------------- |
+| Q1  | Which edits persist?       | All: create, rename, lead, vehicle, moves.                 |
+| Q2  | When saved?                | Immediately per action; optimistic with rollback on error. |
+| Q3  | Multiple crews per member? | No. One crew; move replaces. Enforced on save.             |
+| Q4  | Unassigned column contents | All non-disabled org members not in a crew (done earlier). |
 
 Agent defaults:
 
@@ -34,15 +34,15 @@ Agent defaults:
 
 ## Assumptions
 
-| Assumption                                                                                         | User-confirmed? |
-| -------------------------------------------------------------------------------------------------- | --------------- |
-| `crew_members` has no DELETE grant to `authenticated` (only insert + update(is_lead)); the DELETE RLS policy exists. Verify against the remote before relying on it; the functions are `security invoker` so need the grant. | no |
-| Duplicate crew names (case-insensitive, non-archived) surface as a unique violation → CONFLICT toast. | no |
-| Color for a new crew continues to be picked client-side from `CREW_COLORS`.                         | no |
+| Assumption                                                                                                                                                     | User-confirmed? |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `crew_members` has no explicit DELETE grant. **Wrong**: the foundation migration leaves `authenticated` with default SELECT and DELETE, so no grant is needed. | n/a             |
+| Duplicate crew names (case-insensitive, non-archived) surface as a unique violation → CONFLICT toast.                                                          | no              |
+| Color for a new crew continues to be picked client-side from `CREW_COLORS`.                                                                                    | no              |
 
 ## Layers touched
 
-- [x] Migration: `delete` grant on `crew_members`; functions `set_crew_member(crew, member)` (move; `crew` null = unassign) and `set_crew_lead(crew, member)`
+- [x] Migration: functions `set_crew_member(crew, member)` (move; `crew` null = unassign) and `set_crew_lead(crew, member)`
 - [x] RLS: unchanged policies; add pgTAP/SQL checks if the repo has the harness
 - [x] `docs/database` (crews-routing.md: functions, one-crew rule)
 - [x] Types (`pnpm db:types`)
@@ -59,19 +59,19 @@ Security-gated: migrations, tRPC. `security` agent gates the merge.
 ### Schema
 
 Migration `crew_builder_mutations`:
-- `grant delete on public.crew_members to authenticated;`
+
 - `public.move_crew_member(p_organization_id uuid, p_member_id uuid, p_crew_id uuid)` — `security invoker`; deletes the member's `crew_members` rows in the org, then inserts into `p_crew_id` if not null (`is_lead=false`). Moving out of a crew that the member leads simply drops the lead.
 - `public.set_crew_lead(p_organization_id uuid, p_crew_id uuid, p_member_id uuid)` — clears `is_lead` in the crew, then sets it for `p_member_id` (must already be a crew member; null clears). Respects `crew_members_one_lead_idx`.
 - `revoke execute ... from public, anon; grant execute ... to authenticated`; fixed `search_path`.
 
 ### Procedures (all `protectedProcedure`, input has `organizationId`, use `ctx.supabase`)
 
-| Procedure           | Input                                  | Output | Roles (via RLS)  |
-| ------------------- | -------------------------------------- | ------ | ---------------- |
-| `crews.create`      | `{organizationId, name, color?}`       | crew   | office staff     |
-| `crews.update`      | `{organizationId, crewId, name?, vehicle?}` | crew | office staff  |
-| `crews.moveMember`  | `{organizationId, memberId, crewId\|null}` | void | office staff   |
-| `crews.setLead`     | `{organizationId, crewId, memberId\|null}` | void | office staff   |
+| Procedure          | Input                                       | Output | Roles (via RLS) |
+| ------------------ | ------------------------------------------- | ------ | --------------- |
+| `crews.create`     | `{organizationId, name, color?}`            | crew   | office staff    |
+| `crews.update`     | `{organizationId, crewId, name?, vehicle?}` | crew   | office staff    |
+| `crews.moveMember` | `{organizationId, memberId, crewId\|null}`  | void   | office staff    |
+| `crews.setLead`    | `{organizationId, crewId, memberId\|null}`  | void   | office staff    |
 
 Errors: unique violation → `CONFLICT`; RLS/permission → `FORBIDDEN`; else `INTERNAL_SERVER_ERROR`. Each wrapped in `Sentry.startSpan`.
 
@@ -90,7 +90,7 @@ Errors: unique violation → `CONFLICT`; RLS/permission → `FORBIDDEN`; else `I
 
 ## Commits
 
-1. `Add crew mutation functions and delete grant` (main agent: migration applied to remote, types regen)
+1. `Add crew mutation functions` (main agent: migration applied to remote, types regen)
 2. `Add crews mutation procedures with tests` (implementer)
 3. `Persist crew builder edits with optimistic updates` (implementer: hooks, CrewBuilder, teams.tsx, stories)
 4. `Document crew mutations` (implementer: docs)
@@ -127,4 +127,6 @@ _Skipped by user decision: `plan-auditor` model unavailable in this environment.
 
 ## Scope-change log
 
-_None._
+- `crews.create` is not optimistic (waits for the server id), so a temp-id crew can't be edited before it exists.
+- Added `can.manageCrews` (non-worker) for the procedures; `/teams` `editable` still uses `manageTeam`.
+- Migration applied to the remote by the user: the Supabase MCP isn't available in this session.
