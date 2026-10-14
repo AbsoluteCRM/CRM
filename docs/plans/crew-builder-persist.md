@@ -130,4 +130,4 @@ _Skipped by user decision: `plan-auditor` model unavailable in this environment.
 - `crews.create` is not optimistic (waits for the server id), so a temp-id crew can't be edited before it exists.
 - Added `can.manageCrews` (non-worker) for the procedures; `/teams` `editable` still uses `manageTeam`.
 - Migration applied to the remote by the user: the Supabase MCP isn't available in this session.
-- The default DELETE grant on `crew_members` was missing on the remote ("permission denied"), so a follow-up migration grants it explicitly.
+- The remote had only SELECT on `crew_members` (drifted from the crews migration), so one follow-up migration re-asserts the INSERT, UPDATE and DELETE grants.
