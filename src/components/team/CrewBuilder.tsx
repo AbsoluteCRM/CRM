@@ -1,15 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Crown, GripVertical, Plus, Truck, Users } from 'lucide-react'
 
-import {
-  Avatar,
-  Badge,
-  Btn,
-  ColorDot,
-  StatusBadge,
-  TextInput,
-  toast,
-} from '#/components/crm/ui'
+import { Avatar, Badge, Btn, ColorDot, StatusBadge } from '#/components/crm/ui'
 import type { OrgRole } from '#/components/crm/types'
 import type { Crew } from '#/integrations/crews/crews'
 import type { TeamMember } from '#/integrations/teams/teams'
@@ -33,7 +25,6 @@ const CREW_COLORS = [
   '#d9734e',
 ]
 
-// Local-only until crew mutations exist; seeded from the fetched crews once.
 type LocalCrew = {
   id: string
   name: string
@@ -41,6 +32,14 @@ type LocalCrew = {
   vehicle: string | null
   memberIds: Array<string>
   leadId: string | null
+}
+
+export type CrewActions = {
+  createCrew: (name: string, color: string) => Promise<{ id: string }>
+  renameCrew: (crewId: string, name: string) => void
+  setVehicle: (crewId: string, vehicle: string | null) => void
+  moveMember: (memberId: string, crewId: string | null) => void
+  setLead: (crewId: string, memberId: string | null) => void
 }
 
 const toLocalCrew = (c: Crew): LocalCrew => ({
@@ -94,14 +93,14 @@ function CrewColumn({
   crew,
   members,
   editable,
-  onMove,
-  onUpdate,
+  actions,
+  focusName,
 }: {
   crew: LocalCrew | null
   members: Array<TeamMember>
   editable: boolean
-  onMove: (memberId: string, crewId: string | null) => void
-  onUpdate: (crewId: string, patch: Partial<LocalCrew>) => void
+  actions: CrewActions
+  focusName?: boolean
 }) {
   const [over, setOver] = useState(false)
 
@@ -118,7 +117,7 @@ function CrewColumn({
         setOver(false)
         const id = e.dataTransfer.getData('text/member-id')
         if (!id) return
-        onMove(id, crew?.id ?? null)
+        actions.moveMember(id, crew?.id ?? null)
       }}
       className={cn(
         'flex w-72 shrink-0 flex-col rounded-[22px] border p-3 transition-colors',
@@ -138,12 +137,15 @@ function CrewColumn({
               />
               {editable ? (
                 <input
+                  key={crew.name}
                   defaultValue={crew.name}
+                  autoFocus={focusName}
+                  onFocus={(e) => focusName && e.target.select()}
                   aria-label="Crew name"
                   onBlur={(e) =>
                     e.target.value.trim() &&
                     e.target.value !== crew.name &&
-                    onUpdate(crew.id, { name: e.target.value.trim() })
+                    actions.renameCrew(crew.id, e.target.value.trim())
                   }
                   className="min-w-0 flex-1 rounded-md bg-transparent px-1 text-[15px] font-bold outline-none focus:bg-(--cream)"
                 />
@@ -187,9 +189,7 @@ function CrewColumn({
             <Crown className="size-3.5" />
             <select
               value={crew.leadId ?? ''}
-              onChange={(e) =>
-                onUpdate(crew.id, { leadId: e.target.value || null })
-              }
+              onChange={(e) => actions.setLead(crew.id, e.target.value || null)}
               className="flex-1 cursor-pointer rounded-lg bg-(--cream) px-2 py-1.5 text-[13px] text-(--ink) outline-none"
               aria-label="Crew lead"
             >
@@ -204,12 +204,13 @@ function CrewColumn({
           <label className="flex items-center gap-2 text-xs font-semibold text-(--ink-3)">
             <Truck className="size-3.5" />
             <input
+              key={crew.vehicle ?? ''}
               defaultValue={crew.vehicle ?? ''}
               placeholder="Assign a vehicle"
               aria-label="Crew vehicle"
               onBlur={(e) =>
                 e.target.value !== (crew.vehicle ?? '') &&
-                onUpdate(crew.id, { vehicle: e.target.value || null })
+                actions.setVehicle(crew.id, e.target.value.trim() || null)
               }
               className="flex-1 rounded-lg bg-(--cream) px-2 py-1.5 text-[13px] text-(--ink) outline-none"
             />
@@ -226,23 +227,18 @@ export default function CrewBuilder({
   crewsLoading,
   crewsError,
   editable,
+  actions,
 }: {
   members: Array<TeamMember>
   crews: Array<Crew> | undefined
   crewsLoading: boolean
   crewsError: { message: string } | null
   editable: boolean
+  actions: CrewActions
 }) {
-  const [name, setName] = useState('')
-  const [localCrews, setLocalCrews] = useState<Array<LocalCrew>>([])
-  // Seed once so a later refetch doesn't clobber in-progress local edits.
-  const seeded = useRef(false)
-  useEffect(() => {
-    if (crews && !seeded.current) {
-      seeded.current = true
-      setLocalCrews(crews.map(toLocalCrew))
-    }
-  }, [crews])
+  const [creating, setCreating] = useState(false)
+  const [newCrewId, setNewCrewId] = useState<string | null>(null)
+  const localCrews = (crews ?? []).map(toLocalCrew)
 
   if (crewsError) {
     return (
@@ -255,41 +251,15 @@ export default function CrewBuilder({
     return <p className="p-5 text-sm text-(--ink-3)">Loading crews…</p>
   }
 
-  const workers = members.filter(
-    (m) => m.role === 'worker' && m.status !== 'disabled',
-  )
-  const unassigned = workers.filter(
-    (m) => !localCrews.some((c) => c.memberIds.includes(m.id)),
+  const unassigned = members.filter(
+    (m) =>
+      m.status !== 'disabled' &&
+      !localCrews.some((c) => c.memberIds.includes(m.id)),
   )
   const crewMembers = (c: LocalCrew) =>
     c.memberIds
       .map((id) => members.find((m) => m.id === id))
       .filter((m): m is TeamMember => !!m)
-
-  const updateCrew = (crewId: string, patch: Partial<LocalCrew>) =>
-    setLocalCrews((cs) =>
-      cs.map((c) => (c.id === crewId ? { ...c, ...patch } : c)),
-    )
-
-  const moveMember = (memberId: string, crewId: string | null) => {
-    setLocalCrews((cs) =>
-      cs.map((c) => {
-        const without = c.memberIds.filter((id) => id !== memberId)
-        const memberIds =
-          c.id === crewId && !without.includes(memberId)
-            ? [...without, memberId]
-            : without
-        return {
-          ...c,
-          memberIds,
-          leadId: c.leadId === memberId && c.id !== crewId ? null : c.leadId,
-        }
-      }),
-    )
-    const memberName = members.find((m) => m.id === memberId)?.display_name
-    const crewName = localCrews.find((c) => c.id === crewId)?.name
-    toast(`${memberName} → ${crewName ?? 'Unassigned'}`)
-  }
 
   return (
     <div>
@@ -298,40 +268,29 @@ export default function CrewBuilder({
           className="mb-4 flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault()
-            if (!name.trim()) return
-            setLocalCrews((cs) => [
-              ...cs,
-              {
-                id: crypto.randomUUID(),
-                name: name.trim(),
-                color: CREW_COLORS[localCrews.length % CREW_COLORS.length],
-                vehicle: null,
-                memberIds: [],
-                leadId: null,
-              },
-            ])
-            toast(`${name.trim()} created`)
-            setName('')
+            if (creating) return
+            const taken = new Set(localCrews.map((c) => c.name.toLowerCase()))
+            let crewName = 'New crew'
+            for (let n = 2; taken.has(crewName.toLowerCase()); n++) {
+              crewName = `New crew ${n}`
+            }
+            setCreating(true)
+            actions
+              .createCrew(
+                crewName,
+                CREW_COLORS[localCrews.length % CREW_COLORS.length],
+              )
+              .then((created) => setNewCrewId(created.id))
+              .catch(() => undefined)
+              .finally(() => setCreating(false))
           }}
         >
-          <TextInput
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="New crew name, e.g. Crew F"
-            className="w-64"
-            aria-label="New crew name"
-          />
-          <Btn
-            type="submit"
-            variant="outline"
-            icon={Plus}
-            disabled={!name.trim()}
-          >
+          <Btn type="submit" variant="outline" icon={Plus} disabled={creating}>
             Create crew
           </Btn>
           <p className="text-xs text-(--ink-3)">
-            Drag people between columns to build crews. Each crew gets a lead
-            and a vehicle. Changes are not saved yet.
+            Create a crew, then name it and drag people into it. Each crew gets
+            a lead and a vehicle.
           </p>
         </form>
       )}
@@ -340,17 +299,16 @@ export default function CrewBuilder({
           crew={null}
           members={unassigned}
           editable={editable}
-          onMove={moveMember}
-          onUpdate={updateCrew}
+          actions={actions}
         />
         {localCrews.map((c) => (
           <CrewColumn
             key={c.id}
             crew={c}
+            focusName={c.id === newCrewId}
             members={crewMembers(c)}
             editable={editable}
-            onMove={moveMember}
-            onUpdate={updateCrew}
+            actions={actions}
           />
         ))}
       </div>
