@@ -236,8 +236,6 @@ export default function CrewBuilder({
   const [name, setName] = useState('')
   const [localCrews, setLocalCrews] = useState<Array<LocalCrew>>([])
 
-  console.log(members)
-
   // Seed once so a later refetch doesn't clobber in-progress local edits.
   const seeded = useRef(false)
   useEffect(() => {
