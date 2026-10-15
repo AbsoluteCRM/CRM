@@ -24,7 +24,7 @@ table carries every field the mock `Service` has, including the seasonal months.
 - **D1**: Months are `season_start_month` and `season_end_month`, `smallint`
   1-12. Both null means year-round. A start after the end wraps over new year
   (Nov to Mar). This matches the mock's `season` and `inSeason` (user).
-- **D2**: `color text`, `equipment text[]` and `frequencies service_frequency[]`
+- **D2**: `color text not null`, `equipment text[]` and `frequencies service_frequency[]`
   are columns on `services` (user).
 - **D3**: Scope is the services page only. Jobs, requests and the quote builder
   keep reading mock services (user).
@@ -37,7 +37,7 @@ None.
 ## Assumptions
 
 - "Inactive" in the UI means archived.
-- Existing remote `services` rows (if any) get null season, null color, empty
+- Existing remote `services` rows (if any) get null season, the default color, empty
   equipment and `{one_time}` frequencies from column defaults.
 
 ## Design refs
@@ -57,11 +57,11 @@ Migration `services_season_fields`:
 
 - `create type service_frequency as enum ('one_time','weekly','biweekly','monthly')`.
 - `alter table services add`: `season_start_month smallint`,
-  `season_end_month smallint`, `color text`, `equipment text[] not null
+  `season_end_month smallint`, `color text not null default '#7fb547'`, `equipment text[] not null
 default '{}'`, `frequencies service_frequency[] not null default
 '{one_time}'`.
 - Checks: months between 1 and 12; both months null or both set; `color` matches
-  `^#[0-9a-fA-F]{6}$` or is null; `frequencies` has at least one element.
+  `^#[0-9a-fA-F]{6}$`; `frequencies` has at least one element.
 - Extend the insert and update column grants with the five new columns.
 - RLS is unchanged: the existing org-scoped policies cover the new columns.
 - Update `catalog-tax.md` and the ERD, then run `pnpm db:types`.
@@ -85,7 +85,8 @@ already exist.
 
 - `src/integrations/services/services.ts`: `useServices` and
   `useServiceMutations`, mirroring `crews`. It maps a row to the page's
-  `Service` shape (`season`, `is_active`).
+  `Service` shape (`season`, `is_active`). Nullable `description` and
+  `default_duration_minutes` map to `''` and `60`; `color` is never null.
 - `services.tsx` swaps `t.services` and `actions.saveService` and
   `updateService` for these hooks. Loading, error and empty states are added.
   Layout, filters and the month strip are unchanged.
@@ -98,7 +99,9 @@ already exist.
 - A service created with Nov to Mar persists and shows those months as offered
   after a reload.
 - A service with no season shows year-round.
-- A worker sees the list but no edit controls. The server rejects their writes.
+- The page stays gated by the existing `can.manageClients` (non-workers). A
+  dispatcher sees the list with no edit controls; the server rejects their
+  writes. Workers keep today's no-access page (their RLS select is unused here).
 - Archiving moves a service to the Inactive filter.
 
 ## Commits
@@ -132,5 +135,21 @@ Procedure tests (cross-tenant, multi-org, per-role), story interaction tests,
 and a pass through the running app.
 
 ## Audit log
+
+### Round 1 (rubber-duck, plan-auditor model unavailable): needs-changes
+
+- Worker view vs page gate: adopted; keep the gate, acceptance criterion
+  reworded to dispatcher.
+- Nullable color vs `Service.color`: adopted; `color` is `not null` with a
+  default, and nullable description and duration are mapped in the hook.
+- Audit log missing: this section.
+
+### Round 2 (rubber-duck): needs-changes
+
+- `color` default missing from the schema step: adopted, added `default '#7fb547'` (kept for later inserts). Round 1 fixes otherwise held.
+
+### Round 3 (rubber-duck): pass
+
+No further findings.
 
 ## Scope-change log
