@@ -1851,37 +1851,52 @@ export type Database = {
       services: {
         Row: {
           archived_at: string | null
+          color: string
           created_at: string
           default_duration_minutes: number | null
           default_price_cents: number
           description: string | null
+          equipment: string[]
+          frequencies: Database['public']['Enums']['service_frequency'][]
           id: string
           name: string
           organization_id: string
+          season_end_month: number | null
+          season_start_month: number | null
           unit: Database['public']['Enums']['service_unit']
           updated_at: string
         }
         Insert: {
           archived_at?: string | null
+          color?: string
           created_at?: string
           default_duration_minutes?: number | null
           default_price_cents?: number
           description?: string | null
+          equipment?: string[]
+          frequencies?: Database['public']['Enums']['service_frequency'][]
           id?: string
           name: string
           organization_id: string
+          season_end_month?: number | null
+          season_start_month?: number | null
           unit?: Database['public']['Enums']['service_unit']
           updated_at?: string
         }
         Update: {
           archived_at?: string | null
+          color?: string
           created_at?: string
           default_duration_minutes?: number | null
           default_price_cents?: number
           description?: string | null
+          equipment?: string[]
+          frequencies?: Database['public']['Enums']['service_frequency'][]
           id?: string
           name?: string
           organization_id?: string
+          season_end_month?: number | null
+          season_start_month?: number | null
           unit?: Database['public']['Enums']['service_unit']
           updated_at?: string
         }
@@ -2573,6 +2588,7 @@ export type Database = {
         'draft' | 'sent' | 'approved' | 'declined' | 'expired' | 'converted'
       route_status:
         'draft' | 'optimized' | 'published' | 'in_progress' | 'completed'
+      service_frequency: 'one_time' | 'weekly' | 'biweekly' | 'monthly'
       service_unit:
         'each' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
       time_source: 'app' | 'manual' | 'auto'
@@ -2742,6 +2758,7 @@ export const Constants = {
         'in_progress',
         'completed',
       ],
+      service_frequency: ['one_time', 'weekly', 'biweekly', 'monthly'],
       service_unit: [
         'each',
         'hour',

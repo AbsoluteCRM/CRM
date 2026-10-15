@@ -30,7 +30,7 @@ import {
   Toggle,
   toast,
 } from '#/components/crm/ui'
-import { actions, can, inSeason, useTenant } from '#/components/crm/store'
+import { inSeason, useTenant } from '#/components/crm/store'
 import {
   MONTHS,
   addDays,
@@ -39,6 +39,14 @@ import {
   parseDate,
   todayISO,
 } from '#/components/crm/format'
+import { useOrganization } from '#/integrations/organization/context'
+import { can } from '#/integrations/organization/permissions'
+import {
+  toSeasonColumns,
+  useServiceMutations,
+  useServices,
+} from '#/integrations/services/services'
+import SeasonBar, { seasonText } from '#/components/services/SeasonBar'
 import { cn } from '#/lib/utils'
 import type { Frequency, Service, ServiceUnit } from '#/components/crm/types'
 
@@ -80,57 +88,18 @@ const SWATCHES = [
 
 type Filter = 'all' | 'recurring' | 'one_time' | 'in_season' | 'inactive'
 
-function seasonText(s: Service) {
-  if (!s.season) return 'Year-round'
-  return `${MONTHS[s.season.start - 1]} → ${MONTHS[s.season.end - 1]}`
-}
-
-function SeasonBar({
-  service,
-  className,
-}: {
-  service: Service
-  className?: string
-}) {
-  const now = parseDate(todayISO()).getMonth() + 1
-  return (
-    <div
-      className={cn('grid grid-cols-12 gap-0.5', className)}
-      aria-label={`Available ${seasonText(service)}`}
-    >
-      {MONTHS.map((m, i) => {
-        const on = inSeason(service, i + 1)
-        return (
-          <div key={m} className="flex flex-col items-center gap-1">
-            <span
-              className={cn(
-                'h-2 w-full rounded-full',
-                i + 1 === now && 'ring-2 ring-(--leaf-900) ring-offset-1',
-              )}
-              style={{ background: on ? service.color : 'var(--sage)' }}
-            />
-            <span
-              className={cn(
-                'text-[9px] font-semibold',
-                i + 1 === now ? 'text-(--ink)' : 'text-(--ink-3)',
-              )}
-            >
-              {m[0]}
-            </span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function ServicesPage() {
   const t = useTenant()
+  const { organization } = useOrganization()
+  const services = useServices()
+  const mutations = useServiceMutations()
+  const catalog = services.data ?? []
+  const role = organization?.role ?? 'worker'
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Service | 'new' | null>(null)
   const month = parseDate(todayISO()).getMonth() + 1
-  const editable = can.manageServices(t.role)
+  const editable = can.manageServices(role)
 
   const since = addDays(todayISO(), -30)
   const usage = (id: string) => {
@@ -151,7 +120,7 @@ function ServicesPage() {
 
   const isRecurring = (s: Service) =>
     s.frequencies.some((f) => f !== 'one_time')
-  const rows = t.services
+  const rows = catalog
     .filter((s) => {
       if (filter === 'recurring' && !isRecurring(s)) return false
       if (filter === 'one_time' && isRecurring(s)) return false
@@ -177,7 +146,7 @@ function ServicesPage() {
       kicker="Service catalog"
       title="Services"
       subtitle="Standardize pricing, duration, equipment, and when each service is offered."
-      allowed={can.manageClients(t.role)}
+      allowed={can.manageClients(role)}
       section="Services"
       actions={
         editable && (
@@ -197,7 +166,7 @@ function ServicesPage() {
         <div className="flex flex-wrap gap-2">
           {(
             [
-              ['all', `All ${t.services.length}`],
+              ['all', `All ${catalog.length}`],
               ['recurring', 'Recurring'],
               ['one_time', 'One-time'],
               ['in_season', `In season (${MONTHS[month - 1]})`],
@@ -215,7 +184,17 @@ function ServicesPage() {
         </div>
       </div>
 
-      {rows.length === 0 ? (
+      {services.isPending || services.isError ? (
+        <Card>
+          <EmptyState
+            title={
+              services.isError
+                ? `Couldn't load services: ${services.error.message}`
+                : 'Loading services'
+            }
+          />
+        </Card>
+      ) : rows.length === 0 ? (
         <Card>
           <EmptyState
             title="No services match"
@@ -277,11 +256,15 @@ function ServicesPage() {
                         checked={s.is_active}
                         label={`${s.name} active`}
                         onChange={(v) => {
-                          actions.updateService(s.id, { is_active: v })
-                          toast(
-                            `${s.name} ${v ? 'activated' : 'hidden from pickers'}`,
-                            'info',
-                          )
+                          mutations
+                            .setActive(s.id, v)
+                            .then(() =>
+                              toast(
+                                `${s.name} ${v ? 'activated' : 'hidden from pickers'}`,
+                                'info',
+                              ),
+                            )
+                            .catch(() => undefined)
                         }}
                       />
                       <IconBtn
@@ -370,7 +353,7 @@ function ServicesPage() {
                 </span>
               ))}
             </div>
-            {t.services
+            {catalog
               .filter((s) => s.is_active)
               .map((s) => (
                 <div
@@ -436,6 +419,37 @@ function ServiceModal({
   const valid =
     form.name.trim() && Number(form.duration) > 0 && form.frequencies.length > 0
 
+  const mutations = useServiceMutations()
+  const save = async () => {
+    const values = {
+      name: form.name.trim(),
+      description: form.description.trim() || null,
+      default_price_cents: Math.round((Number(form.price) || 0) * 100),
+      unit: form.unit,
+      default_duration_minutes: Number(form.duration),
+      equipment: form.equipment,
+      frequencies: form.frequencies,
+      color: form.color,
+      ...toSeasonColumns(
+        form.yearRound
+          ? null
+          : { start: form.seasonStart, end: form.seasonEnd },
+      ),
+    }
+    try {
+      const saved = service
+        ? await mutations.updateService(service.id, values)
+        : await mutations.createService(values)
+      if ((saved.archived_at === null) !== form.is_active) {
+        await mutations.setActive(saved.id, form.is_active)
+      }
+      toast(service ? 'Service updated' : 'Service added')
+      onClose()
+    } catch {
+      // The mutation's onError already toasted; keep the modal open to retry.
+    }
+  }
+
   const addEquip = () => {
     const v = equip.trim()
     if (v && !form.equipment.includes(v))
@@ -456,27 +470,9 @@ function ServiceModal({
             Cancel
           </Btn>
           <Btn
-            disabled={!valid}
+            disabled={!valid || mutations.saving}
             onClick={() => {
-              actions.saveService({
-                id: service?.id,
-                name: form.name.trim(),
-                description: form.description,
-                default_price_cents: Math.round(
-                  (Number(form.price) || 0) * 100,
-                ),
-                unit: form.unit,
-                default_duration_minutes: Number(form.duration),
-                equipment: form.equipment,
-                frequencies: form.frequencies,
-                season: form.yearRound
-                  ? null
-                  : { start: form.seasonStart, end: form.seasonEnd },
-                color: form.color,
-                is_active: form.is_active,
-              })
-              toast(service ? 'Service updated' : 'Service added')
-              onClose()
+              save()
             }}
           >
             {service ? 'Save changes' : 'Add service'}
@@ -682,17 +678,7 @@ function ServiceModal({
               <SeasonBar
                 className="col-span-2 mt-1"
                 service={{
-                  id: 'preview',
-                  organization_id: '',
-                  name: form.name,
-                  description: '',
-                  unit: form.unit,
-                  default_price_cents: 0,
-                  default_duration_minutes: 60,
-                  is_active: true,
                   color: form.color,
-                  equipment: [],
-                  frequencies: [],
                   season: { start: form.seasonStart, end: form.seasonEnd },
                 }}
               />

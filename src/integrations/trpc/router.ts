@@ -1,4 +1,3 @@
-
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
@@ -11,6 +10,7 @@ import {
   publicProcedure,
   requireOrgPermission,
 } from './init'
+import { servicesRouter } from './services'
 
 import type { TRPCRouterRecord } from '@trpc/server'
 
@@ -80,6 +80,7 @@ export const trpcRouter = createTRPCRouter({
   organization: organizationRouter,
   clients: clientsRouter,
   crews: crewsRouter,
+  services: servicesRouter,
 })
 
 export type TRPCRouter = typeof trpcRouter
