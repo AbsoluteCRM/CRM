@@ -148,8 +148,6 @@ and a pass through the running app.
 
 - `color` default missing from the schema step: adopted, added `default '#7fb547'` (kept for later inserts). Round 1 fixes otherwise held.
 
-### Round 3 (rubber-duck): pass
-
-No further findings.
+Round 3 was not run: the only finding was a one-line omission, fixed as described. The reviewer checks the migration against it.
 
 ## Scope-change log
