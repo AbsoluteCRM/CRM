@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: '14.5'
+    PostgrestVersion: '14.17'
   }
   public: {
     Tables: {
@@ -1656,7 +1656,6 @@ export type Database = {
           id: string
           notes: string | null
           organization_id: string
-          preferred_frequency: Database['public']['Enums']['service_frequency']
           service_id: string
           source: Database['public']['Enums']['request_source']
           status: Database['public']['Enums']['request_status']
@@ -1673,7 +1672,6 @@ export type Database = {
           id?: string
           notes?: string | null
           organization_id: string
-          preferred_frequency: Database['public']['Enums']['service_frequency']
           service_id: string
           source?: Database['public']['Enums']['request_source']
           status?: Database['public']['Enums']['request_status']
@@ -1690,7 +1688,6 @@ export type Database = {
           id?: string
           notes?: string | null
           organization_id?: string
-          preferred_frequency?: Database['public']['Enums']['service_frequency']
           service_id?: string
           source?: Database['public']['Enums']['request_source']
           status?: Database['public']['Enums']['request_status']
@@ -2591,7 +2588,6 @@ export type Database = {
         Args: {
           p_address: string
           p_email: string
-          p_frequency: Database['public']['Enums']['service_frequency']
           p_ip_hash: string
           p_name: string
           p_notes: string
