@@ -14,6 +14,9 @@ erDiagram
     organizations ||--o{ crews : fields
     organizations ||--o{ services : offers
     organizations ||--o{ tax_rates : charges
+    organizations ||--o{ requests : receives
+    clients |o--o{ requests : "matched later"
+    services ||--o{ requests : "requested"
 
     clients ||--o{ properties : owns
     clients ||--o{ client_contacts : has

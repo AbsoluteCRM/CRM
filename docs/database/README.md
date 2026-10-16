@@ -25,6 +25,7 @@ This folder is the design record for the schema:
 | 6   | Crews & routing      | crews, crew_members, routes, route_members, route_stops, optimization_runs                                    | [crews-routing.md](tables/crews-routing.md) |
 | 7   | Invoicing & payments | invoices, invoice_line_items, invoice_visits, invoice_line_item_taxes, payments, stripe_events                | [billing.md](tables/billing.md)             |
 | 8   | Time tracking        | shifts, visit_time_entries                                                                                    | [time.md](tables/time.md)                   |
+| 9   | Requests             | requests, request_submission_log                                                                              | [requests.md](tables/requests.md)           |
 
 The core business flow is:
 

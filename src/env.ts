@@ -5,6 +5,7 @@ export const env = createEnv({
   server: {
     SERVER_URL: z.string().url().optional(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+    PORTAL_IP_HMAC_KEY: z.string().min(16).optional(),
   },
 
   /**
@@ -24,7 +25,11 @@ export const env = createEnv({
    * What object holds the environment variables at runtime. This is usually
    * `process.env` or `import.meta.env`.
    */
-  runtimeEnv: import.meta.env,
+  // Vite only exposes VITE_* to import.meta.env; server secrets live on process.env.
+  runtimeEnv:
+    typeof process === 'undefined'
+      ? import.meta.env
+      : { ...process.env, ...import.meta.env },
 
   /**
    * By default, this library will feed the environment variables directly to

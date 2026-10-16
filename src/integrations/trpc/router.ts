@@ -10,6 +10,7 @@ import {
   publicProcedure,
   requireOrgPermission,
 } from './init'
+import { portalRouter, requestsRouter } from './requests'
 import { servicesRouter } from './services'
 
 import type { TRPCRouterRecord } from '@trpc/server'
@@ -81,6 +82,8 @@ export const trpcRouter = createTRPCRouter({
   clients: clientsRouter,
   crews: crewsRouter,
   services: servicesRouter,
+  portal: portalRouter,
+  requests: requestsRouter,
 })
 
 export type TRPCRouter = typeof trpcRouter
