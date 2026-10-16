@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `client-request-portal` / `feat/client-request-portal`
 - **Tier**: full (schema, anonymous write path, tRPC, UI)
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%. Scope, access, fields, write path, spam control and
   internal wiring rest on user answers. The assumptions below are minor agent
   defaults the user may veto at approval; none changes the architecture.
@@ -190,3 +190,7 @@ the row visible on the internal page.
   services page: icon tile, availability badge, price, duration, frequency
   badges and the season bar, so `get_portal` also returns the season months
   and duration.
+
+## Review log
+
+- Reviewer and security pass run by a general-purpose agent (the pinned agents' model is unavailable). Security: pass. Review: flagged missing `rls.md`/ERD/README entries (fixed) and no database-level tests (no local database available; SQL behaviour was verified manually against the remote project through the browser, including validation and a real submission). The earlier plan audit had no re-audit after its fixes.

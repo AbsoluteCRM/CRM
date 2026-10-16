@@ -124,6 +124,14 @@ Notes:
 - **Memberships in every status** (invited, disabled) come from the
   `my_memberships()` RPC; table policies show only active memberships.
 
+- **Requests** (`requests`): owner/admin/dispatcher may select, and update only
+  `status` and `client_id`. There is no insert policy: anonymous visitors submit
+  only through the service-role `submit_request` function (called by the public
+  portal procedure), which rate-limits per IP and per org. `get_portal` and
+  `submit_request` are executable by `service_role` only. `request_submission_log`
+  has RLS on, no policies, and no grants to `anon` or `authenticated`. Workers and
+  portal users have no access. See [tables/requests.md](tables/requests.md).
+
 ## Storage
 
 Bucket `org-files` (private). Object paths are
