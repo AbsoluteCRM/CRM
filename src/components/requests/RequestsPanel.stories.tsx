@@ -109,7 +109,7 @@ export const FiltersAndReadOnlyDetails: Story = {
     await expect(
       dialog.getByRole('heading', { name: 'Ava Green' }),
     ).toBeVisible()
-    await expect(dialog.getByText('Lawn maintenance')).toBeVisible()
+    await expect(dialog.getAllByText('Lawn maintenance')).toHaveLength(2)
     await expect(dialog.getByText('Please call before arriving.')).toBeVisible()
     await expect(dialog.getByText('Web form')).toBeVisible()
     await expect(
