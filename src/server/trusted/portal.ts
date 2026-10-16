@@ -63,9 +63,8 @@ export function hashClientIp(headers: Headers) {
   return createHmac('sha256', env.PORTAL_IP_HMAC_KEY).update(ip).digest('hex')
 }
 
-const SUBMIT_ERRORS: Record<
-  string,
-  { code: TRPCError['code']; message: string }
+const SUBMIT_ERRORS: Partial<
+  Record<string, { code: TRPCError['code']; message: string }>
 > = {
   portal_not_found: { code: 'NOT_FOUND', message: 'Portal not found' },
   portal_invalid_service: {

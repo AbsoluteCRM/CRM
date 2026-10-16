@@ -181,6 +181,7 @@ the row visible on the internal page.
 
 ## Scope-change log
 
+- 2026-10-16 (user): The internal Requests page stays on mock data and moves to a follow-up PR. Dropped from this PR: commit 4, `requests.list`/`requests.setStatus` UI wiring and AC 7. The procedures and their tests stay, so the follow-up only needs the UI.
 - 2026-10-16 (user): Removed the preferred-frequency field. Services already
   define their frequencies, so the modal no longer asks and `requests` has no
   `preferred_frequency` column. Migration `portal_drop_frequency` drops it and
