@@ -219,24 +219,26 @@ export default function RequestsPanel({
                     return (
                       <tr
                         key={request.id}
-                        tabIndex={0}
-                        aria-label={`Open request from ${request.contact_name}`}
                         onClick={() => setSelected(request)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            setSelected(request)
-                          }
-                        }}
                         className="cursor-pointer border-t border-(--line) hover:bg-(--cream)"
                       >
                         <td className="px-5 py-3">
-                          <p className="flex items-center gap-2 font-bold">
-                            {request.contact_name}
-                          </p>
-                          <p className="max-w-[280px] truncate text-xs text-(--ink-3)">
-                            {request.address}
-                          </p>
+                          <button
+                            type="button"
+                            aria-label={`Open request from ${request.contact_name}`}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setSelected(request)
+                            }}
+                            className="block w-full cursor-pointer text-left"
+                          >
+                            <p className="flex items-center gap-2 font-bold">
+                              {request.contact_name}
+                            </p>
+                            <p className="max-w-[280px] truncate text-xs text-(--ink-3)">
+                              {request.address}
+                            </p>
+                          </button>
                         </td>
                         <td className="px-3 py-3">
                           <span className="flex items-center gap-2">

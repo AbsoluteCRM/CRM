@@ -103,7 +103,7 @@ export const FiltersAndReadOnlyDetails: Story = {
 
     await userEvent.clear(search)
     await userEvent.click(
-      canvas.getByRole('row', { name: 'Open request from Ava Green' }),
+      canvas.getByRole('button', { name: 'Open request from Ava Green' }),
     )
     const dialog = within(canvas.getByRole('dialog'))
     await expect(
