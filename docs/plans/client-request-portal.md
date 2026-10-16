@@ -20,17 +20,17 @@ those rows.
 
 ## Decisions
 
-| #   | Question          | Answer                                                                          |
-| --- | ----------------- | ------------------------------------------------------------------------------- |
-| Q1  | DB scope          | Add a `requests` migration and tRPC submit (full vertical slice)                |
-| Q2  | Access            | Public per-org URL `/portal/$orgSlug`, no login, prospect fields                |
-| Q3  | Fields            | Name, email, phone, address, notes, preferred frequency (photos skipped, Q6)    |
-| Q4  | Services shown    | All non-archived services of the org                                            |
-| Q5  | Anonymous write   | Trusted service-role procedure in `src/server/trusted`; validates slug+service  |
-| Q6  | Photos            | Skipped in this PR                                                              |
-| Q7  | Anti-spam         | Honeypot field plus per-IP and per-org rate limit in the database               |
-| Q8  | Internal page     | Also make the internal Requests list read real rows                             |
-| Q9  | Client matching   | None. Prospect fields only; staff links a client later                          |
+| #   | Question        | Answer                                                                         |
+| --- | --------------- | ------------------------------------------------------------------------------ |
+| Q1  | DB scope        | Add a `requests` migration and tRPC submit (full vertical slice)               |
+| Q2  | Access          | Public per-org URL `/portal/$orgSlug`, no login, prospect fields               |
+| Q3  | Fields          | Name, email, phone, address, notes, preferred frequency (photos skipped, Q6)   |
+| Q4  | Services shown  | All non-archived services of the org                                           |
+| Q5  | Anonymous write | Trusted service-role procedure in `src/server/trusted`; validates slug+service |
+| Q6  | Photos          | Skipped in this PR                                                             |
+| Q7  | Anti-spam       | Honeypot field plus per-IP and per-org rate limit in the database              |
+| Q8  | Internal page   | Also make the internal Requests list read real rows                            |
+| Q9  | Client matching | None. Prospect fields only; staff links a client later                         |
 
 ## Open questions
 
@@ -109,19 +109,19 @@ Migration `requests`:
 
 ### Procedures
 
-| Procedure         | Input                                                              | Output                | Roles allowed          |
-| ----------------- | ------------------------------------------------------------------ | --------------------- | ---------------------- |
-| `portal.get`      | `{ orgSlug }`                                                      | org name, services    | public                 |
-| `portal.submit`   | `{ orgSlug, serviceId, name, email, phone?, address, frequency, notes?, website }` (`website` is the honeypot, must be empty) | `{ id }` | public, rate-limited |
-| `requests.list` | none (filters `organization_id = ctx.organizationId`) | rows | `manageRequests` |
-| `requests.setStatus` | `{ id, status }` (filters `id` and `organization_id = ctx.organizationId`) | row | `manageRequests` |
+| Procedure            | Input                                                                                                                         | Output             | Roles allowed        |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------------------- |
+| `portal.get`         | `{ orgSlug }`                                                                                                                 | org name, services | public               |
+| `portal.submit`      | `{ orgSlug, serviceId, name, email, phone?, address, frequency, notes?, website }` (`website` is the honeypot, must be empty) | `{ id }`           | public, rate-limited |
+| `requests.list`      | none (filters `organization_id = ctx.organizationId`)                                                                         | rows               | `manageRequests`     |
+| `requests.setStatus` | `{ id, status }` (filters `id` and `organization_id = ctx.organizationId`)                                                    | row                | `manageRequests`     |
 
 ### Routes and UI
 
-| Route               | Screen                                  | States                                                        |
-| ------------------- | --------------------------------------- | ------------------------------------------------------------- |
-| `/portal/$orgSlug`  | Service cards grid, request modal       | loading, unknown org (404), no services, populated, submitting, rate-limited, success |
-| `/_authed/requests` | Real list and detail; status updates    | loading, empty, error, populated                              |
+| Route               | Screen                               | States                                                                                |
+| ------------------- | ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `/portal/$orgSlug`  | Service cards grid, request modal    | loading, unknown org (404), no services, populated, submitting, rate-limited, success |
+| `/_authed/requests` | Real list and detail; status updates | loading, empty, error, populated                                                      |
 
 The portal route sits outside `_authed`, has no app chrome, and uses the
 existing UI primitives. The modal validates with zod on client and server.
@@ -181,4 +181,11 @@ the row visible on the internal page.
 
 ## Scope-change log
 
-_None._
+- 2026-10-16 (user): Removed the preferred-frequency field. Services already
+  define their frequencies, so the modal no longer asks and `requests` has no
+  `preferred_frequency` column. Migration `portal_drop_frequency` drops it and
+  replaces `submit_request` (no frequency argument, so the frequency
+  validation in AC 4 no longer applies). Portal cards now match the internal
+  services page: icon tile, availability badge, price, duration, frequency
+  badges and the season bar, so `get_portal` also returns the season months
+  and duration.

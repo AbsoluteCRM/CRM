@@ -93,7 +93,6 @@ const submitInput = {
   email: 'Jane@Example.com',
   phone: null,
   address: '1 Main St',
-  frequency: 'weekly' as const,
   notes: null,
   website: '',
 }
@@ -144,7 +143,6 @@ describe('portal.submit', () => {
       p_service_id: SVC,
       p_name: 'Jane',
       p_email: 'jane@example.com',
-      p_frequency: 'weekly',
     })
     expect(args.p_ip_hash).toMatch(/^[0-9a-f]{64}$/)
     expect(JSON.stringify(args)).not.toContain('203.0.113.7')
@@ -178,7 +176,6 @@ describe('portal.submit', () => {
   it.each([
     ['portal_rate_limited', 'TOO_MANY_REQUESTS'],
     ['portal_invalid_service', 'BAD_REQUEST'],
-    ['portal_invalid_frequency', 'BAD_REQUEST'],
     ['portal_not_found', 'NOT_FOUND'],
     ['something else', 'INTERNAL_SERVER_ERROR'],
   ])('maps %s to %s', async (message, code) => {

@@ -22,6 +22,7 @@ import { Route as AuthedRequestsRouteImport } from './routes/_authed/requests'
 import { Route as AuthedServicesRouteImport } from './routes/_authed/services'
 import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
 import { Route as AuthedTeamsRouteImport } from './routes/_authed/teams'
+import { Route as PortalOrgSlugRouteImport } from './routes/portal/$orgSlug'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -88,6 +89,11 @@ const AuthedTeamsRoute = AuthedTeamsRouteImport.update({
   path: '/teams',
   getParentRoute: () => AuthedRoute,
 } as any)
+const PortalOrgSlugRoute = PortalOrgSlugRouteImport.update({
+  id: '/portal/$orgSlug',
+  path: '/portal/$orgSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
   id: '/api/trpc/$',
   path: '/api/trpc/$',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/services': typeof AuthedServicesRoute
   '/settings': typeof AuthedSettingsRoute
   '/teams': typeof AuthedTeamsRoute
+  '/portal/$orgSlug': typeof PortalOrgSlugRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesByTo {
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/services': typeof AuthedServicesRoute
   '/settings': typeof AuthedSettingsRoute
   '/teams': typeof AuthedTeamsRoute
+  '/portal/$orgSlug': typeof PortalOrgSlugRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesById {
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   '/_authed/services': typeof AuthedServicesRoute
   '/_authed/settings': typeof AuthedSettingsRoute
   '/_authed/teams': typeof AuthedTeamsRoute
+  '/portal/$orgSlug': typeof PortalOrgSlugRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRouteTypes {
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/settings'
     | '/teams'
+    | '/portal/$orgSlug'
     | '/api/trpc/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -171,6 +181,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/settings'
     | '/teams'
+    | '/portal/$orgSlug'
     | '/api/trpc/$'
   id:
     | '__root__'
@@ -187,6 +198,7 @@ export interface FileRouteTypes {
     | '/_authed/services'
     | '/_authed/settings'
     | '/_authed/teams'
+    | '/portal/$orgSlug'
     | '/api/trpc/$'
   fileRoutesById: FileRoutesById
 }
@@ -195,6 +207,7 @@ export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
+  PortalOrgSlugRoute: typeof PortalOrgSlugRoute
   ApiTrpcSplatRoute: typeof ApiTrpcSplatRoute
 }
 
@@ -291,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedTeamsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/portal/$orgSlug': {
+      id: '/portal/$orgSlug'
+      path: '/portal/$orgSlug'
+      fullPath: '/portal/$orgSlug'
+      preLoaderRoute: typeof PortalOrgSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/trpc/$': {
       id: '/api/trpc/$'
       path: '/api/trpc/$'
@@ -333,6 +353,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
+  PortalOrgSlugRoute: PortalOrgSlugRoute,
   ApiTrpcSplatRoute: ApiTrpcSplatRoute,
 }
 export const routeTree = rootRouteImport

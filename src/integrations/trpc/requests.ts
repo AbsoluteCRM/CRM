@@ -29,7 +29,6 @@ export const portalRouter = {
         email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
         phone: z.string().trim().max(40).nullable(),
         address: z.string().trim().min(1).max(500),
-        frequency: z.enum(['one_time', 'weekly', 'biweekly', 'monthly']),
         notes: z.string().trim().max(4000).nullable(),
         // Honeypot: real visitors never see or fill this field.
         website: z.string().max(200),
@@ -50,7 +49,6 @@ export const portalRouter = {
           email: input.email,
           phone: input.phone || null,
           address: input.address,
-          frequency: input.frequency,
           notes: input.notes || null,
           ipHash: hashClientIp(ctx.headers),
         })
@@ -61,7 +59,7 @@ export const portalRouter = {
 const manageRequests = requireOrgPermission('manageRequests')
 
 export const REQUEST_COLUMNS =
-  'id, organization_id, client_id, service_id, contact_name, contact_email, contact_phone, address, preferred_frequency, notes, status, source, submitted_at, created_at, updated_at'
+  'id, organization_id, client_id, service_id, contact_name, contact_email, contact_phone, address, notes, status, source, submitted_at, created_at, updated_at'
 
 export const requestsRouter = {
   list: manageRequests.query(({ ctx }) =>

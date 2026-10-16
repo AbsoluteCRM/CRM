@@ -14,8 +14,11 @@ export type PortalService = {
   description: string | null
   unit: string
   default_price_cents: number
+  default_duration_minutes: number | null
   color: string
   frequencies: Array<Frequency>
+  season_start_month: number | null
+  season_end_month: number | null
 }
 
 export type Portal = {
@@ -69,10 +72,6 @@ const SUBMIT_ERRORS: Record<
     code: 'BAD_REQUEST',
     message: 'That service is no longer available. Please reload the page.',
   },
-  portal_invalid_frequency: {
-    code: 'BAD_REQUEST',
-    message: 'That frequency is not offered for this service.',
-  },
   portal_rate_limited: {
     code: 'TOO_MANY_REQUESTS',
     message: 'Too many requests. Please try again later.',
@@ -86,7 +85,6 @@ export async function submitRequest(args: {
   email: string
   phone: string | null
   address: string
-  frequency: Frequency
   notes: string | null
   ipHash: string
 }) {
@@ -99,7 +97,6 @@ export async function submitRequest(args: {
       p_email: args.email,
       p_phone: args.phone as string,
       p_address: args.address,
-      p_frequency: args.frequency,
       p_notes: args.notes as string,
       p_ip_hash: args.ipHash,
     },
