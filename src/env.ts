@@ -5,6 +5,7 @@ export const env = createEnv({
   server: {
     SERVER_URL: z.string().url().optional(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+    PORTAL_IP_HMAC_KEY: z.string().min(16).optional(),
   },
 
   /**

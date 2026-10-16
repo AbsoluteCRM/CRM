@@ -9,9 +9,10 @@ import type { OrgRole } from '#/integrations/organization/permissions'
 
 // Create a new Supabase client for each request.
 // This preserves the authentication cookies for the current request.
-export function createTRPCContext() {
+export function createTRPCContext(opts?: { req?: Request }) {
   return {
     supabase: createSupabaseServerClient(),
+    headers: opts?.req?.headers ?? new Headers(),
   }
 }
 

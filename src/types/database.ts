@@ -1616,6 +1616,111 @@ export type Database = {
           },
         ]
       }
+      request_submission_log: {
+        Row: {
+          created_at: string
+          id: number
+          ip_hash: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          ip_hash: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          ip_hash?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'request_submission_log_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      requests: {
+        Row: {
+          address: string
+          client_id: string | null
+          contact_email: string
+          contact_name: string
+          contact_phone: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          organization_id: string
+          preferred_frequency: Database['public']['Enums']['service_frequency']
+          service_id: string
+          source: Database['public']['Enums']['request_source']
+          status: Database['public']['Enums']['request_status']
+          submitted_at: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          client_id?: string | null
+          contact_email: string
+          contact_name: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          preferred_frequency: Database['public']['Enums']['service_frequency']
+          service_id: string
+          source?: Database['public']['Enums']['request_source']
+          status?: Database['public']['Enums']['request_status']
+          submitted_at?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          client_id?: string | null
+          contact_email?: string
+          contact_name?: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          preferred_frequency?: Database['public']['Enums']['service_frequency']
+          service_id?: string
+          source?: Database['public']['Enums']['request_source']
+          status?: Database['public']['Enums']['request_status']
+          submitted_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'requests_organization_id_client_id_fkey'
+            columns: ['organization_id', 'client_id']
+            isOneToOne: false
+            referencedRelation: 'clients'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'requests_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'requests_organization_id_service_id_fkey'
+            columns: ['organization_id', 'service_id']
+            isOneToOne: false
+            referencedRelation: 'services'
+            referencedColumns: ['organization_id', 'id']
+          },
+        ]
+      }
       route_members: {
         Row: {
           created_at: string
@@ -2317,6 +2422,7 @@ export type Database = {
         Args: { p_dates: string[]; p_job_id: string; p_through: string }
         Returns: number
       }
+      get_portal: { Args: { p_slug: string }; Returns: Json }
       move_crew_member: {
         Args: {
           p_crew_id: string | null
@@ -2481,6 +2587,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      submit_request: {
+        Args: {
+          p_address: string
+          p_email: string
+          p_frequency: Database['public']['Enums']['service_frequency']
+          p_ip_hash: string
+          p_name: string
+          p_notes: string
+          p_phone: string
+          p_service_id: string
+          p_slug: string
+        }
+        Returns: string
+      }
       worker_add_attachment: {
         Args: {
           p_caption?: string
@@ -2586,6 +2706,15 @@ export type Database = {
         'pending' | 'succeeded' | 'failed' | 'refunded' | 'partially_refunded'
       quote_status:
         'draft' | 'sent' | 'approved' | 'declined' | 'expired' | 'converted'
+      request_source: 'web_form' | 'phone' | 'email' | 'client_portal'
+      request_status:
+        | 'submitted'
+        | 'reviewing'
+        | 'estimated'
+        | 'approved'
+        | 'rejected'
+        | 'scheduled'
+        | 'converted'
       route_status:
         'draft' | 'optimized' | 'published' | 'in_progress' | 'completed'
       service_frequency: 'one_time' | 'weekly' | 'biweekly' | 'monthly'
@@ -2749,6 +2878,16 @@ export const Constants = {
         'approved',
         'declined',
         'expired',
+        'converted',
+      ],
+      request_source: ['web_form', 'phone', 'email', 'client_portal'],
+      request_status: [
+        'submitted',
+        'reviewing',
+        'estimated',
+        'approved',
+        'rejected',
+        'scheduled',
         'converted',
       ],
       route_status: [
