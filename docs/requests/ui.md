@@ -1,12 +1,53 @@
 See the [design record README](../design/README.md) for the visual system and
 screen-spec conventions.
 
-| Screen         | Route              | What it shows                                                    |
-| -------------- | ------------------ | ---------------------------------------------------------------- |
-| Request portal | `/portal/$orgSlug` | A business's services; a modal to send a request for one of them |
+| Screen         | Route               | What it shows                                                    |
+| -------------- | ------------------- | ---------------------------------------------------------------- |
+| Request portal | `/portal/$orgSlug`  | A business's services; a modal to send a request for one of them |
+| Requests       | `/_authed/requests` | Organization requests, filters, and read-only details            |
 
-The internal Requests page (`/requests`) still runs on mock data and is not
-covered here. It moves to real rows in a follow-up PR.
+## Internal Requests
+
+**Route**: `/_authed/requests`. Requires an authenticated user with the
+`manageRequests` permission in the active organization.
+
+**Layout**: The existing request pipeline counts, search field, and status
+filters are retained. The table shows the customer's name and address, service,
+submission date and relative time, source, and status. Selecting a row opens a
+read-only details drawer with contact information, address, service, notes,
+source, submission time, and status. There are no create, quote, schedule,
+convert, or status-change actions.
+
+**States**:
+
+- Organization context loading: "Loading organization…".
+- Organization context error: an error message and a page-reload action.
+- No active organization: "No active organization".
+- Requests or services loading: "Loading requests…".
+- Query error: an error message and a retry action.
+- No requests: "No requests yet".
+- Search or status filter has no matches: "No matching requests".
+- Populated: organization-scoped requests ordered by submission time.
+- Users without `manageRequests`: the standard no-access state; neither query
+  is enabled.
+
+**Data**: `requests.list` and `services.list`, both queried with the active
+organization ID. The server continues to verify membership, permission, RLS,
+and organization scoping. Service names are joined for display; a missing
+service is shown as "Service unavailable".
+
+**Interactions**: Search matches customer name, address, and service name.
+Pipeline stages and Open / Rejected / All filters retain their counts.
+Selecting a row opens its details; closing the drawer returns to the list.
+Changing organizations remounts the panel, clears its local filters and
+selection, and loads the new organization's results.
+
+**Origin**: Replaces the previous demo-request list and workflow drawer with
+read-only live data. Request creation and status changes remain deferred.
+
+**Code**: [`src/routes/_authed/requests.tsx`](../../src/routes/_authed/requests.tsx),
+[`src/components/requests/RequestsPanel.tsx`](../../src/components/requests/RequestsPanel.tsx),
+[`src/integrations/requests/requests.ts`](../../src/integrations/requests/requests.ts).
 
 ## Request portal
 
@@ -18,8 +59,7 @@ covered here. It moves to real rows in a follow-up PR.
 **Route**: `/portal/$orgSlug`. Public, outside `_authed`, with no app chrome.
 
 **Roles**: Anyone with the link. No sign-in. Staff see the submitted request on
-the internal Requests page (owner, admin and dispatcher; not workers) once that
-page reads real rows.
+the internal Requests page (owner, admin and dispatcher; not workers).
 
 **Layout**: A header with the logo, the organization name and a prompt, then a
 responsive grid (1, 2, 3 columns) of cards that match the internal Services
