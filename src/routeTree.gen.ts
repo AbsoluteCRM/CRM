@@ -23,7 +23,9 @@ import { Route as AuthedServicesRouteImport } from './routes/_authed/services'
 import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
 import { Route as AuthedTeamsRouteImport } from './routes/_authed/teams'
 import { Route as PortalOrgSlugRouteImport } from './routes/portal/$orgSlug'
+import { Route as AuthedRequestsRequestIdRouteImport } from './routes/_authed/requests_.$requestId'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
+import { Route as AuthedRequestsRequestIdQuotesQuoteIdRouteImport } from './routes/_authed/requests_.$requestId.quotes.$quoteId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -94,11 +96,22 @@ const PortalOrgSlugRoute = PortalOrgSlugRouteImport.update({
   path: '/portal/$orgSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthedRequestsRequestIdRoute = AuthedRequestsRequestIdRouteImport.update({
+  id: '/requests_/$requestId',
+  path: '/requests/$requestId',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
   id: '/api/trpc/$',
   path: '/api/trpc/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthedRequestsRequestIdQuotesQuoteIdRoute =
+  AuthedRequestsRequestIdQuotesQuoteIdRouteImport.update({
+    id: '/quotes/$quoteId',
+    path: '/quotes/$quoteId',
+    getParentRoute: () => AuthedRequestsRequestIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -114,7 +127,9 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthedSettingsRoute
   '/teams': typeof AuthedTeamsRoute
   '/portal/$orgSlug': typeof PortalOrgSlugRoute
+  '/requests/$requestId': typeof AuthedRequestsRequestIdRouteWithChildren
   '/api/trpc/$': typeof ApiTrpcSplatRoute
+  '/requests/$requestId/quotes/$quoteId': typeof AuthedRequestsRequestIdQuotesQuoteIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -130,7 +145,9 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthedSettingsRoute
   '/teams': typeof AuthedTeamsRoute
   '/portal/$orgSlug': typeof PortalOrgSlugRoute
+  '/requests/$requestId': typeof AuthedRequestsRequestIdRouteWithChildren
   '/api/trpc/$': typeof ApiTrpcSplatRoute
+  '/requests/$requestId/quotes/$quoteId': typeof AuthedRequestsRequestIdQuotesQuoteIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -148,7 +165,9 @@ export interface FileRoutesById {
   '/_authed/settings': typeof AuthedSettingsRoute
   '/_authed/teams': typeof AuthedTeamsRoute
   '/portal/$orgSlug': typeof PortalOrgSlugRoute
+  '/_authed/requests_/$requestId': typeof AuthedRequestsRequestIdRouteWithChildren
   '/api/trpc/$': typeof ApiTrpcSplatRoute
+  '/_authed/requests_/$requestId/quotes/$quoteId': typeof AuthedRequestsRequestIdQuotesQuoteIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -166,7 +185,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/teams'
     | '/portal/$orgSlug'
+    | '/requests/$requestId'
     | '/api/trpc/$'
+    | '/requests/$requestId/quotes/$quoteId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -182,7 +203,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/teams'
     | '/portal/$orgSlug'
+    | '/requests/$requestId'
     | '/api/trpc/$'
+    | '/requests/$requestId/quotes/$quoteId'
   id:
     | '__root__'
     | '/'
@@ -199,7 +222,9 @@ export interface FileRouteTypes {
     | '/_authed/settings'
     | '/_authed/teams'
     | '/portal/$orgSlug'
+    | '/_authed/requests_/$requestId'
     | '/api/trpc/$'
+    | '/_authed/requests_/$requestId/quotes/$quoteId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -311,6 +336,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalOrgSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authed/requests_/$requestId': {
+      id: '/_authed/requests_/$requestId'
+      path: '/requests/$requestId'
+      fullPath: '/requests/$requestId'
+      preLoaderRoute: typeof AuthedRequestsRequestIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/api/trpc/$': {
       id: '/api/trpc/$'
       path: '/api/trpc/$'
@@ -318,8 +350,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTrpcSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authed/requests_/$requestId/quotes/$quoteId': {
+      id: '/_authed/requests_/$requestId/quotes/$quoteId'
+      path: '/quotes/$quoteId'
+      fullPath: '/requests/$requestId/quotes/$quoteId'
+      preLoaderRoute: typeof AuthedRequestsRequestIdQuotesQuoteIdRouteImport
+      parentRoute: typeof AuthedRequestsRequestIdRoute
+    }
   }
 }
+
+interface AuthedRequestsRequestIdRouteChildren {
+  AuthedRequestsRequestIdQuotesQuoteIdRoute: typeof AuthedRequestsRequestIdQuotesQuoteIdRoute
+}
+
+const AuthedRequestsRequestIdRouteChildren: AuthedRequestsRequestIdRouteChildren =
+  {
+    AuthedRequestsRequestIdQuotesQuoteIdRoute:
+      AuthedRequestsRequestIdQuotesQuoteIdRoute,
+  }
+
+const AuthedRequestsRequestIdRouteWithChildren =
+  AuthedRequestsRequestIdRoute._addFileChildren(
+    AuthedRequestsRequestIdRouteChildren,
+  )
 
 interface AuthedRouteChildren {
   AuthedCalendarRoute: typeof AuthedCalendarRoute
@@ -331,6 +385,7 @@ interface AuthedRouteChildren {
   AuthedServicesRoute: typeof AuthedServicesRoute
   AuthedSettingsRoute: typeof AuthedSettingsRoute
   AuthedTeamsRoute: typeof AuthedTeamsRoute
+  AuthedRequestsRequestIdRoute: typeof AuthedRequestsRequestIdRouteWithChildren
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -343,6 +398,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedServicesRoute: AuthedServicesRoute,
   AuthedSettingsRoute: AuthedSettingsRoute,
   AuthedTeamsRoute: AuthedTeamsRoute,
+  AuthedRequestsRequestIdRoute: AuthedRequestsRequestIdRouteWithChildren,
 }
 
 const AuthedRouteWithChildren =

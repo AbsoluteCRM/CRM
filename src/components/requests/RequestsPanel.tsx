@@ -15,6 +15,7 @@ import type { inferRouterOutputs } from '@trpc/server'
 
 import { fmtDate, relativeTime } from '#/components/crm/format'
 import {
+  Btn,
   Card,
   Drawer,
   EmptyState,
@@ -64,9 +65,11 @@ const OPEN_STATUSES: Array<RequestStatus> = [
 export default function RequestsPanel({
   requests,
   services,
+  onOpenRequest,
 }: {
   requests: Array<RequestRow>
   services: Array<ServiceRow>
+  onOpenRequest?: (requestId: string) => void
 }) {
   const [filter, setFilter] = useState<Filter>('open')
   const [query, setQuery] = useState('')
@@ -279,6 +282,7 @@ export default function RequestsPanel({
         <RequestDetails
           request={selected}
           service={serviceById.get(selected.service_id)}
+          onOpen={onOpenRequest}
           onClose={() => setSelected(null)}
         />
       )}
@@ -289,10 +293,12 @@ export default function RequestsPanel({
 function RequestDetails({
   request,
   service,
+  onOpen,
   onClose,
 }: {
   request: RequestRow
   service: ServiceRow | undefined
+  onOpen?: (requestId: string) => void
   onClose: () => void
 }) {
   return (
@@ -335,6 +341,13 @@ function RequestDetails({
           {request.notes || 'No notes provided.'}
         </KeyValue>
       </dl>
+      {onOpen && (
+        <div className="mt-6">
+          <Btn icon={FileText} onClick={() => onOpen(request.id)}>
+            Open request and quotes
+          </Btn>
+        </div>
+      )}
     </Drawer>
   )
 }

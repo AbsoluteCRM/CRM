@@ -23,6 +23,19 @@ const manageQuotes = requireOrgPermission('manageRequests')
 const date = z.iso.date()
 
 export const quotesRouter = {
+  taxRates: manageQuotes.query(({ ctx }) =>
+    Sentry.startSpan({ name: 'quotes.taxRates' }, async () => {
+      const { data, error } = await ctx.supabase
+        .from('tax_rates')
+        .select('id, name, percentage')
+        .eq('organization_id', ctx.organizationId)
+        .is('archived_at', null)
+        .order('name', { ascending: true })
+      if (error) throw dbError(error)
+      return data
+    }),
+  ),
+
   listForRequest: manageQuotes
     .input(z.object({ requestId: z.uuid() }))
     .query(({ ctx, input }) =>

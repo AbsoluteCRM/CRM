@@ -49,6 +49,7 @@ vi.mock('#/lib/supabase/server', () => {
       'delete',
       'order',
       'limit',
+      'is',
     ]) {
       q[m] = (...a: Array<unknown>) => (
         state.calls.push([`${table}.${m}`, ...a]),
@@ -132,6 +133,7 @@ describe('quotes access', () => {
     const calls = (): Array<Promise<unknown>> => [
       caller().quotes.listForRequest({ organizationId: ORG, requestId: REQ }),
       caller().quotes.get({ organizationId: ORG, quoteId: QUOTE }),
+      caller().quotes.taxRates({ organizationId: ORG }),
       caller().quotes.createDraft({ organizationId: ORG, requestId: REQ }),
       caller().quotes.update({
         organizationId: ORG,
@@ -181,6 +183,15 @@ describe('quotes access', () => {
 })
 
 describe('quotes reads', () => {
+  it('lists only active tax rates for the org', async () => {
+    state.results.tax_rates = [{ data: [{ id: TAX }], error: null }]
+    await expect(
+      caller().quotes.taxRates({ organizationId: ORG }),
+    ).resolves.toEqual([{ id: TAX }])
+    expect(state.calls).toContainEqual(['tax_rates.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['tax_rates.is', 'archived_at', null])
+  })
+
   it('scopes listForRequest to the org and request', async () => {
     await caller().quotes.listForRequest({
       organizationId: ORG,
