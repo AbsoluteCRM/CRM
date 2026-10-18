@@ -22,6 +22,38 @@ const manageQuotes = requireOrgPermission('manageRequests')
 
 const date = z.iso.date()
 
+type Ctx = Parameters<Parameters<typeof manageQuotes.query>[0]>[0]['ctx']
+
+// A first revision starts with one line for the requested service at its
+// default price. Best effort: the draft is already created, so a failure here
+// leaves it empty for the user to fill in.
+async function seedFromService(ctx: Ctx, requestId: string, quoteId: string) {
+  const request = await ctx.supabase
+    .from('requests')
+    .select('service_id')
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', requestId)
+    .maybeSingle()
+  if (!request.data) return
+  const service = await ctx.supabase
+    .from('services')
+    .select('id, name, default_price_cents, archived_at')
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', request.data.service_id)
+    .maybeSingle()
+  if (!service.data || service.data.archived_at) return
+  await ctx.supabase.from('quote_line_items').insert({
+    organization_id: ctx.organizationId,
+    quote_id: quoteId,
+    service_id: service.data.id,
+    position: 1,
+    description: service.data.name,
+    quantity: 1,
+    unit_price_cents: service.data.default_price_cents,
+    is_optional: false,
+  })
+}
+
 export const quotesRouter = {
   taxRates: manageQuotes.query(({ ctx }) =>
     Sentry.startSpan({ name: 'quotes.taxRates' }, async () => {
@@ -105,6 +137,8 @@ export const quotesRouter = {
           p_copy_from_quote_id: input.copyFromQuoteId ?? undefined,
         })
         if (error) throw dbError(error)
+        if (!input.copyFromQuoteId)
+          await seedFromService(ctx, input.requestId, data)
         return { id: data }
       }),
     ),

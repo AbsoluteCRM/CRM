@@ -227,3 +227,4 @@ Workflow Definition of done, plus: send a real email to a test address through R
   - Request detail lists revisions, creates a draft ("Build quote" or "New revision", copying the latest), and edits the info-needed note. The builder edits details and lines (with taxes), and shows totals, delivery state and "Pull back to draft" for sent revisions. There is no Send button until commit 3 lands.
   - Added `quotes.taxRates` (active org tax rates) so the line form can offer taxes.
   - Design record (`docs/requests/ui.md`) and screenshots still go in the final commit.
+- **Service template (user request):** `quotes.createDraft` on a first revision (no copy source) adds one line for the requested service at its default price, quantity 1, no taxes; the title already came from the service. Done in the tRPC layer, best effort, so no migration change. An archived or missing service seeds nothing.

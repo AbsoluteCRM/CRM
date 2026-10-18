@@ -246,6 +246,60 @@ describe('quotes writes', () => {
     ])
   })
 
+  it('createDraft seeds one line from the requested service on a first revision', async () => {
+    state.results.requests = [{ data: [{ service_id: 'svc-1' }], error: null }]
+    state.results.services = [
+      {
+        data: [
+          {
+            id: 'svc-1',
+            name: 'Lawn maintenance',
+            default_price_cents: 12000,
+            archived_at: null,
+          },
+        ],
+        error: null,
+      },
+    ]
+    await caller().quotes.createDraft({ organizationId: ORG, requestId: REQ })
+    expect(state.calls).toContainEqual([
+      'quote_line_items.insert',
+      {
+        organization_id: ORG,
+        quote_id: QUOTE,
+        service_id: 'svc-1',
+        position: 1,
+        description: 'Lawn maintenance',
+        quantity: 1,
+        unit_price_cents: 12000,
+        is_optional: false,
+      },
+    ])
+  })
+
+  it('createDraft does not seed when copying, or when the service is archived', async () => {
+    await caller().quotes.createDraft({
+      organizationId: ORG,
+      requestId: REQ,
+      copyFromQuoteId: QUOTE,
+    })
+    expect(state.calls.some(([k]) => k === 'requests.select')).toBe(false)
+
+    state.results.requests = [{ data: [{ service_id: 'svc-1' }], error: null }]
+    state.results.services = [
+      {
+        data: [
+          { id: 'svc-1', name: 'X', default_price_cents: 1, archived_at: 'x' },
+        ],
+        error: null,
+      },
+    ]
+    await caller().quotes.createDraft({ organizationId: ORG, requestId: REQ })
+    expect(state.calls.some(([k]) => k === 'quote_line_items.insert')).toBe(
+      false,
+    )
+  })
+
   it.each([
     ['P0002', 'NOT_FOUND'],
     ['55000', 'CONFLICT'],
