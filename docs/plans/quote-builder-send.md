@@ -223,7 +223,7 @@ Workflow Definition of done, plus: send a real email to a test address through R
   - `quotes.upsertLine` takes `taxRateIds` and replaces the line's taxes (delete, then insert); the database fills percentage and amount.
   - `requests.info_needed` is now in `REQUEST_COLUMNS`. DB error codes map through the new `errors.ts` (`P0002` not found, `55000` conflict).
 - **Quote builder UI (part of commit 4), send left out at the user's request:**
-  - Routes are `/requests/$requestId` and `/requests/$requestId/quotes/$quoteId`, as flat `requests_.` routes so the existing `/requests` list keeps its own page. The list drawer gets an "Open request and quotes" button.
+  - Changed at the user's request: no separate pages. The builder lives inside the request drawer on `/requests` (widened to 1040px), which switches between the revisions list and the builder; `RequestWorkspace` holds that state.
   - Request detail lists revisions, creates a draft ("Build quote" or "New revision", copying the latest), and edits the info-needed note. The builder edits details and lines (with taxes), and shows totals, delivery state and "Pull back to draft" for sent revisions. There is no Send button until commit 3 lands.
   - Added `quotes.taxRates` (active org tax rates) so the line form can offer taxes.
   - Design record (`docs/requests/ui.md`) and screenshots still go in the final commit.

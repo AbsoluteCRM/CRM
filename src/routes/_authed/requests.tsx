@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 
 import PageShell from '#/components/crm/PageShell'
 import { Alert, Btn, EmptyState } from '#/components/crm/ui'
+import RequestWorkspace from '#/components/requests/RequestWorkspace'
 import RequestsPanel from '#/components/requests/RequestsPanel'
 import { useOrganization } from '#/integrations/organization/context'
 import { useRequests } from '#/integrations/requests/requests'
@@ -11,7 +12,6 @@ export const Route = createFileRoute('/_authed/requests')({
 })
 
 function RequestsPage() {
-  const navigate = useNavigate()
   const { organization, permissions, isLoading, error } = useOrganization()
   const canView = permissions.includes('manageRequests')
   const { requests, services } = useRequests(
@@ -74,9 +74,12 @@ function RequestsPage() {
           key={organization.id}
           requests={requests.data}
           services={services.data}
-          onOpenRequest={(requestId) =>
-            void navigate({ to: '/requests/$requestId', params: { requestId } })
-          }
+          renderWorkspace={(request) => (
+            <RequestWorkspace
+              request={request}
+              organizationId={organization.id}
+            />
+          )}
         />
       )}
     </PageShell>

@@ -5,29 +5,13 @@ import { useTRPC } from '#/integrations/trpc/react'
 const ok = () => true
 const failed = () => false
 
-export function useRequestDetail(
-  organizationId: string | undefined,
-  requestId: string,
-  enabled: boolean,
-) {
+export function useRequestQuotes(organizationId: string, requestId: string) {
   const trpc = useTRPC()
   const queryClient = useQueryClient()
-  const on = enabled && organizationId !== undefined
-  const org = { organizationId: organizationId ?? '' }
+  const org = { organizationId }
 
-  const requests = useQuery({
-    ...trpc.requests.list.queryOptions(org),
-    enabled: on,
-    retry: false,
-  })
-  const services = useQuery({
-    ...trpc.services.list.queryOptions(org),
-    enabled: on,
-    retry: false,
-  })
   const quotes = useQuery({
     ...trpc.quotes.listForRequest.queryOptions({ ...org, requestId }),
-    enabled: on,
     retry: false,
   })
 
@@ -43,11 +27,10 @@ export function useRequestDetail(
   )
 
   return {
-    request: requests.data?.find((r) => r.id === requestId),
-    queries: { requests, services, quotes },
+    quotes,
     busy: createDraft.isPending || setInfoNeeded.isPending,
     error: createDraft.error?.message ?? setInfoNeeded.error?.message ?? null,
-    // Handlers resolve to whether the call worked; errors show through `error`.
+    // Handlers resolve to the new id or whether the call worked; errors show through `error`.
     createDraft: (copyFromQuoteId: string | null) =>
       createDraft
         .mutateAsync({ ...org, requestId, copyFromQuoteId })
@@ -64,29 +47,21 @@ export function useRequestDetail(
   }
 }
 
-export function useQuoteBuilder(
-  organizationId: string | undefined,
-  quoteId: string,
-  enabled: boolean,
-) {
+export function useQuoteBuilder(organizationId: string, quoteId: string) {
   const trpc = useTRPC()
   const queryClient = useQueryClient()
-  const on = enabled && organizationId !== undefined
-  const org = { organizationId: organizationId ?? '' }
+  const org = { organizationId }
 
   const quote = useQuery({
     ...trpc.quotes.get.queryOptions({ ...org, quoteId }),
-    enabled: on,
     retry: false,
   })
   const taxRates = useQuery({
     ...trpc.quotes.taxRates.queryOptions(org),
-    enabled: on,
     retry: false,
   })
   const services = useQuery({
     ...trpc.services.list.queryOptions(org),
-    enabled: on,
     retry: false,
   })
 

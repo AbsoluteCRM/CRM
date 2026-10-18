@@ -62,7 +62,6 @@ const meta = {
   component: RequestDetail,
   args: {
     request,
-    service: undefined,
     quotes: [],
     onSaveInfoNeeded: fn(() => Promise.resolve(true)),
     onCreateDraft: fn(() => Promise.resolve(true)),
@@ -77,7 +76,6 @@ export const NoQuoteYet: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('No quote yet')).toBeVisible()
-    await expect(canvas.getByText('ava@example.com')).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Build quote' }))
     await expect(args.onCreateDraft).toHaveBeenCalledWith(null)
 
