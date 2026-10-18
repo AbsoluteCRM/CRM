@@ -48,6 +48,7 @@ const request = (
     contact_phone: '403-555-0100',
     address: '123 Main Street SW, Calgary',
     notes: 'Please call before arriving.',
+    info_needed: null,
     status,
     source: 'web_form',
     submitted_at: '2026-10-15T12:00:00.000Z',

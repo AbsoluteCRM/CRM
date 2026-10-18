@@ -218,3 +218,7 @@ Workflow Definition of done, plus: send a real email to a test address through R
   - `request_id` has no direct insert grant (the plan's grant list included it); only `create_quote_draft` writes it. `conditions` is the only new direct grant on `quotes`.
   - The `(organization_id, request_id)` index is the unique `(organization_id, request_id, revision)` index, not a separate one.
   - Validated on a scratch Supabase Postgres (all migrations plus the new one) and `supabase/tests/quote_request_link_test.sql`, 48 of 48 passing; the three existing pgTAP files still pass. Concurrent `create_quote_draft` and `rotate_quote_token` rely on row locks and are not exercised by the single-session test.
+- **Commit 2 (tRPC procedures)**, done by the main agent (the `implementer` agent's pinned model is unavailable):
+  - `quotes.send` and `quotes.retryDelivery` move to commit 3, because they need the Resend sender and token module. Commit 2 ships the other procedures.
+  - `quotes.upsertLine` takes `taxRateIds` and replaces the line's taxes (delete, then insert); the database fills percentage and amount.
+  - `requests.info_needed` is now in `REQUEST_COLUMNS`. DB error codes map through the new `errors.ts` (`P0002` not found, `55000` conflict).
