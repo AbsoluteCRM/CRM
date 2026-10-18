@@ -2505,7 +2505,7 @@ export type Database = {
       get_portal: { Args: { p_slug: string }; Returns: Json }
       move_crew_member: {
         Args: {
-          p_crew_id: string
+          p_crew_id: string | null
           p_member_id: string
           p_organization_id: string
         }
@@ -2689,7 +2689,7 @@ export type Database = {
       set_crew_lead: {
         Args: {
           p_crew_id: string
-          p_member_id: string
+          p_member_id: string | null
           p_organization_id: string
         }
         Returns: undefined
