@@ -15,17 +15,17 @@ From a request, an owner, admin or dispatcher builds a quote (with revisions), p
 
 ## Decisions
 
-| #   | Question          | Answer                                                                                                                                              |
-| --- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Q1  | PR scope          | Builder and send only (phases 1 and 2).                                                                                                             |
-| Q2  | Email             | Resend. User supplies `RESEND_API_KEY` and a verified sending domain; per-org reply-to.                                                             |
-| Q3  | Revisions         | One request has many quotes. Quotes get `request_id` and `revision`. Sending a new revision supersedes (expires) the previously sent one.          |
-| Q4  | Contingent quotes | Free-text `conditions` on the quote, shown to the client. Plus a "needs info" note on the request (site visit, square footage, property count).    |
-| Q5  | Client access     | Magic link, no login. View, approve and decline. Token is per quote, stored hashed, expires with `valid_until`.                                     |
-| Q6  | Thread            | Per request, but deferred. This PR has no thread; the quote's client-facing message is the only text sent.                                          |
-| Q7  | Who               | Owner, admin, dispatcher only.                                                                                                                      |
-| Q9  | Request with no client | `Build quote` creates a client from the request's contact details (and property if given) in one atomic step, then links it to the request. |
-| Q8  | Client changes    | Clients cannot request changes in the app. Only approve or decline; changes happen verbally.                                                        |
+| #   | Question               | Answer                                                                                                                                          |
+| --- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | PR scope               | Builder and send only (phases 1 and 2).                                                                                                         |
+| Q2  | Email                  | Resend. User supplies `RESEND_API_KEY` and a verified sending domain; per-org reply-to.                                                         |
+| Q3  | Revisions              | One request has many quotes. Quotes get `request_id` and `revision`. Sending a new revision supersedes (expires) the previously sent one.       |
+| Q4  | Contingent quotes      | Free-text `conditions` on the quote, shown to the client. Plus a "needs info" note on the request (site visit, square footage, property count). |
+| Q5  | Client access          | Magic link, no login. View, approve and decline. Token is per quote, stored hashed, expires with `valid_until`.                                 |
+| Q6  | Thread                 | Per request, but deferred. This PR has no thread; the quote's client-facing message is the only text sent.                                      |
+| Q7  | Who                    | Owner, admin, dispatcher only.                                                                                                                  |
+| Q9  | Request with no client | `Build quote` creates a client from the request's contact details (and property if given) in one atomic step, then links it to the request.     |
+| Q8  | Client changes         | Clients cannot request changes in the app. Only approve or decline; changes happen verbally.                                                    |
 
 Agent defaults (the user may veto):
 
@@ -39,12 +39,12 @@ Agent defaults (the user may veto):
 
 ## Assumptions
 
-| Assumption                                                                                                          | User-confirmed? |
-| ------------------------------------------------------------------------------------------------------------------- | --------------- |
-| The existing `status_transition` trigger on quotes stays as is; supersede uses the existing `sent → expired` edge.  | no              |
-| `requests.status` is writable by owner, admin, dispatcher (per docs/database/tables/requests.md RLS).               | no              |
-| Existing `approve_quote` / `decline_quote` RPCs require `auth.uid()`, so token flows need a new function.           | no              |
-| Resend is called from the server only; the key never reaches the client.                                            | yes (Q2)        |
+| Assumption                                                                                                         | User-confirmed? |
+| ------------------------------------------------------------------------------------------------------------------ | --------------- |
+| The existing `status_transition` trigger on quotes stays as is; supersede uses the existing `sent → expired` edge. | no              |
+| `requests.status` is writable by owner, admin, dispatcher (per docs/database/tables/requests.md RLS).              | no              |
+| Existing `approve_quote` / `decline_quote` RPCs require `auth.uid()`, so token flows need a new function.          | no              |
+| Resend is called from the server only; the key never reaches the client.                                           | yes (Q2)        |
 
 ## Design refs
 
@@ -96,27 +96,27 @@ Reuse the org-scoped procedure and `ctx.supabase` pattern already used by `reque
 
 ### Procedures
 
-| Procedure                | Input                                       | Output           | Roles                       |
-| ------------------------ | ------------------------------------------- | ---------------- | --------------------------- |
-| `quotes.listForRequest`  | request_id                                  | quotes with totals | owner, admin, dispatcher  |
-| `quotes.get`             | quote_id                                    | quote with lines | owner, admin, dispatcher    |
-| `quotes.createDraft`     | request_id, copy_from_quote_id? (calls `create_quote_draft`) | quote | owner, admin, dispatcher |
-| `quotes.update`          | quote_id, title, message, conditions, valid_until | quote      | owner, admin, dispatcher    |
-| `quotes.upsertLine` / `deleteLine` | line fields (no amounts)          | line             | owner, admin, dispatcher    |
-| `quotes.send`            | quote_id                                    | quote + delivery status | owner, admin, dispatcher |
-| `quotes.retryDelivery`   | quote_id (calls `rotate_quote_token`)                                    | delivery status  | owner, admin, dispatcher    |
-| `quotes.pullBack`        | quote_id                                    | quote            | owner, admin, dispatcher    |
-| `requests.setInfoNeeded` | request_id, note                            | request          | owner, admin, dispatcher    |
+| Procedure                          | Input                                                        | Output                  | Roles                    |
+| ---------------------------------- | ------------------------------------------------------------ | ----------------------- | ------------------------ |
+| `quotes.listForRequest`            | request_id                                                   | quotes with totals      | owner, admin, dispatcher |
+| `quotes.get`                       | quote_id                                                     | quote with lines        | owner, admin, dispatcher |
+| `quotes.createDraft`               | request_id, copy_from_quote_id? (calls `create_quote_draft`) | quote                   | owner, admin, dispatcher |
+| `quotes.update`                    | quote_id, title, message, conditions, valid_until            | quote                   | owner, admin, dispatcher |
+| `quotes.upsertLine` / `deleteLine` | line fields (no amounts)                                     | line                    | owner, admin, dispatcher |
+| `quotes.send`                      | quote_id                                                     | quote + delivery status | owner, admin, dispatcher |
+| `quotes.retryDelivery`             | quote_id (calls `rotate_quote_token`)                        | delivery status         | owner, admin, dispatcher |
+| `quotes.pullBack`                  | quote_id                                                     | quote                   | owner, admin, dispatcher |
+| `requests.setInfoNeeded`           | request_id, note                                             | request                 | owner, admin, dispatcher |
 
 Token endpoints (not tRPC, server routes under `src/routes/q.$token.*`): view, approve, decline. Token read from the path, hashed, passed to the trusted function. Rate limited by IP in the server handler.
 
 ### Routes and UI
 
-| Route                                | Screen                                                        | States                                  |
-| ------------------------------------ | ------------------------------------------------------------- | --------------------------------------- |
-| `/_authed/requests/$requestId`       | Request detail, quote revisions list, needs-info note, action | loading, empty, error, populated        |
-| `/_authed/requests/$requestId/quotes/$quoteId` | Builder: lines, optional lines, taxes, message, conditions, valid_until, preview, send | loading, error, draft, sent (read-only) |
-| `/q/$token`                          | Public quote page: lines, optional selection, approve, decline | loading, invalid/expired/revoked, superseded, approved, declined |
+| Route                                          | Screen                                                                                 | States                                                           |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `/_authed/requests/$requestId`                 | Request detail, quote revisions list, needs-info note, action                          | loading, empty, error, populated                                 |
+| `/_authed/requests/$requestId/quotes/$quoteId` | Builder: lines, optional lines, taxes, message, conditions, valid_until, preview, send | loading, error, draft, sent (read-only)                          |
+| `/q/$token`                                    | Public quote page: lines, optional selection, approve, decline                         | loading, invalid/expired/revoked, superseded, approved, declined |
 
 ### Acceptance criteria
 
@@ -170,44 +170,51 @@ Workflow Definition of done, plus: send a real email to a test address through R
 
 ### Round 1 (`rubber-duck`, since `plan-auditor`'s pinned model was unavailable): needs-changes
 
-| #   | Blocking finding | Resolution |
-| --- | ---------------- | ---------- |
+| #   | Blocking finding                                    | Resolution                                             |
+| --- | --------------------------------------------------- | ------------------------------------------------------ |
 | 1   | Revision allocation collides with unique constraint | fixed: `create_quote_draft` allocates under a row lock |
-| 2   | Requests with no client cannot be quoted | fixed: Q9, atomic client creation |
-| 3   | Missing column grants | fixed: explicit grants |
-| 4   | Null `valid_until` gives a non-expiring token | fixed: required to send; `expires_at` not null |
-| 5   | Missing revokes on service-role functions | fixed: revoke/grant, invoker, pgTAP |
-| 6   | Email/state ordering unresolved | fixed: commit first, delivery status, retry |
+| 2   | Requests with no client cannot be quoted            | fixed: Q9, atomic client creation                      |
+| 3   | Missing column grants                               | fixed: explicit grants                                 |
+| 4   | Null `valid_until` gives a non-expiring token       | fixed: required to send; `expires_at` not null         |
+| 5   | Missing revokes on service-role functions           | fixed: revoke/grant, invoker, pgTAP                    |
+| 6   | Email/state ordering unresolved                     | fixed: commit first, delivery status, retry            |
 
 ### Round 2 (`rubber-duck`): needs-changes
 
-| #   | Blocking finding | Resolution |
-| --- | ---------------- | ---------- |
-| 1   | Invoker `send_quote` cannot insert tokens | fixed: security definer with explicit role check |
-| 2   | Retry rotation not atomic | fixed: locked `rotate_quote_token`, one live token index, idempotency key |
-| 3   | Request status sync underspecified | fixed: `sync_request_status` deterministic over all revisions, also in expiry job |
-| 4   | Property cannot be built from free-text address | fixed: client only, property stays null |
+| #   | Blocking finding                                | Resolution                                                                        |
+| --- | ----------------------------------------------- | --------------------------------------------------------------------------------- |
+| 1   | Invoker `send_quote` cannot insert tokens       | fixed: security definer with explicit role check                                  |
+| 2   | Retry rotation not atomic                       | fixed: locked `rotate_quote_token`, one live token index, idempotency key         |
+| 3   | Request status sync underspecified              | fixed: `sync_request_status` deterministic over all revisions, also in expiry job |
+| 4   | Property cannot be built from free-text address | fixed: client only, property stays null                                           |
 
 - **Non-blocking adopted**: freeze `conditions` and `valid_until` after draft.
 
 ### Round 3 (`rubber-duck`): needs-changes
 
-| #   | Blocking finding | Resolution |
-| --- | ---------------- | ---------- |
-| 1   | `create_quote_draft` cannot write `revision` | fixed: security definer with role check |
+| #   | Blocking finding                               | Resolution                                                    |
+| --- | ---------------------------------------------- | ------------------------------------------------------------- |
+| 1   | `create_quote_draft` cannot write `revision`   | fixed: security definer with role check                       |
 | 2   | Direct staff status update bypasses invariants | fixed: revoke status update grant; `pull_back_quote` function |
-| 3   | Read function must reject revoked/superseded | fixed: one shared active-token predicate |
+| 3   | Read function must reject revoked/superseded   | fixed: one shared active-token predicate                      |
 
 ### Round 4 (`rubber-duck`): needs-changes
 
-| #   | Blocking finding | Resolution |
-| --- | ---------------- | ---------- |
+| #   | Blocking finding                                              | Resolution                                                                                  |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | 1   | Manual `requests.setStatus` can override quote-derived status | fixed: explicit precedence; staff own `rejected`/`scheduled`; UI hides quote-owned statuses |
-| 2   | Quote conversion leaves request `approved` | fixed: `job_from_quote` calls `sync_request_status`, maps to `converted` |
+| 2   | Quote conversion leaves request `approved`                    | fixed: `job_from_quote` calls `sync_request_status`, maps to `converted`                    |
 
 - Verified clean: revoking `update(status, declined_reason)` does not break triggers, cron, RPCs or job conversion.
 - Escalation: this exceeds the 3-round cap, so the plan goes to the user. The round-4 fixes have not been re-audited.
 
 ## Scope-change log
 
-_None._
+- **Commit 1 (migration)**, additions found while building, none changing the approved outcome:
+  - `record_quote_delivery(token_id, status, message_id, error)`, service-role only: the trusted server needs a way to write the email outcome that the plan's `delivery_status` implies.
+  - `portal_token_get_quote` also serves `approved` and `declined` quotes (still not `expired`, pulled-back or superseded ones), so reopening the link shows the outcome; approve and decline still require `sent`. The plan's "single predicate" is one function, `private.resolve_quote_token`, taking the allowed statuses.
+  - `send_quote` also refuses a quote with no lines.
+  - `create_quote_draft` refuses a `converted` request and copies message, notes, conditions, lines and taxes (not `valid_until`) when given a source quote.
+  - `request_id` has no direct insert grant (the plan's grant list included it); only `create_quote_draft` writes it. `conditions` is the only new direct grant on `quotes`.
+  - The `(organization_id, request_id)` index is the unique `(organization_id, request_id, revision)` index, not a separate one.
+  - Validated on a scratch Supabase Postgres (all migrations plus the new one) and `supabase/tests/quote_request_link_test.sql`, 48 of 48 passing; the three existing pgTAP files still pass. Concurrent `create_quote_draft` and `rotate_quote_token` rely on row locks and are not exercised by the single-session test.

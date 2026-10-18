@@ -17,6 +17,7 @@ erDiagram
     organizations ||--o{ requests : receives
     clients |o--o{ requests : "matched later"
     services ||--o{ requests : "requested"
+    requests |o--o{ quotes : "revisions"
 
     clients ||--o{ properties : owns
     clients ||--o{ client_contacts : has
@@ -25,6 +26,7 @@ erDiagram
     clients ||--o{ quotes : receives
     properties ||--o{ quotes : "quoted at"
     quotes |o--o| jobs : "converts to"
+    quotes ||--o{ quote_share_tokens : "magic links"
     properties ||--o{ jobs : "work at"
     jobs ||--o{ visits : materializes
 
@@ -136,8 +138,18 @@ erDiagram
         text number UK
         uuid client_id FK
         uuid property_id FK
+        uuid request_id FK
+        integer revision
         quote_status status
         bigint total_cents
+    }
+    quote_share_tokens {
+        uuid id PK
+        uuid quote_id FK
+        text token_hash UK
+        timestamptz expires_at
+        timestamptz revoked_at
+        quote_delivery_status delivery_status
     }
     quote_line_items {
         uuid id PK
