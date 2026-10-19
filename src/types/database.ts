@@ -1460,16 +1460,16 @@ export type Database = {
           amount_cents: number | null
           created_at: string
           description: string
+          frequency: Database['public']['Enums']['service_frequency']
           id: string
           is_optional: boolean
-          frequency: Database['public']['Enums']['service_frequency']
-          season_end_month: number | null
-          season_start_month: number | null
           is_selected: boolean
           organization_id: string
           position: number
           quantity: number
           quote_id: string
+          season_end_month: number | null
+          season_start_month: number | null
           service_id: string | null
           unit_price_cents: number
           updated_at: string
@@ -1478,16 +1478,16 @@ export type Database = {
           amount_cents?: number | null
           created_at?: string
           description: string
+          frequency?: Database['public']['Enums']['service_frequency']
           id?: string
           is_optional?: boolean
-          frequency?: Database['public']['Enums']['service_frequency']
-          season_end_month?: number | null
-          season_start_month?: number | null
           is_selected?: boolean
           organization_id: string
           position: number
           quantity?: number
           quote_id: string
+          season_end_month?: number | null
+          season_start_month?: number | null
           service_id?: string | null
           unit_price_cents: number
           updated_at?: string
@@ -1496,16 +1496,16 @@ export type Database = {
           amount_cents?: number | null
           created_at?: string
           description?: string
+          frequency?: Database['public']['Enums']['service_frequency']
           id?: string
           is_optional?: boolean
-          frequency?: Database['public']['Enums']['service_frequency']
-          season_end_month?: number | null
-          season_start_month?: number | null
           is_selected?: boolean
           organization_id?: string
           position?: number
           quantity?: number
           quote_id?: string
+          season_end_month?: number | null
+          season_start_month?: number | null
           service_id?: string | null
           unit_price_cents?: number
           updated_at?: string
