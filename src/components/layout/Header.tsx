@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 
 import { useAuth } from '#/integrations/auth/context'
+import { useOrganization } from '#/integrations/organization/context'
 import { cn } from '#/lib/utils'
 import { ROLE_LABEL, actions, can, useTenant } from '#/components/crm/store'
 import { Toaster } from '#/components/crm/ui'
@@ -195,8 +196,17 @@ function GlobalSearch() {
   )
 }
 
+const ORG_AVATAR = 'bg-(--leaf-700)'
+
 export default function Header() {
   const t = useTenant()
+  const {
+    organizations,
+    organization,
+    isLoading: orgLoading,
+    setActiveOrganization,
+  } = useOrganization()
+  const orgName = organization?.name ?? (orgLoading ? 'Loading…' : 'No company')
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const newRequests = t.requests.filter((r) => r.status === 'submitted')
@@ -221,14 +231,16 @@ export default function Header() {
             className="flex min-w-0 cursor-pointer items-center gap-2 rounded-full py-1.5 pr-3 pl-1.5 hover:bg-(--sage)"
           >
             <span
-              className="flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-              style={{ background: t.org.brandColor }}
+              className={cn(
+                'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white',
+                ORG_AVATAR,
+              )}
             >
-              {t.org.name.charAt(0)}
+              {orgName.charAt(0)}
             </span>
             <span className="hidden min-w-0 text-left sm:block">
               <span className="block max-w-[200px] truncate text-[13px] font-bold text-(--ink)">
-                {t.org.name}
+                {orgName}
               </span>
               <span className="block text-[11px] font-medium text-(--ink-3)">
                 Workspace
@@ -243,24 +255,31 @@ export default function Header() {
             <p className="px-3 pt-2 pb-1 text-[11px] font-bold tracking-wider text-(--ink-3) uppercase">
               Your companies
             </p>
-            {t.organizations.map((o) => (
+            {organizations.length === 0 && (
+              <p className="px-3 py-2 text-[13px] text-(--ink-3)">
+                {orgLoading ? 'Loading companies…' : 'No companies yet.'}
+              </p>
+            )}
+            {organizations.map((o) => (
               <button
                 key={o.id}
                 type="button"
                 className={menuItem}
                 onClick={() => {
-                  actions.setActiveOrg(o.id)
+                  setActiveOrganization(o.id)
                   close()
                 }}
               >
                 <span
-                  className="flex size-7 items-center justify-center rounded-full text-xs font-bold text-white"
-                  style={{ background: o.brandColor }}
+                  className={cn(
+                    'flex size-7 items-center justify-center rounded-full text-xs font-bold text-white',
+                    ORG_AVATAR,
+                  )}
                 >
                   {o.name.charAt(0)}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{o.name}</span>
-                {o.id === t.orgId && (
+                {o.id === organization?.id && (
                   <Check className="size-4 text-(--leaf-600)" />
                 )}
               </button>

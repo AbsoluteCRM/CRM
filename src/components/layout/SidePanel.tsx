@@ -11,7 +11,8 @@ import {
 import { Link } from '@tanstack/react-router'
 
 import { LogoMark } from '#/components/crm/Logo'
-import { canSee, useTenant } from '#/components/crm/store'
+import { useOrganization } from '#/integrations/organization/context'
+import { ROLE_LABEL, canSee, useTenant } from '#/components/crm/store'
 import type { Section } from '#/components/crm/store'
 
 const NAV = [
@@ -78,6 +79,8 @@ function IconRow({
  */
 export default function SidePanel() {
   const t = useTenant()
+  const { organization, isLoading } = useOrganization()
+  const orgName = organization?.name ?? (isLoading ? 'Loading…' : 'No company')
   const newRequests = t.requests.filter((r) => r.status === 'submitted').length
 
   return (
@@ -118,26 +121,15 @@ export default function SidePanel() {
             <IconRow label="Settings" icon={Settings} route="/settings" />
           )}
           <div className="mt-2 flex items-center gap-3 rounded-2xl bg-white/6 p-1.5">
-            <span
-              className="flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
-              style={{ background: t.org.brandColor }}
-            >
-              {t.org.logoDataUrl ? (
-                <img
-                  src={t.org.logoDataUrl}
-                  alt=""
-                  className="size-9 rounded-xl object-cover"
-                />
-              ) : (
-                t.org.name.charAt(0)
-              )}
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-(--leaf-700) text-sm font-bold text-white">
+              {orgName.charAt(0)}
             </span>
             <span className="max-w-0 min-w-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:max-w-xs group-hover:opacity-100">
               <span className="block truncate text-[13px] font-bold text-(--cream)">
-                {t.org.name}
+                {orgName}
               </span>
               <span className="block text-[11px] text-(--cream)/55 capitalize">
-                {t.org.plan} plan
+                {organization ? ROLE_LABEL[organization.role] : 'Workspace'}
               </span>
             </span>
           </div>
