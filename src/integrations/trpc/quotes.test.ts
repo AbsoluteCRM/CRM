@@ -116,6 +116,9 @@ const lineInput = {
   quantity: 2,
   unitPriceCents: 5000,
   isOptional: false,
+  frequency: 'one_time' as const,
+  seasonStartMonth: null,
+  seasonEndMonth: null,
   taxRateIds: [TAX, TAX],
 }
 
@@ -256,6 +259,9 @@ describe('quotes writes', () => {
             name: 'Lawn maintenance',
             default_price_cents: 12000,
             archived_at: null,
+            frequencies: ['weekly', 'monthly'],
+            season_start_month: 5,
+            season_end_month: 9,
           },
         ],
         error: null,
@@ -273,6 +279,9 @@ describe('quotes writes', () => {
         quantity: 1,
         unit_price_cents: 12000,
         is_optional: false,
+        frequency: 'weekly',
+        season_start_month: 5,
+        season_end_month: 9,
       },
     ])
   })
@@ -289,7 +298,15 @@ describe('quotes writes', () => {
     state.results.services = [
       {
         data: [
-          { id: 'svc-1', name: 'X', default_price_cents: 1, archived_at: 'x' },
+          {
+            id: 'svc-1',
+            name: 'X',
+            default_price_cents: 1,
+            archived_at: 'x',
+            frequencies: [],
+            season_start_month: null,
+            season_end_month: null,
+          },
         ],
         error: null,
       },
@@ -368,6 +385,9 @@ describe('quotes writes', () => {
       quantity: 2,
       unit_price_cents: 5000,
       is_optional: false,
+      frequency: 'one_time',
+      season_start_month: null,
+      season_end_month: null,
       organization_id: ORG,
       quote_id: QUOTE,
       position: 4,
@@ -413,6 +433,16 @@ describe('quotes writes', () => {
     ).rejects.toThrow()
     await expect(
       caller().quotes.upsertLine({ ...lineInput, unitPriceCents: -1 }),
+    ).rejects.toThrow()
+    await expect(
+      caller().quotes.upsertLine({ ...lineInput, seasonStartMonth: 5 }),
+    ).rejects.toThrow()
+    await expect(
+      caller().quotes.upsertLine({
+        ...lineInput,
+        seasonStartMonth: 13,
+        seasonEndMonth: 14,
+      }),
     ).rejects.toThrow()
   })
 

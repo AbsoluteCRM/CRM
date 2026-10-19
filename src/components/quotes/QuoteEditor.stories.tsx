@@ -71,6 +71,9 @@ const lines = [
     amount_cents: 25000,
     is_optional: false,
     is_selected: false,
+    frequency: 'weekly',
+    season_start_month: 5,
+    season_end_month: 9,
     quote_line_item_taxes: [
       { tax_rate_id: GST, percentage: 5, amount_cents: 1250 },
     ],

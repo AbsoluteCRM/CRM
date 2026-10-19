@@ -11,7 +11,7 @@ export const QUOTE_COLUMNS =
   'id, organization_id, number, client_id, property_id, request_id, revision, status, title, message, conditions, valid_until, subtotal_cents, tax_cents, total_cents, sent_at, approved_at, declined_reason, created_at, updated_at'
 
 export const LINE_COLUMNS =
-  'id, quote_id, service_id, position, description, quantity, unit_price_cents, amount_cents, is_optional, is_selected, quote_line_item_taxes(tax_rate_id, percentage, amount_cents)'
+  'id, quote_id, service_id, position, description, quantity, unit_price_cents, amount_cents, is_optional, is_selected, frequency, season_start_month, season_end_month, quote_line_item_taxes(tax_rate_id, percentage, amount_cents)'
 
 // token_hash is never selected: staff only see delivery state.
 export const DELIVERY_COLUMNS =
@@ -37,7 +37,9 @@ async function seedFromService(ctx: Ctx, requestId: string, quoteId: string) {
   if (!request.data) return
   const service = await ctx.supabase
     .from('services')
-    .select('id, name, default_price_cents, archived_at')
+    .select(
+      'id, name, default_price_cents, archived_at, frequencies, season_start_month, season_end_month',
+    )
     .eq('organization_id', ctx.organizationId)
     .eq('id', request.data.service_id)
     .maybeSingle()
@@ -51,6 +53,9 @@ async function seedFromService(ctx: Ctx, requestId: string, quoteId: string) {
     quantity: 1,
     unit_price_cents: service.data.default_price_cents,
     is_optional: false,
+    frequency: service.data.frequencies[0] ?? 'one_time',
+    season_start_month: service.data.season_start_month,
+    season_end_month: service.data.season_end_month,
   })
 }
 
@@ -176,16 +181,27 @@ export const quotesRouter = {
 
   upsertLine: manageQuotes
     .input(
-      z.object({
-        quoteId: z.uuid(),
-        lineId: z.uuid().nullable().optional(),
-        serviceId: z.uuid().nullable(),
-        description: z.string().trim().min(1).max(500),
-        quantity: z.number().positive().max(99999999),
-        unitPriceCents: z.number().int().min(0),
-        isOptional: z.boolean(),
-        taxRateIds: z.array(z.uuid()).max(10),
-      }),
+      z
+        .object({
+          quoteId: z.uuid(),
+          lineId: z.uuid().nullable().optional(),
+          serviceId: z.uuid().nullable(),
+          description: z.string().trim().min(1).max(500),
+          quantity: z.number().positive().max(99999999),
+          unitPriceCents: z.number().int().min(0),
+          isOptional: z.boolean(),
+          frequency: z.enum(['one_time', 'weekly', 'biweekly', 'monthly']),
+          seasonStartMonth: z.number().int().min(1).max(12).nullable(),
+          seasonEndMonth: z.number().int().min(1).max(12).nullable(),
+          taxRateIds: z.array(z.uuid()).max(10),
+        })
+        .refine(
+          (v) => (v.seasonStartMonth === null) === (v.seasonEndMonth === null),
+          {
+            message: 'Set both active months or neither',
+            path: ['seasonEndMonth'],
+          },
+        ),
     )
     .mutation(({ ctx, input }) =>
       Sentry.startSpan({ name: 'quotes.upsertLine' }, async () => {
@@ -195,6 +211,9 @@ export const quotesRouter = {
           quantity: input.quantity,
           unit_price_cents: input.unitPriceCents,
           is_optional: input.isOptional,
+          frequency: input.frequency,
+          season_start_month: input.seasonStartMonth,
+          season_end_month: input.seasonEndMonth,
         }
 
         let lineId = input.lineId ?? null

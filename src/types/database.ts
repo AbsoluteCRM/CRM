@@ -1462,6 +1462,9 @@ export type Database = {
           description: string
           id: string
           is_optional: boolean
+          frequency: Database['public']['Enums']['service_frequency']
+          season_end_month: number | null
+          season_start_month: number | null
           is_selected: boolean
           organization_id: string
           position: number
@@ -1477,6 +1480,9 @@ export type Database = {
           description: string
           id?: string
           is_optional?: boolean
+          frequency?: Database['public']['Enums']['service_frequency']
+          season_end_month?: number | null
+          season_start_month?: number | null
           is_selected?: boolean
           organization_id: string
           position: number
@@ -1492,6 +1498,9 @@ export type Database = {
           description?: string
           id?: string
           is_optional?: boolean
+          frequency?: Database['public']['Enums']['service_frequency']
+          season_end_month?: number | null
+          season_start_month?: number | null
           is_selected?: boolean
           organization_id?: string
           position?: number

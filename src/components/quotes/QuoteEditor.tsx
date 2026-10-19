@@ -3,7 +3,7 @@ import { Pencil, Plus, Trash2, Undo2 } from 'lucide-react'
 import type { FormEvent } from 'react'
 import type { inferRouterOutputs } from '@trpc/server'
 
-import { fmtDate, money } from '#/components/crm/format'
+import { MONTHS, fmtDate, money } from '#/components/crm/format'
 import {
   Alert,
   Badge,
@@ -42,7 +42,29 @@ export type LineInput = {
   quantity: number
   unitPriceCents: number
   isOptional: boolean
+  frequency: Frequency
+  seasonStartMonth: number | null
+  seasonEndMonth: number | null
   taxRateIds: Array<string>
+}
+
+type Frequency = QuoteLine['frequency']
+
+const FREQUENCY_LABELS: Record<Frequency, string> = {
+  one_time: 'One-time',
+  weekly: 'Weekly',
+  biweekly: 'Every 2 weeks',
+  monthly: 'Monthly',
+}
+
+function activeMonthsText(line: {
+  season_start_month: number | null
+  season_end_month: number | null
+}) {
+  if (line.season_start_month === null || line.season_end_month === null) {
+    return 'Year-round'
+  }
+  return `${MONTHS[line.season_start_month - 1]} to ${MONTHS[line.season_end_month - 1]}`
 }
 
 const dollars = (cents: number) => (cents / 100).toFixed(2)
@@ -369,7 +391,8 @@ function LineRow({
           {line.is_optional && <Badge tone="sky">Optional</Badge>}
         </p>
         <p className="mt-0.5 text-xs text-(--ink-3)">
-          {line.quantity} × {money(line.unit_price_cents, true)}
+          {line.quantity} × {money(line.unit_price_cents, true)} ·{' '}
+          {FREQUENCY_LABELS[line.frequency]} · {activeMonthsText(line)}
           {names && ` · ${names}`}
         </p>
       </div>
@@ -416,6 +439,15 @@ function LineForm({
   const [quantity, setQuantity] = useState(String(line?.quantity ?? 1))
   const [price, setPrice] = useState(line ? dollars(line.unit_price_cents) : '')
   const [isOptional, setIsOptional] = useState(line?.is_optional ?? false)
+  const [frequency, setFrequency] = useState<Frequency>(
+    line?.frequency ?? 'one_time',
+  )
+  const [startMonth, setStartMonth] = useState(
+    line?.season_start_month ? String(line.season_start_month) : '',
+  )
+  const [endMonth, setEndMonth] = useState(
+    line?.season_end_month ? String(line.season_end_month) : '',
+  )
   const [taxIds, setTaxIds] = useState<Array<string>>(
     line?.quote_line_item_taxes.map((t) => t.tax_rate_id) ?? [],
   )
@@ -428,7 +460,8 @@ function LineForm({
     qty > 0 &&
     price.trim() !== '' &&
     Number.isFinite(unit) &&
-    unit >= 0
+    unit >= 0 &&
+    (startMonth === '') === (endMonth === '')
 
   const pickService = (id: string) => {
     setServiceId(id)
@@ -436,6 +469,15 @@ function LineForm({
     if (!service) return
     if (!description.trim()) setDescription(service.name)
     if (!price.trim()) setPrice(dollars(service.default_price_cents))
+    if (!line) {
+      setFrequency(service.frequencies[0] ?? 'one_time')
+      setStartMonth(
+        service.season_start_month ? String(service.season_start_month) : '',
+      )
+      setEndMonth(
+        service.season_end_month ? String(service.season_end_month) : '',
+      )
+    }
   }
 
   const submit = (event: FormEvent) => {
@@ -448,6 +490,9 @@ function LineForm({
       quantity: qty,
       unitPriceCents: Math.round(unit * 100),
       isOptional,
+      frequency,
+      seasonStartMonth: startMonth ? Number(startMonth) : null,
+      seasonEndMonth: endMonth ? Number(endMonth) : null,
       taxRateIds: taxIds,
     })
   }
@@ -494,6 +539,54 @@ function LineForm({
             onChange={(e) => setPrice(e.target.value)}
           />
         </Field>
+        <Field label="Billed" htmlFor="line-frequency">
+          <SelectInput
+            id="line-frequency"
+            value={frequency}
+            onChange={(e) => setFrequency(e.target.value as Frequency)}
+          >
+            {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Active from" htmlFor="line-start-month">
+            <SelectInput
+              id="line-start-month"
+              value={startMonth}
+              onChange={(e) => {
+                setStartMonth(e.target.value)
+                if (!e.target.value) setEndMonth('')
+                else if (!endMonth) setEndMonth(e.target.value)
+              }}
+            >
+              <option value="">Year-round</option>
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}
+                </option>
+              ))}
+            </SelectInput>
+          </Field>
+          <Field label="Active to" htmlFor="line-end-month">
+            <SelectInput
+              id="line-end-month"
+              value={endMonth}
+              disabled={startMonth === ''}
+              onChange={(e) => setEndMonth(e.target.value)}
+            >
+              {startMonth === '' && <option value="">Year-round</option>}
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}
+                </option>
+              ))}
+            </SelectInput>
+          </Field>
+        </div>
       </div>
       <div className="flex items-center gap-3 text-sm">
         <Toggle

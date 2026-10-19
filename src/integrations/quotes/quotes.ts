@@ -98,6 +98,9 @@ export function useQuoteBuilder(organizationId: string, quoteId: string) {
       quantity: number
       unitPriceCents: number
       isOptional: boolean
+      frequency: 'one_time' | 'weekly' | 'biweekly' | 'monthly'
+      seasonStartMonth: number | null
+      seasonEndMonth: number | null
       taxRateIds: Array<string>
     }) =>
       upsertLine

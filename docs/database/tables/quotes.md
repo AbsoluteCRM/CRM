@@ -70,17 +70,27 @@ reuse it.
 
 ## `quote_line_items`
 
-| Column             | Type            | Null | Default | Notes                                                        |
-| ------------------ | --------------- | ---- | ------- | ------------------------------------------------------------ |
-| `quote_id`         | `uuid`          | no   |         | Composite FK → `quotes`, on delete cascade                   |
-| `service_id`       | `uuid`          | yes  |         | Composite FK → `services`, `on delete set null (service_id)` |
-| `position`         | `integer`       | no   |         | Display order                                                |
-| `description`      | `text`          | no   |         |                                                              |
-| `quantity`         | `numeric(10,2)` | no   | `1`     | Check `> 0`                                                  |
-| `unit_price_cents` | `bigint`        | no   |         | Check `>= 0`                                                 |
-| `amount_cents`     | `bigint`        | no   | —       | Generated: `round(quantity * unit_price_cents)::bigint`      |
-| `is_optional`      | `boolean`       | no   | `false` | An add-on the client can choose                              |
-| `is_selected`      | `boolean`       | no   | `false` | For optional lines: whether the client chose it              |
+| Column               | Type                | Null | Default    | Notes                                                              |
+| -------------------- | ------------------- | ---- | ---------- | ------------------------------------------------------------------ |
+| `quote_id`           | `uuid`              | no   |            | Composite FK → `quotes`, on delete cascade                         |
+| `service_id`         | `uuid`              | yes  |            | Composite FK → `services`, `on delete set null (service_id)`       |
+| `position`           | `integer`           | no   |            | Display order                                                      |
+| `description`        | `text`              | no   |            |                                                                    |
+| `quantity`           | `numeric(10,2)`     | no   | `1`        | Check `> 0`                                                        |
+| `unit_price_cents`   | `bigint`            | no   |            | Check `>= 0`                                                       |
+| `amount_cents`       | `bigint`            | no   | —          | Generated: `round(quantity * unit_price_cents)::bigint`            |
+| `is_optional`        | `boolean`           | no   | `false`    | An add-on the client can choose                                    |
+| `is_selected`        | `boolean`           | no   | `false`    | For optional lines: whether the client chose it                    |
+| `frequency`          | `service_frequency` | no   | `one_time` | How often the client is billed for the line                        |
+| `season_start_month` | `smallint`          | yes  |            | First active month, 1-12. Null with the end month = year-round     |
+| `season_end_month`   | `smallint`          | yes  |            | Last active month, 1-12. A start after the end wraps over new year |
+
+The two month columns are both set or both null (check
+`quote_line_items_season_both_or_neither`). They mirror
+`services.season_start_month` / `season_end_month`, and a new line seeded from
+a service copies the service's first frequency and its season. They freeze with
+the rest of the line after draft, copy with a revision, and appear in the
+portal JSON as `frequency`, `season_start_month` and `season_end_month`.
 
 A line is **counted** toward totals when `not is_optional or is_selected`.
 

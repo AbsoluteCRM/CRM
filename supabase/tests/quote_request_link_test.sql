@@ -272,7 +272,7 @@ insert into _tap (line) select throws_ok(
 select set_config('role', 'postgres', true);
 -- Back-date past the send-time guard (triggers off for this setup step only).
 set local session_replication_role = replica;
-update public.quotes set valid_until = current_date - 1 where id = (select id from _ids where key = 'q4');
+update public.quotes set valid_until = current_date - 2 where id = (select id from _ids where key = 'q4');
 set local session_replication_role = origin;
 select private.expire_quotes();
 insert into _tap (line) select is(
