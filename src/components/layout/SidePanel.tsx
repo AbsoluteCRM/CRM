@@ -1,12 +1,12 @@
 import {
   Calendar,
-  Group,
   HardHat,
   Handshake,
   HomeIcon,
   MessageSquareDiff,
   Settings,
   Toolbox,
+  Users
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
@@ -31,7 +31,7 @@ const NAV = [
   { label: 'Calendar', icon: Calendar, to: '/calendar', section: 'calendar' },
   { label: 'Jobs', icon: HardHat, to: '/jobs', section: 'jobs' },
   { label: 'Clients', icon: Handshake, to: '/clients', section: 'clients' },
-  { label: 'Team', icon: Group, to: '/teams', section: 'teams' },
+  { label: 'Team', icon: Users, to: '/teams', section: 'teams' },
   { label: 'Services', icon: Toolbox, to: '/services', section: 'services' },
 ] as const satisfies ReadonlyArray<{
   label: string
