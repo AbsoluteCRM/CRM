@@ -5,25 +5,31 @@ Inbound service requests from the public portal (`/portal/$orgSlug`). See
 
 ## `requests`
 
-| Column                                             | Type             | Null          | Default       | Notes                                                                       |
-| -------------------------------------------------- | ---------------- | ------------- | ------------- | --------------------------------------------------------------------------- |
-| `id`                                               | `uuid`           | no            | uuid v7       | PK                                                                          |
-| `organization_id`                                  | `uuid`           | no            |               | FK to `organizations`, cascade                                              |
-| `client_id`                                        | `uuid`           | yes           |               | Composite FK to `clients`, set null on delete. Staff link it later          |
-| `service_id`                                       | `uuid`           | no            |               | Composite FK to `services`, restrict                                        |
-| `contact_name` / `contact_email` / `contact_phone` | `text`           | no / no / yes |               | Prospect details. Email is lower-cased                                      |
-| `address`                                          | `text`           | no            |               | Service address as typed                                                    |
-| `notes`                                            | `text`           | yes           |               | Up to 4000 characters                                                       |
-| `status`                                           | `request_status` | no            | `'submitted'` | `submitted, reviewing, estimated, approved, rejected, scheduled, converted` |
-| `source`                                           | `request_source` | no            | `'web_form'`  | `web_form, phone, email, client_portal`                                     |
-| `submitted_at`, `created_at`, `updated_at`         | `timestamptz`    | no            | `now()`       |                                                                             |
+| Column                                             | Type             | Null          | Default       | Notes                                                                                          |
+| -------------------------------------------------- | ---------------- | ------------- | ------------- | ---------------------------------------------------------------------------------------------- |
+| `id`                                               | `uuid`           | no            | uuid v7       | PK                                                                                             |
+| `organization_id`                                  | `uuid`           | no            |               | FK to `organizations`, cascade                                                                 |
+| `client_id`                                        | `uuid`           | yes           |               | Composite FK to `clients`, set null on delete. Staff link it later                             |
+| `service_id`                                       | `uuid`           | no            |               | Composite FK to `services`, restrict                                                           |
+| `contact_name` / `contact_email` / `contact_phone` | `text`           | no / no / yes |               | Prospect details. Email is lower-cased                                                         |
+| `address`                                          | `text`           | no            |               | Service address as typed                                                                       |
+| `notes`                                            | `text`           | yes           |               | Up to 4000 characters                                                                          |
+| `info_needed`                                      | `text`           | yes           |               | Internal "needs info" note (site visit, square footage, property count). Up to 2000 characters |
+| `status`                                           | `request_status` | no            | `'submitted'` | `submitted, reviewing, estimated, approved, rejected, scheduled, converted`                    |
+| `source`                                           | `request_source` | no            | `'web_form'`  | `web_form, phone, email, client_portal`                                                        |
+| `submitted_at`, `created_at`, `updated_at`         | `timestamptz`    | no            | `now()`       |                                                                                                |
 
 Indexes: `(organization_id, status, submitted_at desc)`,
 `(organization_id, service_id)`, `(organization_id, client_id)`.
 
-**RLS**: owners, admins and dispatchers can select and update (only `status`
-and `client_id` are grantable). Workers have no policy. There is no insert
+**RLS**: owners, admins and dispatchers can select and update (only `status`,
+`client_id` and `info_needed` are grantable). Workers have no policy. There is no insert
 policy: rows are created only by `submit_request`.
+
+**Status and quotes.** Once a request has quotes, `private.sync_request_status`
+sets `reviewing`, `estimated`, `approved` or `converted` from them (see
+[Quotes](quotes.md#revisions-and-request-status)). Staff own `rejected` and
+`scheduled` and set them directly; the sync never overrides those two.
 
 ## `request_submission_log`
 

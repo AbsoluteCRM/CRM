@@ -11,6 +11,7 @@ import {
   UserCheck,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { inferRouterOutputs } from '@trpc/server'
 
 import { fmtDate, relativeTime } from '#/components/crm/format'
@@ -64,13 +65,17 @@ const OPEN_STATUSES: Array<RequestStatus> = [
 export default function RequestsPanel({
   requests,
   services,
+  renderWorkspace,
 }: {
   requests: Array<RequestRow>
   services: Array<ServiceRow>
+  /** Rendered in the request drawer under the details, e.g. the quote builder. */
+  renderWorkspace?: (request: RequestRow) => ReactNode
 }) {
   const [filter, setFilter] = useState<Filter>('open')
   const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState<RequestRow | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selected = requests.find((r) => r.id === selectedId) ?? null
   const serviceById = useMemo(
     () => new Map(services.map((service) => [service.id, service])),
     [services],
@@ -219,7 +224,7 @@ export default function RequestsPanel({
                     return (
                       <tr
                         key={request.id}
-                        onClick={() => setSelected(request)}
+                        onClick={() => setSelectedId(request.id)}
                         className="cursor-pointer border-t border-(--line) hover:bg-(--cream)"
                       >
                         <td className="px-5 py-3">
@@ -228,7 +233,7 @@ export default function RequestsPanel({
                             aria-label={`Open request from ${request.contact_name}`}
                             onClick={(event) => {
                               event.stopPropagation()
-                              setSelected(request)
+                              setSelectedId(request.id)
                             }}
                             className="block w-full cursor-pointer text-left"
                           >
@@ -279,7 +284,8 @@ export default function RequestsPanel({
         <RequestDetails
           request={selected}
           service={serviceById.get(selected.service_id)}
-          onClose={() => setSelected(null)}
+          workspace={renderWorkspace?.(selected)}
+          onClose={() => setSelectedId(null)}
         />
       )}
     </>
@@ -289,10 +295,12 @@ export default function RequestsPanel({
 function RequestDetails({
   request,
   service,
+  workspace,
   onClose,
 }: {
   request: RequestRow
   service: ServiceRow | undefined
+  workspace?: ReactNode
   onClose: () => void
 }) {
   return (
@@ -309,7 +317,7 @@ function RequestDetails({
           </span>
         </span>
       }
-      width={640}
+      width={workspace ? 1040 : 640}
     >
       <dl className="grid gap-5 sm:grid-cols-2">
         <KeyValue label="Email">{request.contact_email}</KeyValue>
@@ -335,6 +343,7 @@ function RequestDetails({
           {request.notes || 'No notes provided.'}
         </KeyValue>
       </dl>
+      {workspace && <div className="mt-6">{workspace}</div>}
     </Drawer>
   )
 }

@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
 import { getPortal, hashClientIp, submitRequest } from '#/server/trusted/portal'
+import { dbError } from './errors'
 import { publicProcedure, requireOrgPermission } from './init'
 
 import type { TRPCRouterRecord } from '@trpc/server'
@@ -59,7 +60,7 @@ export const portalRouter = {
 const manageRequests = requireOrgPermission('manageRequests')
 
 export const REQUEST_COLUMNS =
-  'id, organization_id, client_id, service_id, contact_name, contact_email, contact_phone, address, notes, status, source, submitted_at, created_at, updated_at'
+  'id, organization_id, client_id, service_id, contact_name, contact_email, contact_phone, address, notes, info_needed, status, source, submitted_at, created_at, updated_at'
 
 export const requestsRouter = {
   list: manageRequests.query(({ ctx }) =>
@@ -110,6 +111,32 @@ export const requestsRouter = {
             cause: error,
           })
         }
+        if (data.length === 0) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Request not found',
+          })
+        }
+        return data[0]
+      }),
+    ),
+
+  setInfoNeeded: manageRequests
+    .input(
+      z.object({
+        id: z.uuid(),
+        note: z.string().trim().max(2000).nullable(),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'requests.setInfoNeeded' }, async () => {
+        const { data, error } = await ctx.supabase
+          .from('requests')
+          .update({ info_needed: input.note || null })
+          .eq('organization_id', ctx.organizationId)
+          .eq('id', input.id)
+          .select(REQUEST_COLUMNS)
+        if (error) throw dbError(error)
         if (data.length === 0) {
           throw new TRPCError({
             code: 'NOT_FOUND',

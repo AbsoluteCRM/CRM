@@ -1460,6 +1460,7 @@ export type Database = {
           amount_cents: number | null
           created_at: string
           description: string
+          frequency: Database['public']['Enums']['service_frequency']
           id: string
           is_optional: boolean
           is_selected: boolean
@@ -1467,6 +1468,8 @@ export type Database = {
           position: number
           quantity: number
           quote_id: string
+          season_end_month: number | null
+          season_start_month: number | null
           service_id: string | null
           unit_price_cents: number
           updated_at: string
@@ -1475,6 +1478,7 @@ export type Database = {
           amount_cents?: number | null
           created_at?: string
           description: string
+          frequency?: Database['public']['Enums']['service_frequency']
           id?: string
           is_optional?: boolean
           is_selected?: boolean
@@ -1482,6 +1486,8 @@ export type Database = {
           position: number
           quantity?: number
           quote_id: string
+          season_end_month?: number | null
+          season_start_month?: number | null
           service_id?: string | null
           unit_price_cents: number
           updated_at?: string
@@ -1490,6 +1496,7 @@ export type Database = {
           amount_cents?: number | null
           created_at?: string
           description?: string
+          frequency?: Database['public']['Enums']['service_frequency']
           id?: string
           is_optional?: boolean
           is_selected?: boolean
@@ -1497,6 +1504,8 @@ export type Database = {
           position?: number
           quantity?: number
           quote_id?: string
+          season_end_month?: number | null
+          season_start_month?: number | null
           service_id?: string | null
           unit_price_cents?: number
           updated_at?: string
@@ -1525,11 +1534,72 @@ export type Database = {
           },
         ]
       }
+      quote_share_tokens: {
+        Row: {
+          created_at: string
+          delivery_attempts: number
+          delivery_status: Database['public']['Enums']['quote_delivery_status']
+          expires_at: string
+          id: string
+          last_delivery_error: string | null
+          organization_id: string
+          quote_id: string
+          resend_message_id: string | null
+          revoked_at: string | null
+          token_hash: string
+          viewed_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          delivery_attempts?: number
+          delivery_status?: Database['public']['Enums']['quote_delivery_status']
+          expires_at: string
+          id?: string
+          last_delivery_error?: string | null
+          organization_id: string
+          quote_id: string
+          resend_message_id?: string | null
+          revoked_at?: string | null
+          token_hash: string
+          viewed_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          delivery_attempts?: number
+          delivery_status?: Database['public']['Enums']['quote_delivery_status']
+          expires_at?: string
+          id?: string
+          last_delivery_error?: string | null
+          organization_id?: string
+          quote_id?: string
+          resend_message_id?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'quote_share_tokens_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'quote_share_tokens_organization_id_quote_id_fkey'
+            columns: ['organization_id', 'quote_id']
+            isOneToOne: false
+            referencedRelation: 'quotes'
+            referencedColumns: ['organization_id', 'id']
+          },
+        ]
+      }
       quotes: {
         Row: {
           approved_at: string | null
           approved_by_user_id: string | null
           client_id: string
+          conditions: string | null
           created_at: string
           created_by: string | null
           declined_reason: string | null
@@ -1539,6 +1609,8 @@ export type Database = {
           number: string
           organization_id: string
           property_id: string | null
+          request_id: string | null
+          revision: number | null
           sent_at: string | null
           status: Database['public']['Enums']['quote_status']
           subtotal_cents: number
@@ -1552,6 +1624,7 @@ export type Database = {
           approved_at?: string | null
           approved_by_user_id?: string | null
           client_id: string
+          conditions?: string | null
           created_at?: string
           created_by?: string | null
           declined_reason?: string | null
@@ -1561,6 +1634,8 @@ export type Database = {
           number: string
           organization_id: string
           property_id?: string | null
+          request_id?: string | null
+          revision?: number | null
           sent_at?: string | null
           status?: Database['public']['Enums']['quote_status']
           subtotal_cents?: number
@@ -1574,6 +1649,7 @@ export type Database = {
           approved_at?: string | null
           approved_by_user_id?: string | null
           client_id?: string
+          conditions?: string | null
           created_at?: string
           created_by?: string | null
           declined_reason?: string | null
@@ -1583,6 +1659,8 @@ export type Database = {
           number?: string
           organization_id?: string
           property_id?: string | null
+          request_id?: string | null
+          revision?: number | null
           sent_at?: string | null
           status?: Database['public']['Enums']['quote_status']
           subtotal_cents?: number
@@ -1613,6 +1691,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'organizations'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'quotes_request_fkey'
+            columns: ['organization_id', 'request_id']
+            isOneToOne: false
+            referencedRelation: 'requests'
+            referencedColumns: ['organization_id', 'id']
           },
         ]
       }
@@ -1654,6 +1739,7 @@ export type Database = {
           contact_phone: string | null
           created_at: string
           id: string
+          info_needed: string | null
           notes: string | null
           organization_id: string
           service_id: string
@@ -1670,6 +1756,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           id?: string
+          info_needed?: string | null
           notes?: string | null
           organization_id: string
           service_id: string
@@ -1686,6 +1773,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           id?: string
+          info_needed?: string | null
           notes?: string | null
           organization_id?: string
           service_id?: string
@@ -2411,6 +2499,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_quote_draft: {
+        Args: { p_copy_from_quote_id?: string; p_request_id: string }
+        Returns: string
+      }
       decline_quote: {
         Args: { p_quote_id: string; p_reason?: string }
         Returns: undefined
@@ -2572,9 +2664,36 @@ export type Database = {
           unit_price_cents: number
         }[]
       }
+      portal_token_approve: {
+        Args: { p_selected_optional_line_ids?: string[]; p_token_hash: string }
+        Returns: undefined
+      }
+      portal_token_decline: {
+        Args: { p_reason?: string; p_token_hash: string }
+        Returns: undefined
+      }
+      portal_token_get_quote: { Args: { p_token_hash: string }; Returns: Json }
+      pull_back_quote: { Args: { p_quote_id: string }; Returns: undefined }
+      record_quote_delivery: {
+        Args: {
+          p_error: string
+          p_message_id: string
+          p_status: Database['public']['Enums']['quote_delivery_status']
+          p_token_id: string
+        }
+        Returns: undefined
+      }
       reset_job_schedule: {
         Args: { p_from?: string; p_job_id: string }
         Returns: number
+      }
+      rotate_quote_token: {
+        Args: { p_new_token_hash: string; p_quote_id: string }
+        Returns: string
+      }
+      send_quote: {
+        Args: { p_quote_id: string; p_token_hash: string }
+        Returns: string
       }
       set_crew_lead: {
         Args: {
@@ -2700,6 +2819,7 @@ export type Database = {
       payment_method: 'cash' | 'cheque' | 'etransfer' | 'card' | 'ach' | 'other'
       payment_status:
         'pending' | 'succeeded' | 'failed' | 'refunded' | 'partially_refunded'
+      quote_delivery_status: 'pending' | 'sent' | 'failed'
       quote_status:
         'draft' | 'sent' | 'approved' | 'declined' | 'expired' | 'converted'
       request_source: 'web_form' | 'phone' | 'email' | 'client_portal'
@@ -2868,6 +2988,7 @@ export const Constants = {
         'refunded',
         'partially_refunded',
       ],
+      quote_delivery_status: ['pending', 'sent', 'failed'],
       quote_status: [
         'draft',
         'sent',

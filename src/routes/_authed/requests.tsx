@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import PageShell from '#/components/crm/PageShell'
 import { Alert, Btn, EmptyState } from '#/components/crm/ui'
+import RequestWorkspace from '#/components/requests/RequestWorkspace'
 import RequestsPanel from '#/components/requests/RequestsPanel'
 import { useOrganization } from '#/integrations/organization/context'
 import { useRequests } from '#/integrations/requests/requests'
@@ -73,6 +74,12 @@ function RequestsPage() {
           key={organization.id}
           requests={requests.data}
           services={services.data}
+          renderWorkspace={(request) => (
+            <RequestWorkspace
+              request={request}
+              organizationId={organization.id}
+            />
+          )}
         />
       )}
     </PageShell>

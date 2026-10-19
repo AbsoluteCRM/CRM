@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { can, isOrgRole } from '#/integrations/organization/permissions'
 import { createSupabaseServerClient } from '#/lib/supabase/server'
 
-
 // Create a new Supabase client for each request.
 // This preserves the authentication cookies for the current request.
 export function createTRPCContext(opts?: { req?: Request }) {
