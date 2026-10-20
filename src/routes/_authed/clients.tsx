@@ -9,7 +9,6 @@ import {
   Mail,
   MessageSquareDiff,
   Phone,
-  Plus,
   Receipt,
   StickyNote,
   UserPlus,
@@ -18,6 +17,7 @@ import {
 import PageShell from '#/components/crm/PageShell'
 import JobFormModal from '#/components/crm/JobFormModal'
 import {
+  Alert,
   Avatar,
   Badge,
   Btn,
@@ -43,17 +43,12 @@ import {
   isOverdue,
   useTenant,
 } from '#/components/crm/store'
-import {
-  fmtDate,
-  fmtTime,
-  money,
-  relativeTime,
-  todayISO,
-} from '#/components/crm/format'
+import { fmtDate, fmtTime, money, todayISO } from '#/components/crm/format'
+import { useClientMutations, useClients } from '#/integrations/clients/clients'
 import { cn } from '#/lib/utils'
+import type { ClientRow } from '#/integrations/clients/clients'
 import type { Tenant } from '#/components/crm/store'
 import type {
-  Client,
   ClientKind,
   ClientStatus,
   Invoice,
@@ -80,15 +75,18 @@ function ClientsPage() {
   const t = useTenant()
   const { id } = Route.useSearch()
   const navigate = useNavigate()
+  const clients = useClients()
+  const { createClient, updateClient, creating } = useClientMutations()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<StatusFilter>('all')
   const [kind, setKind] = useState<KindFilter>('all')
   const [sort, setSort] = useState<Sort>('name')
   const [adding, setAdding] = useState(false)
 
+  const clientRows = clients.data ?? []
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    return t.clients
+    return clientRows
       .map((c) => ({
         client: c,
         property: t.propertiesOf(c.id).at(0),
@@ -102,7 +100,7 @@ function ClientsPage() {
           .propertiesOf(client.id)
           .map((p) => p.address_line1)
           .join(' ')
-        return `${client.display_name} ${client.phone.replace(/\D/g, '')} ${client.phone} ${client.email} ${addresses}`
+        return `${client.display_name} ${(client.phone ?? '').replace(/\D/g, '')} ${client.phone ?? ''} ${client.email ?? ''} ${addresses}`
           .toLowerCase()
           .includes(needle)
       })
@@ -110,27 +108,32 @@ function ClientsPage() {
         sort === 'ltv'
           ? b.ltv - a.ltv
           : sort === 'recent'
-            ? b.client.createdAt.localeCompare(a.client.createdAt)
+            ? b.client.created_at.localeCompare(a.client.created_at)
             : a.client.display_name.localeCompare(b.client.display_name),
       )
-  }, [t, q, status, kind, sort])
+  }, [clientRows, t, q, status, kind, sort])
 
   const counts = {
-    all: t.clients.length,
-    active: t.clients.filter((c) => c.status === 'active').length,
-    inactive: t.clients.filter((c) => c.status === 'inactive').length,
-    lead: t.clients.filter((c) => c.status === 'lead').length,
+    all: clientRows.length,
+    active: clientRows.filter((c) => c.status === 'active').length,
+    inactive: clientRows.filter((c) => c.status === 'inactive').length,
+    lead: clientRows.filter((c) => c.status === 'lead').length,
   }
-  const totalLtv = t.clients.reduce(
+  const totalLtv = clientRows.reduce(
     (s, c) => s + t.clientLifetimeValue(c.id),
     0,
   )
-  const commercial = t.clients.filter((c) => c.kind === 'company').length
-  const outstanding = t.invoices.reduce(
-    (s, i) =>
-      s + (i.status === 'paid' || i.status === 'void' ? 0 : invoiceBalance(i)),
-    0,
-  )
+  const commercial = clientRows.filter((c) => c.kind === 'company').length
+  // Scoped to the real list's ids (D5): mock invoices never reference a real client, so this reads $0.
+  const outstanding = t.invoices
+    .filter((i) => clientRows.some((c) => c.id === i.client_id))
+    .reduce(
+      (s, i) =>
+        s +
+        (i.status === 'paid' || i.status === 'void' ? 0 : invoiceBalance(i)),
+      0,
+    )
+  const selectedClient = clientRows.find((c) => c.id === id)
 
   return (
     <PageShell
@@ -145,186 +148,215 @@ function ClientsPage() {
         </Btn>
       }
     >
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          {
-            label: 'Active clients',
-            value: String(counts.active),
-            sub: `${counts.lead} leads · ${counts.inactive} inactive`,
-          },
-          {
-            label: 'Commercial accounts',
-            value: String(commercial),
-            sub: `${t.clients.length - commercial} residential`,
-          },
-          {
-            label: 'Lifetime value',
-            value: can.viewRevenue(t.role) ? money(totalLtv) : '—',
-            sub: 'Collected payments, all clients',
-          },
-          {
-            label: 'Outstanding',
-            value: can.viewRevenue(t.role) ? money(outstanding) : '—',
-            sub: `${t.invoices.filter(isOverdue).length} invoices overdue`,
-          },
-        ].map((k) => (
-          <Card key={k.label} className="p-4">
-            <p className="text-xs font-semibold text-(--ink-3)">{k.label}</p>
-            <p className="crm-display mt-1 text-2xl font-semibold">{k.value}</p>
-            <p className="mt-0.5 text-xs text-(--ink-3)">{k.sub}</p>
-          </Card>
-        ))}
-      </div>
-
-      <Card>
-        <div className="flex flex-wrap items-center gap-3 border-b border-(--line) p-4">
-          <SearchInput
-            value={q}
-            onChange={setQ}
-            placeholder="Search by name, address, or phone"
-            className="w-full sm:w-80"
-          />
-          <div className="flex flex-wrap gap-2">
-            {(['all', 'active', 'inactive', 'lead'] as const).map((s) => (
-              <FilterChip
-                key={s}
-                active={status === s}
-                onClick={() => setStatus(s)}
-              >
-                {s === 'all'
-                  ? 'All'
-                  : s === 'lead'
-                    ? 'Leads'
-                    : s[0].toUpperCase() + s.slice(1)}{' '}
-                <span className="opacity-60">{counts[s]}</span>
-              </FilterChip>
+      {clients.isError ? (
+        <Alert
+          tone="danger"
+          title="Couldn't load clients"
+          action={
+            <Btn variant="outline" onClick={() => void clients.refetch()}>
+              Try again
+            </Btn>
+          }
+        >
+          Please try again.
+        </Alert>
+      ) : clients.isPending ? (
+        <p className="py-20 text-center text-sm text-(--ink-3)" role="status">
+          Loading clients…
+        </p>
+      ) : (
+        <>
+          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              {
+                label: 'Active clients',
+                value: String(counts.active),
+                sub: `${counts.lead} leads · ${counts.inactive} inactive`,
+              },
+              {
+                label: 'Commercial accounts',
+                value: String(commercial),
+                sub: `${clientRows.length - commercial} residential`,
+              },
+              {
+                label: 'Lifetime value',
+                value: can.viewRevenue(t.role) ? money(totalLtv) : '—',
+                sub: 'Collected payments, all clients',
+              },
+              {
+                label: 'Outstanding',
+                value: can.viewRevenue(t.role) ? money(outstanding) : '—',
+                sub: `${t.invoices.filter(isOverdue).length} invoices overdue`,
+              },
+            ].map((k) => (
+              <Card key={k.label} className="p-4">
+                <p className="text-xs font-semibold text-(--ink-3)">
+                  {k.label}
+                </p>
+                <p className="crm-display mt-1 text-2xl font-semibold">
+                  {k.value}
+                </p>
+                <p className="mt-0.5 text-xs text-(--ink-3)">{k.sub}</p>
+              </Card>
             ))}
           </div>
-          <span className="hidden h-6 w-px bg-(--line) md:block" />
-          <div className="flex flex-wrap gap-2">
-            {(['all', 'individual', 'company'] as const).map((k) => (
-              <FilterChip
-                key={k}
-                active={kind === k}
-                onClick={() => setKind(k)}
-              >
-                {k === 'all' ? 'All types' : KIND_LABEL[k]}
-              </FilterChip>
-            ))}
-          </div>
-          <SelectInput
-            value={sort}
-            onChange={(e) => setSort(e.target.value as Sort)}
-            className="ml-auto w-44"
-            aria-label="Sort clients"
-          >
-            <option value="name">Sort: Name</option>
-            <option value="ltv">Sort: Lifetime value</option>
-            <option value="recent">Sort: Newest</option>
-          </SelectInput>
-        </div>
 
-        <div className="crm-scroll overflow-x-auto">
-          <table className="w-full min-w-[880px] text-left text-sm">
-            <thead>
-              <tr className="text-xs font-semibold tracking-wide text-(--ink-3) uppercase">
-                <th className="px-5 py-3">Name</th>
-                <th className="px-3 py-3">Phone</th>
-                <th className="px-3 py-3">Email</th>
-                <th className="px-3 py-3">Address</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-5 py-3 text-right">Lifetime value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ client, property, ltv }) => (
-                <tr
-                  key={client.id}
-                  onClick={() =>
-                    navigate({ to: '/clients', search: { id: client.id } })
+          <Card>
+            <div className="flex flex-wrap items-center gap-3 border-b border-(--line) p-4">
+              <SearchInput
+                value={q}
+                onChange={setQ}
+                placeholder="Search by name, address, or phone"
+                className="w-full sm:w-80"
+              />
+              <div className="flex flex-wrap gap-2">
+                {(['all', 'active', 'inactive', 'lead'] as const).map((s) => (
+                  <FilterChip
+                    key={s}
+                    active={status === s}
+                    onClick={() => setStatus(s)}
+                  >
+                    {s === 'all'
+                      ? 'All'
+                      : s === 'lead'
+                        ? 'Leads'
+                        : s[0].toUpperCase() + s.slice(1)}{' '}
+                    <span className="opacity-60">{counts[s]}</span>
+                  </FilterChip>
+                ))}
+              </div>
+              <span className="hidden h-6 w-px bg-(--line) md:block" />
+              <div className="flex flex-wrap gap-2">
+                {(['all', 'individual', 'company'] as const).map((k) => (
+                  <FilterChip
+                    key={k}
+                    active={kind === k}
+                    onClick={() => setKind(k)}
+                  >
+                    {k === 'all' ? 'All types' : KIND_LABEL[k]}
+                  </FilterChip>
+                ))}
+              </div>
+              <SelectInput
+                value={sort}
+                onChange={(e) => setSort(e.target.value as Sort)}
+                className="ml-auto w-44"
+                aria-label="Sort clients"
+              >
+                <option value="name">Sort: Name</option>
+                <option value="ltv">Sort: Lifetime value</option>
+                <option value="recent">Sort: Newest</option>
+              </SelectInput>
+            </div>
+
+            <div className="crm-scroll overflow-x-auto">
+              <table className="w-full min-w-[880px] text-left text-sm">
+                <thead>
+                  <tr className="text-xs font-semibold tracking-wide text-(--ink-3) uppercase">
+                    <th className="px-5 py-3">Name</th>
+                    <th className="px-3 py-3">Phone</th>
+                    <th className="px-3 py-3">Email</th>
+                    <th className="px-3 py-3">Address</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-5 py-3 text-right">Lifetime value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(({ client, property, ltv }) => (
+                    <tr
+                      key={client.id}
+                      onClick={() =>
+                        navigate({ to: '/clients', search: { id: client.id } })
+                      }
+                      className="cursor-pointer border-t border-(--line) transition-colors hover:bg-(--cream)"
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar
+                            name={client.display_name}
+                            color={
+                              client.kind === 'company'
+                                ? 'var(--sky-100)'
+                                : 'var(--lime-200)'
+                            }
+                            size={34}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate font-bold">
+                              {client.display_name}
+                            </p>
+                            <p className="flex items-center gap-1 text-xs text-(--ink-3)">
+                              {client.kind === 'company' ? (
+                                <Building2 className="size-3" />
+                              ) : (
+                                <Home className="size-3" />
+                              )}
+                              {KIND_LABEL[client.kind]}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-(--ink-2)">
+                        {client.phone ?? ''}
+                      </td>
+                      <td className="max-w-[220px] truncate px-3 py-3 text-(--ink-2)">
+                        {client.email ?? ''}
+                      </td>
+                      <td className="max-w-[240px] truncate px-3 py-3 text-(--ink-2)">
+                        {property?.address_line1}
+                        {t.propertiesOf(client.id).length > 1 && (
+                          <Badge className="ml-2">
+                            +{t.propertiesOf(client.id).length - 1}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <StatusBadge status={client.status} />
+                      </td>
+                      <td className="px-5 py-3 text-right font-semibold">
+                        {can.viewRevenue(t.role) ? money(ltv) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {rows.length === 0 && (
+                <EmptyState
+                  title={
+                    clientRows.length ? 'No clients match' : 'No clients yet'
                   }
-                  className="cursor-pointer border-t border-(--line) transition-colors hover:bg-(--cream)"
-                >
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar
-                        name={client.display_name}
-                        color={
-                          client.kind === 'company'
-                            ? 'var(--sky-100)'
-                            : 'var(--lime-200)'
-                        }
-                        size={34}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate font-bold">
-                          {client.display_name}
-                        </p>
-                        <p className="flex items-center gap-1 text-xs text-(--ink-3)">
-                          {client.kind === 'company' ? (
-                            <Building2 className="size-3" />
-                          ) : (
-                            <Home className="size-3" />
-                          )}
-                          {KIND_LABEL[client.kind]}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-(--ink-2)">
-                    {client.phone}
-                  </td>
-                  <td className="max-w-[220px] truncate px-3 py-3 text-(--ink-2)">
-                    {client.email}
-                  </td>
-                  <td className="max-w-[240px] truncate px-3 py-3 text-(--ink-2)">
-                    {property?.address_line1}
-                    {t.propertiesOf(client.id).length > 1 && (
-                      <Badge className="ml-2">
-                        +{t.propertiesOf(client.id).length - 1}
-                      </Badge>
-                    )}
-                  </td>
-                  <td className="px-3 py-3">
-                    <StatusBadge status={client.status} />
-                  </td>
-                  <td className="px-5 py-3 text-right font-semibold">
-                    {can.viewRevenue(t.role) ? money(ltv) : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {rows.length === 0 && (
-            <EmptyState
-              title={t.clients.length ? 'No clients match' : 'No clients yet'}
-              body={
-                t.clients.length
-                  ? 'Try a different search or filter.'
-                  : 'Add your first client, or convert one from a request.'
-              }
-              action={
-                !t.clients.length && (
-                  <Btn icon={UserPlus} onClick={() => setAdding(true)}>
-                    Add client
-                  </Btn>
-                )
-              }
-            />
-          )}
-        </div>
-      </Card>
+                  body={
+                    clientRows.length
+                      ? 'Try a different search or filter.'
+                      : 'Add your first client, or convert one from a request.'
+                  }
+                  action={
+                    !clientRows.length && (
+                      <Btn icon={UserPlus} onClick={() => setAdding(true)}>
+                        Add client
+                      </Btn>
+                    )
+                  }
+                />
+              )}
+            </div>
+          </Card>
+        </>
+      )}
 
       {adding && (
         <AddClientModal
           onClose={() => setAdding(false)}
           onCreated={(cid) => navigate({ to: '/clients', search: { id: cid } })}
+          createClient={createClient}
+          creating={creating}
         />
       )}
-      {id && t.client(id) && (
+      {id && selectedClient && (
         <ClientProfile
           t={t}
-          client={t.client(id)!}
+          client={selectedClient}
+          updateClient={updateClient}
           onClose={() => navigate({ to: '/clients', search: {} })}
         />
       )}
@@ -339,20 +371,19 @@ function ClientsPage() {
 function AddClientModal({
   onClose,
   onCreated,
+  createClient,
+  creating,
 }: {
   onClose: () => void
   onCreated: (id: string) => void
+  createClient: ReturnType<typeof useClientMutations>['createClient']
+  creating: boolean
 }) {
   const [form, setForm] = useState({
     display_name: '',
     kind: 'individual' as ClientKind,
     email: '',
     phone: '',
-    address_line1: '',
-    lawnSqft: '',
-    gateCode: '',
-    pets: '',
-    instructions: '',
   })
   const set =
     (k: keyof typeof form) =>
@@ -362,14 +393,30 @@ function AddClientModal({
       >,
     ) =>
       setForm((f) => ({ ...f, [k]: e.target.value }))
-  const valid = form.display_name.trim() && form.address_line1.trim()
+  const valid = form.display_name.trim().length > 0
+
+  const submit = async () => {
+    try {
+      const client = await createClient({
+        display_name: form.display_name.trim(),
+        kind: form.kind,
+        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+      })
+      toast(`${client.display_name} added`)
+      onClose()
+      onCreated(client.id)
+    } catch {
+      // The mutation's onError already toasted; keep the modal open to retry.
+    }
+  }
 
   return (
     <Modal
       open
       onClose={onClose}
       title="Add a client"
-      subtitle="Contact details and the property you’ll be servicing."
+      subtitle="Contact details for the client you’ll be servicing."
       width={620}
       footer={
         <>
@@ -378,16 +425,8 @@ function AddClientModal({
           </Btn>
           <Btn
             icon={UserPlus}
-            disabled={!valid}
-            onClick={() => {
-              const id = actions.addClient({
-                ...form,
-                lawnSqft: Number(form.lawnSqft) || 0,
-              })
-              toast(`${form.display_name} added`)
-              onClose()
-              onCreated(id)
-            }}
+            disabled={!valid || creating}
+            onClick={() => void submit()}
           >
             Add client
           </Btn>
@@ -425,34 +464,6 @@ function AddClientModal({
             placeholder="name@example.com"
           />
         </Field>
-        <Field label="Property address" className="sm:col-span-2">
-          <TextInput
-            value={form.address_line1}
-            onChange={set('address_line1')}
-            placeholder="123 Main St SW"
-          />
-        </Field>
-        <Field label="Lawn size (sq ft)">
-          <TextInput
-            type="number"
-            min={0}
-            value={form.lawnSqft}
-            onChange={set('lawnSqft')}
-          />
-        </Field>
-        <Field label="Gate code">
-          <TextInput value={form.gateCode} onChange={set('gateCode')} />
-        </Field>
-        <Field label="Pets on property" className="sm:col-span-2">
-          <TextInput
-            value={form.pets}
-            onChange={set('pets')}
-            placeholder="e.g. Dog in backyard, keep gate latched"
-          />
-        </Field>
-        <Field label="Special instructions" className="sm:col-span-2">
-          <TextArea value={form.instructions} onChange={set('instructions')} />
-        </Field>
       </div>
     </Modal>
   )
@@ -468,10 +479,12 @@ type ProfileTab =
 function ClientProfile({
   t,
   client,
+  updateClient,
   onClose,
 }: {
   t: Tenant
-  client: Client
+  client: ClientRow
+  updateClient: ReturnType<typeof useClientMutations>['updateClient']
   onClose: () => void
 }) {
   const [tab, setTab] = useState<ProfileTab>('overview')
@@ -513,7 +526,7 @@ function ClientProfile({
           </Badge>
           <span>
             Client since{' '}
-            {fmtDate(client.createdAt.slice(0, 10), {
+            {fmtDate(client.created_at.slice(0, 10), {
               month: 'short',
               year: 'numeric',
             })}
@@ -570,7 +583,7 @@ function ClientProfile({
                 count: upcoming.length,
               },
               { value: 'invoices', label: 'Invoices', count: invoices.length },
-              { value: 'notes', label: 'Notes', count: client.notes.length },
+              { value: 'notes', label: 'Notes' },
               { value: 'timeline', label: 'Timeline' },
             ]}
           />
@@ -581,7 +594,7 @@ function ClientProfile({
           <SelectInput
             value={client.status}
             onChange={(e) => {
-              actions.updateClient(client.id, {
+              updateClient(client.id, {
                 status: e.target.value as ClientStatus,
               })
               toast(`Marked ${e.target.value}`, 'info')
@@ -600,7 +613,9 @@ function ClientProfile({
         </>
       }
     >
-      {tab === 'overview' && <OverviewTab t={t} client={client} />}
+      {tab === 'overview' && (
+        <OverviewTab t={t} client={client} updateClient={updateClient} />
+      )}
       {tab === 'history' && (
         <JobList
           t={t}
@@ -613,7 +628,9 @@ function ClientProfile({
         <JobList t={t} jobs={upcoming} empty="Nothing scheduled." />
       )}
       {tab === 'invoices' && <InvoicesTab t={t} invoices={invoices} />}
-      {tab === 'notes' && <NotesTab client={client} />}
+      {tab === 'notes' && (
+        <NotesTab client={client} updateClient={updateClient} />
+      )}
       {tab === 'timeline' && <TimelineTab t={t} client={client} />}
       {scheduling && (
         <JobFormModal
@@ -632,17 +649,20 @@ function InlineEdit({
   label,
   type = 'text',
   multiline,
+  placeholder,
 }: {
   value: string
   onSave: (v: string) => void
   label: string
   type?: string
   multiline?: boolean
+  placeholder?: string
 }) {
   return multiline ? (
     <TextArea
       aria-label={label}
       defaultValue={value}
+      placeholder={placeholder}
       onBlur={(e) => e.target.value !== value && onSave(e.target.value)}
       className="min-h-16"
     />
@@ -651,12 +671,21 @@ function InlineEdit({
       aria-label={label}
       type={type}
       defaultValue={value}
+      placeholder={placeholder}
       onBlur={(e) => e.target.value !== value && onSave(e.target.value)}
     />
   )
 }
 
-function OverviewTab({ t, client }: { t: Tenant; client: Client }) {
+function OverviewTab({
+  t,
+  client,
+  updateClient,
+}: {
+  t: Tenant
+  client: ClientRow
+  updateClient: ReturnType<typeof useClientMutations>['updateClient']
+}) {
   const properties = t.propertiesOf(client.id)
   const saved = () => toast('Saved', 'info')
   return (
@@ -671,7 +700,7 @@ function OverviewTab({ t, client }: { t: Tenant; client: Client }) {
               label="Name"
               value={client.display_name}
               onSave={(v) => {
-                actions.updateClient(client.id, { display_name: v })
+                updateClient(client.id, { display_name: v })
                 saved()
               }}
             />
@@ -679,11 +708,17 @@ function OverviewTab({ t, client }: { t: Tenant; client: Client }) {
           <Field label="Type">
             <SelectInput
               value={client.kind}
-              onChange={(e) =>
-                actions.updateClient(client.id, {
-                  kind: e.target.value as ClientKind,
+              onChange={(e) => {
+                const nextKind = e.target.value as ClientKind
+                updateClient(client.id, {
+                  kind: nextKind,
+                  // D1: auto-supply company_name so the DB's non-empty-for-company check never trips from this page.
+                  ...(nextKind === 'company' && {
+                    company_name: client.display_name,
+                  }),
                 })
-              }
+                saved()
+              }}
             >
               <option value="individual">Residential</option>
               <option value="company">Commercial</option>
@@ -693,9 +728,9 @@ function OverviewTab({ t, client }: { t: Tenant; client: Client }) {
             <InlineEdit
               label="Phone"
               type="tel"
-              value={client.phone}
+              value={client.phone ?? ''}
               onSave={(v) => {
-                actions.updateClient(client.id, { phone: v })
+                updateClient(client.id, { phone: v })
                 saved()
               }}
             />
@@ -704,20 +739,23 @@ function OverviewTab({ t, client }: { t: Tenant; client: Client }) {
             <InlineEdit
               label="Email"
               type="email"
-              value={client.email}
+              value={client.email ?? ''}
               onSave={(v) => {
-                actions.updateClient(client.id, { email: v })
+                updateClient(client.id, { email: v })
                 saved()
               }}
             />
           </Field>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <a href={`tel:${client.phone}`} className={btnClass('outline', 'sm')}>
+          <a
+            href={`tel:${client.phone ?? ''}`}
+            className={btnClass('outline', 'sm')}
+          >
             <Phone className="size-3.5" /> Call
           </a>
           <a
-            href={`mailto:${client.email}`}
+            href={`mailto:${client.email ?? ''}`}
             className={btnClass('outline', 'sm')}
           >
             <Mail className="size-3.5" /> Email
@@ -1006,46 +1044,31 @@ function PaymentModal({
   )
 }
 
-function NotesTab({ client }: { client: Client }) {
-  const [text, setText] = useState('')
+function NotesTab({
+  client,
+  updateClient,
+}: {
+  client: ClientRow
+  updateClient: ReturnType<typeof useClientMutations>['updateClient']
+}) {
+  const notes = client.notes ?? ''
   return (
     <div className="space-y-4">
       <Card className="p-4">
-        <TextArea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+        <InlineEdit
+          label="Notes"
+          multiline
+          value={notes}
           placeholder="Add a note about this client…"
+          onSave={(v) => updateClient(client.id, { notes: v })}
         />
-        <div className="mt-3 flex justify-end">
-          <Btn
-            size="sm"
-            icon={Plus}
-            disabled={!text.trim()}
-            onClick={() => {
-              actions.addClientNote(client.id, text.trim())
-              setText('')
-            }}
-          >
-            Add note
-          </Btn>
-        </div>
       </Card>
-      {client.notes.length === 0 && (
-        <EmptyState icon={StickyNote} title="No notes yet" />
-      )}
-      {client.notes.map((n) => (
-        <Card key={n.id} className="p-4">
-          <p className="text-sm whitespace-pre-wrap text-(--ink)">{n.text}</p>
-          <p className="mt-2 text-xs text-(--ink-3)">
-            {n.author} · {relativeTime(n.at)}
-          </p>
-        </Card>
-      ))}
+      {notes === '' && <EmptyState icon={StickyNote} title="No notes yet" />}
     </div>
   )
 }
 
-function TimelineTab({ t, client }: { t: Tenant; client: Client }) {
+function TimelineTab({ t, client }: { t: Tenant; client: ClientRow }) {
   const today = todayISO()
   type Ev = {
     at: string
@@ -1056,18 +1079,11 @@ function TimelineTab({ t, client }: { t: Tenant; client: Client }) {
   }
   const events: Array<Ev> = [
     {
-      at: client.createdAt,
+      at: client.created_at,
       icon: UserPlus,
       title: 'Became a client',
       tone: 'var(--lime-200)',
     },
-    ...client.notes.map((n) => ({
-      at: n.at,
-      icon: StickyNote,
-      title: 'Note added',
-      sub: n.text,
-      tone: 'var(--sun-100)',
-    })),
     ...t.requests
       .filter((r) => r.client_id === client.id)
       .map((r) => ({
