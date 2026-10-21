@@ -20,6 +20,8 @@ The modal has Email and Admin / Dispatcher / Worker role choices, Cancel, and Se
 
 ## Accept invitation
 
+The acceptance screen uses the application's cream canvas and paper card, forest header with the existing AbsoluteCRM vector logo, lime accents, `crm-display` heading, and rounded CRM controls. Confirmation and joined states use lime/sage panels; errors use the clay palette. The card adapts to narrow screens, and long account emails wrap within their panel. Form labels, actions, and authentication/acceptance behavior stay the same.
+
 **Route**: public `/accept-invite?token=…`, outside the authenticated layout. It exposes no invitation metadata before authentication. Missing or malformed tokens show a request-new-invitation message.
 
 **States**:

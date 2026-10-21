@@ -192,3 +192,7 @@ _None._
 - Seven implemented screenshots captured locally under `docs/team/shots/`; displayed invite tokens are masked. They remain uncommitted because Git LFS is missing and installation was declined. Screenshot delivery remains outstanding. Response headers verified no-store/no-referrer.
 - Remote Auth configuration was inspected, not changed: confirmation enabled, site URL localhost, redirect allowlist empty. Exact deployment steps are in `docs/team/ui.md`.
 - Public-build scan checked 66 assets and found neither private server key. Removed the two dedicated test organizations and four dedicated auth users created by this feature after verification.
+
+### User-requested presentation refinement
+
+After confirming the email arrived in spam, the user requested: “Final step, style the accept page to match the styling of the rest of the application”. Applied the existing CRM logo, tokens, typography, and controls to the acceptance component, including loading, confirmation, error and joined states. This presentation refinement stays within the approved public acceptance UI scope; authentication, callback and backend behavior are unchanged. Existing missing-LFS screenshots and five unrelated failing story tests remain outstanding merge gates.
