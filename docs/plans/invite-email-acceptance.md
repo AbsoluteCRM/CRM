@@ -184,6 +184,13 @@ _None._
 
 ## Implementation verification record (2026-10-21)
 
+### Acceptance-page styling follow-up
+
+- User requested matching the rest of the application. Commit `e399a44` reuses the CRM logo, shared form controls, forest/lime/cream/paper tokens and display typography. Authentication, routes and backend behavior are unchanged.
+- Lint, formatting, all 14 existing invitation interaction tests, typechecking and production build pass for this follow-up.
+- Main-checkout browser inspection passed at 1440px and 390px: sign-in, signup toggle, malformed invitation and no horizontal overflow. Captures are local under `/tmp/crm-accept-page-*.png`; the existing LFS limitation remains.
+- Fresh independent styling reviewer: **pass**, confidence high, no blockers or unresolved questions. Checked shared-brand consistency, button types, label/input associations, validation/autocomplete, existing handlers and disabled states, status/alert semantics, responsive wrapping, focus indicators and all four changed files. This pass covers only `f7dbbef..e399a44`; it does not clear the previously recorded whole-PR merge blockers.
+
 - Main checkout exact verify command, with `.env.local` loaded: lint and formatting pass; Vitest reports 192/197 passing. All 141 unit tests and all 14 new invitation interaction stories pass. Five existing story failures remain: QuoteEditor Draft Editing; RequestsPanel Filters And Read Only Details; CrewBuilder Drag To Crew, Drag To Unassigned, Set Lead. No assertions were weakened and none were skipped. Full merge gate is not satisfied.
 - Typechecking and production build pass separately; the exact pipeline stops at Vitest.
 - Running-app checks passed with dedicated remote fixtures: wrong account rejected; no membership before acceptance; existing user accepted and invited org selected despite another membership; reused/malformed links rejected; failed email has copy/retry fallback; new signup shows confirmation-required state before explicit acceptance. Signup response and confirmation were simulated without sending to an arbitrary inbox; real confirmation callback remains unverified until redirect configuration is completed.
