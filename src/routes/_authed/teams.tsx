@@ -5,7 +5,6 @@ import {
   BadgeCheck,
   CalendarOff,
   Clock,
-  Link,
   Mail,
   Phone,
   Plus,
@@ -15,6 +14,8 @@ import {
   X,
 } from 'lucide-react'
 
+import { useOrganization } from '#/integrations/organization/context'
+import { can as orgCan } from '#/integrations/organization/permissions'
 import PageShell from '#/components/crm/PageShell'
 import {
   Avatar,
@@ -51,6 +52,7 @@ import {
   isWeekend,
   todayISO,
 } from '#/components/crm/format'
+import InvitationDelivery from '#/components/team/InvitationDelivery'
 import CrewBuilder from '#/components/team/CrewBuilder'
 import MembersTab from '#/components/team/MembersTab'
 import { useCrewMutations, useCrews } from '#/integrations/crews/crews'
@@ -107,6 +109,9 @@ function useMetrics(t: Tenant) {
 
 function TeamsPage() {
   const t = useTenant()
+  const { organization } = useOrganization()
+  const canInvite =
+    organization !== null && orgCan.manageTeam(organization.role)
   const team = useTeamMembers()
   const crews = useCrews()
   const crewActions = useCrewMutations()
@@ -140,9 +145,11 @@ function TeamsPage() {
             >
               Add time off
             </Btn>
-            <Btn icon={UserPlus} onClick={() => setInviting(true)}>
-              Invite member
-            </Btn>
+            {canInvite && (
+              <Btn icon={UserPlus} onClick={() => setInviting(true)}>
+                Invite member
+              </Btn>
+            )}
           </>
         )
       }
@@ -910,6 +917,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
   const [result, setResult] = useState<{
     inviteLink: string
     resent: boolean
+    delivery: 'sent' | 'failed'
   } | null>(null)
   const invite = useInviteTeamMember()
   const valid = /\S+@\S+\.\S+/.test(email)
@@ -921,12 +929,11 @@ function InviteModal({ onClose }: { onClose: () => void }) {
   const submit = async () => {
     try {
       const created = await invite.mutateAsync({ email, role })
-      // Best-effort: the write can fail silently, so the toast never claims it worked.
-      copyLink(created.inviteLink).catch(() => {})
       toast(
-        created.resent
-          ? `New invite link ready for ${email}`
-          : `Invite link ready for ${email}`,
+        created.delivery === 'sent'
+          ? 'Invitation email accepted for sending'
+          : 'Unable to confirm sending. Copy the link or retry.',
+        created.delivery === 'sent' ? undefined : 'warning',
       )
       setResult(created)
     } catch (e) {
@@ -943,62 +950,50 @@ function InviteModal({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       width={520}
       title="Invite a team member"
-      subtitle="Create an invite link to share with them."
+      subtitle="Email a secure invitation, valid for seven days."
       footer={
         result ? (
-          <Btn onClick={onClose}>Done</Btn>
+          <>
+            <Btn variant="ghost" disabled={invite.isPending} onClick={onClose}>
+              Done
+            </Btn>
+          </>
         ) : (
           <>
             <Btn variant="ghost" onClick={onClose}>
               Cancel
             </Btn>
             <Btn
-              icon={Link}
+              icon={Mail}
               disabled={!valid || invite.isPending}
               onClick={submit}
             >
-              Create invite link
+              {invite.isPending ? 'Sending…' : 'Send invitation'}
             </Btn>
           </>
         )
       }
     >
       {result ? (
-        <div className="grid gap-4">
-          <p className="text-sm text-(--ink-2)">
-            {result.resent
-              ? 'A new link replaced the earlier invite for '
-              : 'Invite created for '}
-            <span className="font-semibold">{email}</span>. Share this link with
-            them to join — it’s not emailed automatically.
-          </p>
-          <Field label="Invite link">
-            <div className="flex gap-2">
-              <TextInput
-                readOnly
-                value={result.inviteLink}
-                onFocus={(e) => e.target.select()}
-              />
-              <Btn
-                variant="outline"
-                onClick={() => {
-                  copyLink(result.inviteLink).then(
-                    () => toast('Link copied'),
-                    () =>
-                      toast(
-                        'Couldn’t copy; select the link instead.',
-                        'warning',
-                      ),
-                  )
-                }}
-              >
-                Copy
-              </Btn>
-            </div>
-          </Field>
-        </div>
+        <InvitationDelivery
+          email={email}
+          inviteLink={result.inviteLink}
+          delivery={result.delivery}
+          busy={invite.isPending}
+          onRetry={submit}
+          onCopy={() => {
+            copyLink(result.inviteLink).then(
+              () => toast('Link copied'),
+              () => toast('Couldn’t copy; select the link instead.', 'warning'),
+            )
+          }}
+        />
       ) : (
         <div className="grid gap-4">
+          <p className="text-sm text-(--ink-3)">
+            Sending again to an email with a pending invitation replaces its
+            earlier link. Only the latest generated link works.
+          </p>
           <Field label="Email">
             <TextInput
               type="email"

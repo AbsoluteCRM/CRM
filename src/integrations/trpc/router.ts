@@ -13,6 +13,7 @@ import {
 import { portalRouter, requestsRouter } from './requests'
 import { quotesRouter } from './quotes'
 import { servicesRouter } from './services'
+import { teamsRouter } from './teams'
 
 import type { TRPCRouterRecord } from '@trpc/server'
 
@@ -78,6 +79,7 @@ const organizationRouter = {
 
 export const trpcRouter = createTRPCRouter({
   todos: todosRouter,
+  teams: teamsRouter,
   auth: authRouter,
   organization: organizationRouter,
   clients: clientsRouter,

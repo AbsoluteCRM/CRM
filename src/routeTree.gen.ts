@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthedRouteImport } from './routes/_authed'
+import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as AuthedCalendarRouteImport } from './routes/_authed/calendar'
@@ -22,6 +23,7 @@ import { Route as AuthedRequestsRouteImport } from './routes/_authed/requests'
 import { Route as AuthedServicesRouteImport } from './routes/_authed/services'
 import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
 import { Route as AuthedTeamsRouteImport } from './routes/_authed/teams'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as PortalOrgSlugRouteImport } from './routes/portal/$orgSlug'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 
@@ -32,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AcceptInviteRoute = AcceptInviteRouteImport.update({
+  id: '/accept-invite',
+  path: '/accept-invite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignInRoute = SignInRouteImport.update({
@@ -89,6 +96,11 @@ const AuthedTeamsRoute = AuthedTeamsRouteImport.update({
   path: '/teams',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalOrgSlugRoute = PortalOrgSlugRouteImport.update({
   id: '/portal/$orgSlug',
   path: '/portal/$orgSlug',
@@ -102,6 +114,7 @@ const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/accept-invite': typeof AcceptInviteRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/calendar': typeof AuthedCalendarRoute
@@ -113,11 +126,13 @@ export interface FileRoutesByFullPath {
   '/services': typeof AuthedServicesRoute
   '/settings': typeof AuthedSettingsRoute
   '/teams': typeof AuthedTeamsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/portal/$orgSlug': typeof PortalOrgSlugRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/accept-invite': typeof AcceptInviteRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/calendar': typeof AuthedCalendarRoute
@@ -129,6 +144,7 @@ export interface FileRoutesByTo {
   '/services': typeof AuthedServicesRoute
   '/settings': typeof AuthedSettingsRoute
   '/teams': typeof AuthedTeamsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/portal/$orgSlug': typeof PortalOrgSlugRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
@@ -136,6 +152,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
+  '/accept-invite': typeof AcceptInviteRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/_authed/calendar': typeof AuthedCalendarRoute
@@ -147,6 +164,7 @@ export interface FileRoutesById {
   '/_authed/services': typeof AuthedServicesRoute
   '/_authed/settings': typeof AuthedSettingsRoute
   '/_authed/teams': typeof AuthedTeamsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/portal/$orgSlug': typeof PortalOrgSlugRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
@@ -154,6 +172,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/accept-invite'
     | '/sign-in'
     | '/sign-up'
     | '/calendar'
@@ -165,11 +184,13 @@ export interface FileRouteTypes {
     | '/services'
     | '/settings'
     | '/teams'
+    | '/auth/callback'
     | '/portal/$orgSlug'
     | '/api/trpc/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/accept-invite'
     | '/sign-in'
     | '/sign-up'
     | '/calendar'
@@ -181,12 +202,14 @@ export interface FileRouteTypes {
     | '/services'
     | '/settings'
     | '/teams'
+    | '/auth/callback'
     | '/portal/$orgSlug'
     | '/api/trpc/$'
   id:
     | '__root__'
     | '/'
     | '/_authed'
+    | '/accept-invite'
     | '/sign-in'
     | '/sign-up'
     | '/_authed/calendar'
@@ -198,6 +221,7 @@ export interface FileRouteTypes {
     | '/_authed/services'
     | '/_authed/settings'
     | '/_authed/teams'
+    | '/auth/callback'
     | '/portal/$orgSlug'
     | '/api/trpc/$'
   fileRoutesById: FileRoutesById
@@ -205,8 +229,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
+  AcceptInviteRoute: typeof AcceptInviteRoute
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   PortalOrgSlugRoute: typeof PortalOrgSlugRoute
   ApiTrpcSplatRoute: typeof ApiTrpcSplatRoute
 }
@@ -225,6 +251,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accept-invite': {
+      id: '/accept-invite'
+      path: '/accept-invite'
+      fullPath: '/accept-invite'
+      preLoaderRoute: typeof AcceptInviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-in': {
@@ -304,6 +337,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedTeamsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal/$orgSlug': {
       id: '/portal/$orgSlug'
       path: '/portal/$orgSlug'
@@ -351,8 +391,10 @@ const AuthedRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
+  AcceptInviteRoute: AcceptInviteRoute,
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   PortalOrgSlugRoute: PortalOrgSlugRoute,
   ApiTrpcSplatRoute: ApiTrpcSplatRoute,
 }

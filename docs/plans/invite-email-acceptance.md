@@ -16,11 +16,11 @@ Owners/admins email a secure invitation from Teams. Recipients sign in or create
 
 ## Decisions
 
-| # | Question | Answer |
-| --- | --- | --- |
-| Q1 | Sender | User: `requests@terraformaflow.com`. |
-| Q2 | Origin | User: `terraformaflow.com`; development `localhost:3000`. Use HTTPS in production and HTTP for local development. |
-| Q3 | Acceptance | User approved seven-day expiry, existing role picker, matching invited email, explicit Accept invitation, and opening that team. |
+| #   | Question   | Answer                                                                                                                           |
+| --- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Sender     | User: `requests@terraformaflow.com`.                                                                                             |
+| Q2  | Origin     | User: `terraformaflow.com`; development `localhost:3000`. Use HTTPS in production and HTTP for local development.                |
+| Q3  | Acceptance | User approved seven-day expiry, existing role picker, matching invited email, explicit Accept invitation, and opening that team. |
 
 Agent defaults (minor; user may veto):
 
@@ -35,11 +35,11 @@ None for planning. Verify Resend domain permission and Supabase redirect configu
 
 ## Assumptions
 
-| Assumption | User-confirmed? |
-| --- | --- |
-| Sender domain and localhost/production origins are intended | yes |
-| Seven-day expiry, role picker, email-bound authentication, explicit acceptance | yes |
-| Native fetch, retained copy fallback, inline auth forms | no; minor defaults, reviewable in this plan |
+| Assumption                                                                     | User-confirmed?                             |
+| ------------------------------------------------------------------------------ | ------------------------------------------- |
+| Sender domain and localhost/production origins are intended                    | yes                                         |
+| Seven-day expiry, role picker, email-bound authentication, explicit acceptance | yes                                         |
+| Native fetch, retained copy fallback, inline auth forms                        | no; minor defaults, reviewable in this plan |
 
 ## Design refs
 
@@ -71,10 +71,10 @@ Add optional server config `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and use existi
 
 ### Procedures
 
-| Procedure | Input | Output | Allowed |
-| --- | --- | --- | --- |
-| `teams.invite` mutation | organizationId UUID, trimmed normalized validated email, role enum admin/dispatcher/worker | inviteLink, resent, delivery (`sent` or `failed`) | verified owner/admin |
-| `teams.acceptInvite` mutation | 64 lowercase hexadecimal token | organizationId | authenticated recipient; RPC checks email and validity |
+| Procedure                     | Input                                                                                      | Output                                            | Allowed                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------ |
+| `teams.invite` mutation       | organizationId UUID, trimmed normalized validated email, role enum admin/dispatcher/worker | inviteLink, resent, delivery (`sent` or `failed`) | verified owner/admin                                   |
+| `teams.acceptInvite` mutation | 64 lowercase hexadecimal token                                                             | organizationId                                    | authenticated recipient; RPC checks email and validity |
 
 `teams.invite`: generate 32 random bytes server-side, hex encode, SHA-256 hash, seven-day expiry. Insert invitation through user client. Only a pending-email unique conflict triggers rotation: update pending org/email row's hash/role/expiry with `.select('id')`, and require exactly one result. No send after a database failure. Read organization name with user client scoped to verified org. Use fixed configured sender/recipient derived from validated input, never arbitrary client-supplied message bodies or URLs. Escape all HTML dynamic content. POST to Resend with a bounded timeout and per-token hash idempotency key, no raw token in key. Return sent only when Resend acknowledges an email ID; sanitize provider failures and return failed plus copyable link for database-success/email-failure. No inbox-delivery guarantee or persisted delivery state is claimed. Catch network timeouts; a timed-out send may have been accepted, so UI says unable to confirm sending. Retry explicitly rotates and invalidates previous link. Disable duplicate submits. Concurrent resends retain existing latest-write-wins semantics; warn that only the latest generated link remains valid. No rollback to old tokens after provider failure.
 
@@ -82,11 +82,11 @@ Add optional server config `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and use existi
 
 ### Routes and UI
 
-| Route | Screen and states |
-| --- | --- |
-| `/teams` | Existing invite modal becomes Send invitation; sending disabled; confirmed send, uncertain/failed send with copy link and Retry, permission/write errors. Use actual organization role for invite action visibility. |
+| Route                    | Screen and states                                                                                                                                                                                                                                                                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/teams`                 | Existing invite modal becomes Send invitation; sending disabled; confirmed send, uncertain/failed send with copy link and Retry, permission/write errors. Use actual organization role for invite action visibility.                                                                                                                           |
 | `/accept-invite?token=…` | Public route outside `_authed`; validate token syntax without throwing route-level crashes. Missing/malformed, loading auth, sign-in/signup choice, submitting, confirmation required, authenticated Accept button, accepting, invalid/expired/mismatched link, already-member, success/navigation error. No invitation data exposed publicly. |
-| `/auth/callback` | Exchange PKCE code using Supabase client; accept only validated invite token as destination context, construct local acceptance path internally. Handle denied/missing/expired code. Never accept arbitrary return URLs. |
+| `/auth/callback`         | Exchange PKCE code using Supabase client; accept only validated invite token as destination context, construct local acceptance path internally. Handle denied/missing/expired code. Never accept arbitrary return URLs.                                                                                                                       |
 
 Inline auth form instructs using invited email; do not publicly disclose invitation email or whether an account exists. Signup uses optional `emailRedirectTo` built from current allowed app origin and fixed callback path plus validated invite token. Extend auth signup to expose whether a session exists; preserve old callers' behavior. If confirmation is enabled, show check-email instructions and retain invitation URL; callback exchanges code and returns to acceptance. Cross-browser/no-verifier recovery: explain sign-in in original browser or sign in then reopen original invitation. Supabase default confirmation email remains Supabase-managed; Resend integration here sends team invitations only. Verify redirect allowlist and confirmation template respect redirectTo; document setup instead of silently changing remote Auth settings.
 

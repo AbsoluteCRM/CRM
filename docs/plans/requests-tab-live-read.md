@@ -23,10 +23,10 @@ states. Creating requests and changing their status remain out of scope.
 
 ## Decisions
 
-| # | Question | Answer |
-| - | -------- | ------ |
-| Q1 | Which operations should use live data? | Read-only list and detail; defer create and status actions. |
-| Q2 | Should demo requests remain visible? | No. Replace them with database rows for the active organization. |
+| #   | Question                               | Answer                                                           |
+| --- | -------------------------------------- | ---------------------------------------------------------------- |
+| Q1  | Which operations should use live data? | Read-only list and detail; defer create and status actions.      |
+| Q2  | Should demo requests remain visible?   | No. Replace them with database rows for the active organization. |
 
 Agent defaults (minor; the user may veto them):
 
@@ -42,13 +42,13 @@ Agent defaults (minor; the user may veto them):
 
 ## Assumptions
 
-| Assumption | User-confirmed? |
-| ---------- | --------------- |
-| `requests.list` is the source of truth for rows shown in the tab. | yes |
-| Existing schema and server procedure are sufficient; no migration or
-  procedure changes are needed. | verified in repo |
-| Service names can be resolved from the existing organization-scoped
-  `services.list` procedure. | verified in repo |
+| Assumption                                                           | User-confirmed?  |
+| -------------------------------------------------------------------- | ---------------- |
+| `requests.list` is the source of truth for rows shown in the tab.    | yes              |
+| Existing schema and server procedure are sufficient; no migration or |
+| procedure changes are needed.                                        | verified in repo |
+| Service names can be resolved from the existing organization-scoped  |
+| `services.list` procedure.                                           | verified in repo |
 
 ## Design refs
 
@@ -94,8 +94,8 @@ Security-gated paths touched: `src/routes/_authed/requests.tsx`.
 
 ### Routes and UI
 
-| Route | Screen | States (loading, empty, error, populated) |
-| ----- | ------ | ----------------------------------------- |
+| Route               | Screen                                   | States (loading, empty, error, populated)                                                                                             |
+| ------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `/_authed/requests` | Live Requests list and read-only details | Loading, organization-context error, no active organization, query error with retry, empty, filtered-empty, populated list and detail |
 
 - Replace `useTenant().requests` as the list/detail data source with
@@ -142,10 +142,10 @@ Security-gated paths touched: `src/routes/_authed/requests.tsx`.
    request details work with representative live-row-shaped fixtures, without
    requiring auth or tRPC providers.
 8. Switching the active organization changes the request and service query
-    keys, clears the selected detail, and displays only the newly active
-    organization's results.
+   keys, clears the selected detail, and displays only the newly active
+   organization's results.
 9. A user without `manageRequests` sees the no-access state and causes neither
-    data query to run.
+   data query to run.
 
 ## Commits
 
@@ -203,11 +203,12 @@ pnpm lint && pnpm check && pnpm exec vitest run && pnpm exec tsc --noEmit
 ## Audit log
 
 ### Round 1 (general-purpose fallback; custom `plan-auditor` unavailable):
+
 needs-changes, confidence high
 
-| # | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
-| - | ----------------------------- | ------------------------------------------------- |
-| 1 | Organization context failure could leave the page loading forever (no) | Fixed: add explicit context-error/reload and no-active-organization states. |
+| #   | Blocking finding (recurring?)                                          | Resolution (fixed / rejected: reason / escalated)                           |
+| --- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1   | Organization context failure could leave the page loading forever (no) | Fixed: add explicit context-error/reload and no-active-organization states. |
 
 - **Non-blocking**: added active-organization-switch verification; marked the
   Storybook layer as touched.
@@ -215,10 +216,11 @@ needs-changes, confidence high
 - **Pre-existing**: none.
 
 ### Round 2 (general-purpose fallback; custom `plan-auditor` unavailable):
+
 pass, confidence high
 
-| # | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
-| - | ----------------------------- | ------------------------------------------------- |
+| #   | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
+| --- | ----------------------------- | ------------------------------------------------- |
 
 - **Non-blocking**: explicitly gate requests by the organization-context
   `manageRequests` permission before rendering/loading data; clear selection on
@@ -229,10 +231,11 @@ pass, confidence high
   organization-context error uses a page reload action.
 
 ### Round 3 (general-purpose fallback; custom `plan-auditor` unavailable):
+
 pass, confidence high
 
-| # | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
-| - | ----------------------------- | ------------------------------------------------- |
+| #   | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
+| --- | ----------------------------- | ------------------------------------------------- |
 
 - **Non-blocking**: added explicit running-app verification that a worker sees
   no-access and triggers neither data query.
