@@ -164,7 +164,19 @@ The first full run found a pre-existing Storybook 10.6.0 mismatch with the insta
 
 ### Review (`reviewer`, and `security` if gated)
 
-Pending implementation after user approval.
+Fresh reviewer returned **needs-changes**, confidence high, on implementation head `5ffe47e`. No additional feature correctness or security defect was found; 38 targeted invitation unit tests independently passed.
+
+| #   | Blocking finding (recurring?)                                                                                                                                                                                                    | Resolution                                                                                                                                                                                   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `docs/team/ui.md:65`: required implemented screenshots are absent from the PR (false). Evidence: documented local-only captures and untracked `docs/team/shots/`. Rule: design record and workflow require shots in the same PR. | Outstanding. Git LFS is unavailable, and its installation was declined. Captures remain locally available; no binary-policy bypass.                                                          |
+| 2   | `docs/plans/invite-email-acceptance.md:175`: mandatory full verification gate fails (false). Evidence: 192/197 tests pass. Rule: exact verification command and full Vitest suite must pass before merge.                        | Outstanding. Five existing unrelated story failures were reproduced in main; no assertions weakened or tests skipped. Handed to implementer for assessment without silently expanding scope. |
+
+- **Non-blocking**: real confirmation-email/PKCE completion remains unverified, as permitted by the plan's explicit setup limitation. Update plan status only after outstanding work is actually complete.
+- **Unresolved**: none in feature code.
+- **Pre-existing**: five failing QuoteEditor, RequestsPanel and CrewBuilder stories.
+- **Checked clean**: request/decisions; role authorization and tenant scope; token entropy/hash/expiry/rotation; fixed sender/origin, template escaping and provider failure handling; caller-authenticated explicit acceptance; signup/PKCE callback and destination restriction; organization reload/race handling; response headers and telemetry redaction; tests, generated routes, dependency repair and documentation.
+- **Security**: not dispatched; the workflow requires the reviewer to pass first.
+- **Merge**: blocked; PR remains draft. This review is not a full completion claim.
 
 ## Scope-change log
 
@@ -179,3 +191,4 @@ _None._
 - Live database checks on dedicated fixtures passed for cross-tenant write rejection and expired/rotated/reused token rejection, with successful current-token acceptance.
 - Seven implemented screenshots captured locally under `docs/team/shots/`; displayed invite tokens are masked. They remain uncommitted because Git LFS is missing and installation was declined. Screenshot delivery remains outstanding. Response headers verified no-store/no-referrer.
 - Remote Auth configuration was inspected, not changed: confirmation enabled, site URL localhost, redirect allowlist empty. Exact deployment steps are in `docs/team/ui.md`.
+- Public-build scan checked 66 assets and found neither private server key. Removed the two dedicated test organizations and four dedicated auth users created by this feature after verification.
