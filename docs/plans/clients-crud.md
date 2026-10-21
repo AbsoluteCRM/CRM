@@ -32,12 +32,12 @@ and empty states unchanged; they are not wired to real data in this PR.
 
 ## Decisions
 
-| #   | Question                                                        | Answer                                                                                                                      |
-| --- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Q1  | Scope of "live"                                                 | Client list, add client, and notes. Service history/scheduled/invoices stay mock.                                          |
-| Q2  | Add Client form                                                 | Client only (name, kind, status defaults to active, email, phone). Drop the property-address field; no property is created. |
-| Q3  | Notes schema                                                     | Reuse the single `clients.notes` text column; the Notes tab becomes one editable note box, not a per-entry timeline.        |
-| Q4  | Mock-sourced tabs/fields for a real (DB-backed) client            | Accept that Service history, Scheduled, Invoices, the property fields in Overview, and most of Timeline render their existing empty states for every real client (mock jobs/invoices/properties key off mock IDs that never match real UUIDs). Ship as-is; wiring them up is future work. |
+| #   | Question                                               | Answer                                                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Scope of "live"                                        | Client list, add client, and notes. Service history/scheduled/invoices stay mock.                                                                                                                                                                                                         |
+| Q2  | Add Client form                                        | Client only (name, kind, status defaults to active, email, phone). Drop the property-address field; no property is created.                                                                                                                                                               |
+| Q3  | Notes schema                                           | Reuse the single `clients.notes` text column; the Notes tab becomes one editable note box, not a per-entry timeline.                                                                                                                                                                      |
+| Q4  | Mock-sourced tabs/fields for a real (DB-backed) client | Accept that Service history, Scheduled, Invoices, the property fields in Overview, and most of Timeline render their existing empty states for every real client (mock jobs/invoices/properties key off mock IDs that never match real UUIDs). Ship as-is; wiring them up is future work. |
 
 Agent defaults (minor; the user may veto them):
 
@@ -63,7 +63,7 @@ Agent defaults (minor; the user may veto them):
   / `t.invoices` helpers, now over the real client list. Since no mock invoice
   references a real client id, these display `$0`/empty rather than a
   stale aggregate across unrelated mock clients (today's `outstanding` summed
-  across *all* mock invoices regardless of the visible list, which would be
+  across _all_ mock invoices regardless of the visible list, which would be
   actively misleading once the list shows real clients).
 - **D6**: The Timeline tab drops its per-note events entirely (no discrete
   timestamp exists anymore); it keeps "Became a client" plus the still-mock
@@ -88,11 +88,11 @@ Agent defaults (minor; the user may veto them):
 
 ## Assumptions
 
-| Assumption                                                                 | User-confirmed? |
-| --------------------------------------------------------------------------- | --------------- |
-| `clients.list` (existing) is the source of truth for the table and drawer.  | verified in repo |
-| No migration is needed: `clients.notes`, `display_name`, `kind`, `status`, `email`, `phone`, `company_name` already exist with `insert`/`update` grants to `authenticated`. | verified in repo |
-| D1–D7 above.                                                               | agent default (vetoable) |
+| Assumption                                                                                                                                                                  | User-confirmed?          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `clients.list` (existing) is the source of truth for the table and drawer.                                                                                                  | verified in repo         |
+| No migration is needed: `clients.notes`, `display_name`, `kind`, `status`, `email`, `phone`, `company_name` already exist with `insert`/`update` grants to `authenticated`. | verified in repo         |
+| D1–D7 above.                                                                                                                                                                | agent default (vetoable) |
 
 ## Design refs
 
@@ -134,17 +134,18 @@ Security-gated paths touched: `src/integrations/trpc/clients.ts`,
 
 ### Procedures
 
-| Procedure        | Input                                                                                                                                                                 | Output                 | Roles allowed              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ----------------------------- |
-| `clients.create` | `{ organizationId: uuid, display_name: string (min 1), kind: 'individual'\|'company', email?: string, phone?: string, company_name?: string }`                        | the new client row (`CLIENT_COLUMNS`) | `manageClients` (owner/admin/dispatcher) |
-| `clients.update` | `{ organizationId: uuid, clientId: uuid, display_name?, kind?, status?: 'active'\|'inactive'\|'lead', email?, phone?, notes?: string\|null, company_name? }`, refined so at least one field is set | `{ id: clientId }`      | `manageClients`              |
+| Procedure        | Input                                                                                                                                                                                              | Output                                | Roles allowed                            |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------- |
+| `clients.create` | `{ organizationId: uuid, display_name: string (min 1), kind: 'individual'\|'company', email?: string, phone?: string, company_name?: string }`                                                     | the new client row (`CLIENT_COLUMNS`) | `manageClients` (owner/admin/dispatcher) |
+| `clients.update` | `{ organizationId: uuid, clientId: uuid, display_name?, kind?, status?: 'active'\|'inactive'\|'lead', email?, phone?, notes?: string\|null, company_name? }`, refined so at least one field is set | `{ id: clientId }`                    | `manageClients`                          |
 
-  `organizationId` is the implicit input every `requireOrgPermission`-based
-  procedure already carries from the chained `organizationProcedure`
-  (`crews.create`/`crews.update` don't restate it in their own `.input()`
-  call for the same reason). All organization scoping in both procedures
-  uses `ctx.organizationId` (verified server-side by the middleware), never
-  a client-supplied value, matching `crews.ts` exactly.
+`organizationId` is the implicit input every `requireOrgPermission`-based
+procedure already carries from the chained `organizationProcedure`
+(`crews.create`/`crews.update` don't restate it in their own `.input()`
+call for the same reason). All organization scoping in both procedures
+uses `ctx.organizationId` (verified server-side by the middleware), never
+a client-supplied value, matching `crews.ts` exactly.
+
 - Both follow `crews.ts`'s `toTRPCError` mapping (`23505` → `CONFLICT`,
   `42501` → `FORBIDDEN`, `P0002`/`23503` → `BAD_REQUEST`, else
   `INTERNAL_SERVER_ERROR`), each wrapped in `Sentry.startSpan`.
@@ -159,13 +160,13 @@ Security-gated paths touched: `src/integrations/trpc/clients.ts`,
 
 ### Routes and UI
 
-| Route                   | Screen                        | States (loading, empty, error, populated)                                                                                                                      |
-| -------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/_authed/clients`      | Clients list                  | Loading (initial `clients.list` fetch), query error with retry, empty ("no clients yet"), filtered-empty ("no clients match"), populated table                 |
-| `/_authed/clients`      | Add client modal              | Idle/validating (name required), submitting (disabled button), mutation error (toast, modal stays open for retry)                                               |
+| Route                   | Screen                        | States (loading, empty, error, populated)                                                                                                                          |
+| ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/_authed/clients`      | Clients list                  | Loading (initial `clients.list` fetch), query error with retry, empty ("no clients yet"), filtered-empty ("no clients match"), populated table                     |
+| `/_authed/clients`      | Add client modal              | Idle/validating (name required), submitting (disabled button), mutation error (toast, modal stays open for retry)                                                  |
 | `/_authed/clients?id=…` | Client profile — Overview tab | Contact fields (name, type, phone, email) edit via `InlineEdit`/`SelectInput` → `updateClient`; save-error toast, optimistic update reverts on settle if it failed |
-| `/_authed/clients?id=…` | Client profile — Notes tab    | Empty ("No notes yet" placeholder in the box), editable, save-error toast                                                                                       |
-| `/_authed/clients?id=…` | Client profile — other tabs   | Unchanged: Service history/Scheduled/Invoices/Timeline/property fields keep reading `useTenant()` mock data and existing empty states                           |
+| `/_authed/clients?id=…` | Client profile — Notes tab    | Empty ("No notes yet" placeholder in the box), editable, save-error toast                                                                                          |
+| `/_authed/clients?id=…` | Client profile — other tabs   | Unchanged: Service history/Scheduled/Invoices/Timeline/property fields keep reading `useTenant()` mock data and existing empty states                              |
 
 - `src/integrations/clients/clients.ts`: keep `useClients()`; add
   `export type ClientRow = inferRouterOutputs<TRPCRouter>['clients']['list'][number]`
@@ -316,10 +317,10 @@ pnpm lint && pnpm check && pnpm exec vitest run && pnpm exec tsc --noEmit
 
 ### Round 1 (general-purpose fallback; custom `plan-auditor` unavailable): needs-changes, confidence high
 
-| #   | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
-| --- | ------------------------------ | --------------------------------------------------- |
-| 1   | `Notes` tab header count badge still used `client.notes.length`, but `notes` is now `string \| null` (no) | Fixed: dropped the `count` on the Notes tab entirely (D8). |
-| 2   | Three call sites read `client.createdAt` (mock camelCase); the live column is `created_at` (no) | Fixed: table "Recent" sort, drawer subtitle, and Timeline's "Became a client" event all switched to `created_at` (D8). |
+| #   | Blocking finding (recurring?)                                                                                                                          | Resolution (fixed / rejected: reason / escalated)                                                                                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `Notes` tab header count badge still used `client.notes.length`, but `notes` is now `string \| null` (no)                                              | Fixed: dropped the `count` on the Notes tab entirely (D8).                                                                                                           |
+| 2   | Three call sites read `client.createdAt` (mock camelCase); the live column is `created_at` (no)                                                        | Fixed: table "Recent" sort, drawer subtitle, and Timeline's "Became a client" event all switched to `created_at` (D8).                                               |
 | 3   | `phone`/`email` are nullable DB columns but were read as non-nullable strings in the search filter, two `InlineEdit`s, and `tel:`/`mailto:` links (no) | Fixed: all coalesced to `?? ''`, mirroring the existing `notes ?? ''` treatment; blank-to-`null` normalization on save already existed in the procedure design (D8). |
 
 - **Non-blocking**: adopted `display_name` trim in zod (noted for
@@ -332,8 +333,8 @@ pnpm lint && pnpm check && pnpm exec vitest run && pnpm exec tsc --noEmit
 ### Round 2 (general-purpose fallback; custom `plan-auditor` unavailable): pass, confidence high
 
 | #   | Blocking finding (recurring?) | Resolution (fixed / rejected: reason / escalated) |
-| --- | ------------------------------ | --------------------------------------------------- |
-|     |                                 |                                                     |
+| --- | ----------------------------- | ------------------------------------------------- |
+|     |                               |                                                   |
 
 - **Non-blocking**: two table-cell `{client.phone}`/`{client.email}` reads
   weren't in round 1's enumeration — added to the `?? ''` coalescing list

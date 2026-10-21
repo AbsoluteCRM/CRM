@@ -115,8 +115,19 @@ links the `organization_members` row.
 
 Partial unique index: `(organization_id, email) where accepted_at is null`.
 Invitations are accepted via the `public.accept_invitation(token)` RPC.
-Rows are created by a direct client insert (owner/admin only, via RLS); the
-client generates the token, hashes it, and stores only the hash.
+`teams.invite` verifies owner/admin membership in the selected organization,
+then inserts through the caller's Supabase client (RLS still applies). It generates
+32 random bytes server-side and stores only their SHA-256 token hash, with a
+seven-day expiry. A pending-email conflict rotates the existing row's token,
+role and expiry. The server emails a fixed-origin acceptance URL with Resend;
+if sending cannot be confirmed, the saved invite remains usable via copy link.
+Only the latest generated link works.
+
+`teams.acceptInvite` requires authentication but no prior team membership. It
+passes only the token to `accept_invitation` with caller credentials and returns
+the accepted organization ID. The RPC validates expiry, single use and invited
+email, and creates/links membership and consumes the invitation atomically.
+GETs, auth forms and confirmation callbacks never accept an invitation.
 
 ## `member_pay_rates`
 

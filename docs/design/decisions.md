@@ -19,3 +19,11 @@ plan instead.
 | 2   | 2026-10-08 | Invite a team member by creating (or resending) an invitation row and showing a copyable link. No email is sent and there is no accept-invite page yet.           | No email provider is integrated and the acceptance page is a later PR. Re-inviting a pending email replaces its token instead of only failing.   | [Invite a team member](../team/ui.md#invite-a-team-member) |
 | 3   | 2026-10-08 | Drop the Name field from the invite modal.                                                                                                                        | `organization_invitations` has no name column; the invitee's profile name is used when they accept, so a name entered here would never be saved. | [Invite a team member](../team/ui.md#invite-a-team-member) |
 | 4   | 2026-10-16 | The public request portal does not ask for a preferred frequency, and its service cards copy the internal Services page (season bar, duration, frequency badges). | Each service already defines its frequencies; matching the Services page keeps the public and internal views consistent.                         | [Request portal](../requests/ui.md#request-portal)         |
+
+## 2026-10-21 — Email team invitations and explicit acceptance
+
+Team invitations use requests@terraformaflow.com with a fixed terraformaflow.com origin (localhost:3000 for development), a seven-day expiry, and the existing admin/dispatcher/worker role picker. Recipients must authenticate with the invited email and explicitly choose Accept invitation before joining. Signup confirmation stays Supabase-managed. Copy links remain available when sending cannot be confirmed; retry generates a replacement and visibly warns that earlier links expire. Successful acceptance selects the invited team, with a separate retry for opening it if navigation fails. No mock was supplied; use the existing modal and auth styles.
+
+## 2026-10-21 — Match invitation acceptance to the application
+
+The user requested the acceptance page match the rest of the application. Reuse the existing AbsoluteCRM logo, cream/paper surfaces, forest/lime palette, display typography, and rounded CRM form controls across every acceptance state. Keep the current form labels and explicit acceptance behavior, with responsive spacing and wrapping for long emails.
