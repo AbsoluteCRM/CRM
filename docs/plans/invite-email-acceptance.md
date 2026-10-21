@@ -169,3 +169,13 @@ Pending implementation after user approval.
 ## Scope-change log
 
 _None._
+
+## Implementation verification record (2026-10-21)
+
+- Main checkout exact verify command, with `.env.local` loaded: lint and formatting pass; Vitest reports 192/197 passing. All 141 unit tests and all 14 new invitation interaction stories pass. Five existing story failures remain: QuoteEditor Draft Editing; RequestsPanel Filters And Read Only Details; CrewBuilder Drag To Crew, Drag To Unassigned, Set Lead. No assertions were weakened and none were skipped. Full merge gate is not satisfied.
+- Typechecking and production build pass separately; the exact pipeline stops at Vitest.
+- Running-app checks passed with dedicated remote fixtures: wrong account rejected; no membership before acceptance; existing user accepted and invited org selected despite another membership; reused/malformed links rejected; failed email has copy/retry fallback; new signup shows confirmation-required state before explicit acceptance. Signup response and confirmation were simulated without sending to an arbitrary inbox; real confirmation callback remains unverified until redirect configuration is completed.
+- Actual Resend API accepted an invitation from `requests@terraformaflow.com` to its dedicated `delivered+crm-invite-test@resend.dev` test mailbox. Other provider requests were locally intercepted. No personal inbox was contacted. Sender/API acceptance does not prove inbox delivery.
+- Live database checks on dedicated fixtures passed for cross-tenant write rejection and expired/rotated/reused token rejection, with successful current-token acceptance.
+- Seven implemented screenshots captured locally under `docs/team/shots/`; displayed invite tokens are masked. They remain uncommitted because Git LFS is missing and installation was declined. Screenshot delivery remains outstanding. Response headers verified no-store/no-referrer.
+- Remote Auth configuration was inspected, not changed: confirmation enabled, site URL localhost, redirect allowlist empty. Exact deployment steps are in `docs/team/ui.md`.

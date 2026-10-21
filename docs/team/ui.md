@@ -59,3 +59,21 @@ At implementation verification, the remote project had `site_url=http://localhos
 **Design origin**: existing Team modal and auth form styles, without a separate mock. Implemented screenshots are recorded by the running-app verification in this PR.
 
 **Code**: Teams `InviteModal`, `InvitationAcceptance` with interaction stories, `/accept-invite`, `/auth/callback`, `teams.invite`, and `teams.acceptInvite`.
+
+## Implemented screens and verification
+
+Captured locally on 2026-10-21 in the running app with dedicated test organizations and accounts. Invite-link fields are masked. These files remain uncommitted: Git LFS is missing, and its installation was declined. Screenshot delivery is an outstanding workflow check.
+
+| State                     | Screenshot                                           |
+| ------------------------- | ---------------------------------------------------- |
+| Send invitation           | `shots/invite-email-form.png` (local only)           |
+| Provider accepted         | `shots/invite-email-sent.png` (local only)           |
+| Sending failed            | `shots/invite-email-failed.png` (local only)         |
+| Sign in or create account | `shots/accept-invite-sign-in.png` (local only)       |
+| Explicit acceptance       | `shots/accept-invite-review.png` (local only)        |
+| Invalid or reused link    | `shots/accept-invite-invalid.png` (local only)       |
+| Confirmation required     | `shots/accept-invite-confirm-email.png` (local only) |
+
+Running-app checks passed for wrong-account rejection, no membership before the explicit Accept click, existing-user acceptance, active-team selection for a multi-org user, replay rejection, malformed links, provider-failure fallback, and new-account acceptance. Signup's confirmation-required response and subsequent confirmation were simulated for the dedicated new account; a real confirmation-email callback is not claimed verified. Separate live database checks rejected cross-tenant writes and expired/rotated/reused tokens, then accepted the current token.
+
+The real Resend API accepted a team invitation from the configured sender to its documented `delivered+crm-invite-test@resend.dev` test mailbox. This verifies API/sender acceptance, not delivery to a personal inbox. All other browser-test email calls were intercepted locally. The invitation response returned `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
