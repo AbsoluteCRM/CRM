@@ -158,6 +158,10 @@ User approved this audited plan with “approve” on 2026-10-21.
 - **Pre-existing**: CLAUDE.md describes unit tests and org middleware as missing, but both exist; this plan uses the verified code.
 - **Checked clean**: request/decisions, repository workflow/template, auth/org extension points, tRPC authorization and scope, invite hashing/rotation, acceptance SQL transaction and email matching, environment isolation, email failure handling, confirmation recovery, telemetry controls, test/verification coverage, screenshots and review/PR gates.
 
+### Verification compatibility repair
+
+The first full run found a pre-existing Storybook 10.6.0 mismatch with the installed TanStack `interpolatePath` signature and Vitest 5. Existing and new stories failed before interaction execution. Updated the existing Storybook packages together to exact 10.6.1, whose upstream patch supports both APIs and Vitest 5; no new dependency or product behavior was added. The main agent approved this routine verification repair. Mechanical existing formatting issues and one type-only import were also corrected to satisfy the required lint/format gates.
+
 ### Review (`reviewer`, and `security` if gated)
 
 Pending implementation after user approval.

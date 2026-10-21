@@ -25,9 +25,7 @@ export const SignIn: Story = {
       'recipient@example.com',
     )
     await userEvent.type(canvas.getByLabelText('Password'), 'password123')
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Sign in' }),
-    )
+    await userEvent.click(canvas.getByRole('button', { name: 'Sign in' }))
     await expect(args.onAuthenticate).toHaveBeenCalledWith(
       'sign-in',
       'recipient@example.com',
