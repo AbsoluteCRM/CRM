@@ -88,6 +88,7 @@ S = select, I = insert, U = update, D = delete. "—" means no table access.
 | tax_rates, service_default_taxes                                      | S I U D                      | S                            | —                                | —                                                                 |
 | quotes, quote_line_items, quote_line_item_taxes                       | S I U D (no `status` writes) | S I U D (no `status` writes) | —                                | `portal_*` RPCs; approve/decline; magic link via `portal_token_*` |
 | quote_share_tokens                                                    | S (not `token_hash`)         | S (not `token_hash`)         | —                                | `portal_token_*` (service role only)                              |
+| quote_messages                                                        | S; RPC-only writes           | S; RPC-only writes           | —                                | Token read/post RPCs through trusted server only                  |
 | jobs, job_line_items, job_line_item_taxes                             | S I U D                      | S I U D                      | — (`worker_route_stops`)         | `portal_my_jobs`                                                  |
 | visits                                                                | S I U D                      | S I U D                      | — (`worker_*_visit` RPCs)        | `portal_my_visits`                                                |
 | attachments                                                           | S I U D                      | S I U D                      | — (`worker_add_attachment`)      | signed URLs, `is_client_visible` only                             |
@@ -162,6 +163,14 @@ queries and inserts must also scope to the active org. See
 trusted code. They are not callable by `anon`.
 
 ## Accepted advisor findings
+
+`post_quote_message` is an authenticated security-definer RPC. It requires
+`auth.uid()` and active office membership, matches the supplied organization
+and quote, locks the quote, and requires a live share link before inserting
+server-assigned attribution. Execution is revoked from PUBLIC, anon and
+service_role. The token list/post functions are service-role-only definers;
+they derive organization and quote from `private.resolve_quote_token` and
+return only safe message fields. Neither path grants direct message writes.
 
 The Supabase advisors report these by design. Don't "fix" them:
 

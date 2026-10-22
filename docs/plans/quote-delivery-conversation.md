@@ -194,6 +194,53 @@ The auditor initially passed, then a supplemental check of optional-item totals 
 
 ### Review (`reviewer`, and `security`): pending implementation
 
+## Implementation progress
+
+- User approved on 2026-10-21. Branch `feat/quote-delivery-conversation` was
+  created from freshly fetched origin/main; plan committed first. Draft PR:
+  https://github.com/AbsoluteCRM/CRM/pull/49.
+- The configured Supabase endpoint responds with HTTP 401 without credentials,
+  confirming reachability, but this session exposes no Supabase tools. A
+  Supabase connection has been requested. No remote migrations or writes have
+  been performed; parity, assigned migration version, advisors, remote pgTAP
+  and generated types remain pending.
+- Local migration `20261021000000_quote_conversation.sql`, pgTAP tests and
+  database documentation are prepared. Its filename is provisional until
+  apply_migration returns the canonical version.
+- Early verification used the already-installed transitive PGlite package
+  through `/tmp/quote-conversation-scratch.mjs`, with no application dependency
+  change. The new migration and quote/conversation logic were executed as
+  written. Historical PostGIS fields, moddatetime, cron and storage setup used
+  scratch compatibility shims. Results: conversation 67/67, existing quote
+  lifecycle 48/48, frequency 11/11. This supplements, and does not replace,
+  required remote Supabase verification; concurrency and the full migration
+  history are not proven by this harness.
+- To keep progressing while remote access is unavailable, independent email,
+  safe DTO and presentational UI work proceeds before the schema/types commit.
+  The feature scope and final gates are unchanged. New-RPC wiring waits for
+  actual generated types; no hand-edited database type substitutes are used.
+- Implementer pushed `10ce38d` (email helper and safe schemas) and `8e8cd68`
+  (presentational UI and stories), then returned branch-writing ownership.
+  Focused new checks: 5 files / 36 tests passed, exit 0. Worktree typecheck,
+  lint/check and fixture-environment build passed. Main pulled ff-only.
+- Main-checkout exact verify command ran with the existing environment:
+  lint and formatting passed; Vitest exited 1 with 228 passing and 5 failing
+  tests across 28 files. The failures are RequestsPanel / Filters And Read
+  Only Details (one expected extra detail value), QuoteEditor / Draft Editing
+  (expected payload omits frequency and active months), CrewBuilder / Drag To
+  Crew and Drag To Unassigned (callbacks not called), and CrewBuilder / Set
+  Lead (selector finds an SVG rather than the select). These files are
+  unchanged by this branch so far; no baseline browser pass is claimed.
+  The new unit/story files passed in this run. The runner also printed
+  Nitro CommonJS diagnostics and a Vite close-timeout warning.
+- Main separately ran `pnpm exec tsc --noEmit` and `pnpm build` after the
+  Vitest failure stopped the chained command; both exited 0. Build reported
+  dependency bundling warnings. These passes do not override the five failing
+  story assertions or outstanding integration/remote verification gates.
+- Full route/procedure/hook integration, actual generated types, live email
+  and signed-out customer verification, screenshots, final reviewer/security
+  reviews and merge are still pending. Plan status remains approved.
+
 ## Scope-change log
 
 None.

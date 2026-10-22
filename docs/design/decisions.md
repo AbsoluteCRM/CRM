@@ -27,3 +27,15 @@ Team invitations use requests@terraformaflow.com with a fixed terraformaflow.com
 ## 2026-10-21 — Match invitation acceptance to the application
 
 The user requested the acceptance page match the rest of the application. Reuse the existing AbsoluteCRM logo, cream/paper surfaces, forest/lime palette, display typography, and rounded CRM form controls across every acceptance state. Keep the current form labels and explicit acceptance behavior, with responsive spacing and wrapping for long emails.
+
+## 2026-10-21 — Customer quote review and conversation
+
+Use a mobile-friendly quote page accessible from its emailed link without
+sign-in. Show quote details, terms and totals, simple accept/decline
+confirmations, and a conversation shared with office staff. Keep chat open
+after acceptance or decline until the existing quote-link expiry. PDF download
+and optional-item selection appear as disabled Coming soon controls; signatures
+and job creation are deferred. Do not add message or decision notification
+emails in this PR. No mock was supplied; follow the existing CRM components
+and public portal styling. Implementation and verification are tracked in
+[the approved plan](../plans/quote-delivery-conversation.md).

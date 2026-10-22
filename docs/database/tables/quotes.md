@@ -132,6 +132,12 @@ A sent quote's client, property, title, message, conditions, and `valid_until`
 are fixed; pull it back to draft to change them. `request_id` and `revision`
 never change.
 
+Direct `UPDATE (is_selected)` is revoked from `authenticated`. Sending clears
+all optional selections under the quote lock before the quote becomes sent;
+only guarded approval RPCs can subsequently select optional items. The current
+customer page does not offer optional selection and approves with an empty
+selection, preserving the delivered counted total.
+
 **Status is not writable through the API.** `update (status, declined_reason)`
 is revoked from `authenticated`. Every status change goes through a function
 (`send_quote`, `pull_back_quote`, `approve_quote`, `decline_quote`, the token
@@ -168,6 +174,49 @@ else gets `P0002` (not found).
 | `send_quote(quote_id, token_hash)`             | Draft → sent. Needs `valid_until` today or later, a client email and at least one line (`55000`). Inserts the share token. Returns the token id        |
 | `pull_back_quote(quote_id)`                    | Sent → draft. Revokes the live token                                                                                                                   |
 | `rotate_quote_token(quote_id, new_token_hash)` | Resend: revokes the live token and inserts a new one with `delivery_attempts + 1`. Locks the quote and token, so concurrent calls leave one live token |
+
+## `quote_messages`
+
+Append-only plain-text conversation for one quote revision. Migration:
+`quote_conversation` (local draft until applied and version-reconciled).
+Standard `id`, `organization_id`, `created_at` and `updated_at` columns apply.
+
+| Column              | Type             | Notes                                                                                             |
+| ------------------- | ---------------- | ------------------------------------------------------------------------------------------------- |
+| `quote_id`          | `uuid`           | Composite FK `(organization_id, quote_id)` → quotes; delete restrict                              |
+| `body`              | `text`           | Nonempty, contains a non-whitespace character, maximum 4000 characters                            |
+| `sender_kind`       | `text`           | `staff` or `customer`; assigned by the posting RPC                                                |
+| `staff_user_id`     | `uuid`, nullable | Staff caller's `auth.uid()`; FK to auth.users, delete set null. Always null for customer messages |
+| `client_message_id` | `uuid`           | Client-generated retry key, unique with organization_id, quote_id and sender_kind                 |
+
+Index `(organization_id, quote_id, created_at desc, id desc)` supports history
+and the quote FK; `staff_user_id` is indexed too. Office staff can select under
+RLS; authenticated callers cannot directly insert, update or delete. Workers,
+portal accounts, nonmembers, `anon` and `PUBLIC` have no table access. The safe
+application DTO returns only id, body, sender_kind and created_at; staff are
+labelled Team and bearer-link authors Customer.
+
+| Function                                                                 | Access                                      | Behavior                                                                                                                         |
+| ------------------------------------------------------------------------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `post_quote_message(organization_id, quote_id, body, client_message_id)` | authenticated active owner/admin/dispatcher | Checks exact organization and quote, assigns session attribution; service_role cannot execute                                    |
+| `portal_token_list_messages(token_hash, before_created_at?, before_id?)` | service_role only                           | Validates bearer token; newest 50, ordered by `(created_at, id)` descending. Cursor fields must both be supplied or both omitted |
+| `portal_token_post_message(token_hash, body, client_message_id)`         | service_role only                           | Derives quote and organization from token; writes customer attribution                                                           |
+
+All functions use an empty search_path and explicit grants/revokes. Both
+posting paths lock the quote before checking its live token. Posting requires
+sent, approved or declined and a token that is not revoked or expired.
+Acceptance/decline does not close the chat; original link expiry does. Staff
+retain history after expiry, pullback and supersession. Drafts cannot receive
+messages. Rotating a token retains the same quote's thread; revisions have
+separate threads.
+
+Retrying the same key, body and staff identity returns the original message;
+reusing a key with different content or staff identity raises `23505`. Customer
+quota is 10 new messages per 60 seconds and 100 per 24 hours, shared by holders
+of that quote's link, including after rotation. Quote locking serializes the
+check and insert. Duplicate retries do not consume quota; excess raises
+`P0001` / `quote_message_rate_limited`. Invalid tokens give the same `P0002`
+for reads and writes. No raw tokens or IP addresses are kept in messages.
 
 ## `quote_share_tokens`
 
