@@ -195,7 +195,7 @@ export default function PublicQuote({
                     <label htmlFor="decline-reason">Reason (optional)</label>
                     <TextArea
                       id="decline-reason"
-                      maxLength={2000}
+                      maxLength={1000}
                       value={reason}
                       onChange={(event) => setReason(event.target.value)}
                       disabled={pending}

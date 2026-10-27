@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as QuoteEmail from '#/server/quote-email'
 
 type Result = {
   data: unknown
@@ -20,6 +21,24 @@ const state = vi.hoisted<State>(() => ({
   rpc: { data: null, error: null },
   rpcCalls: [],
   calls: [],
+}))
+
+const delivery = vi.hoisted(() => ({
+  config: vi.fn(() => ({
+    key: 'test',
+    sender: 'office@example.com',
+    origin: 'https://example.com',
+  })),
+  send: vi.fn(),
+  record: vi.fn(),
+}))
+vi.mock('#/server/quote-email', async (original) => ({
+  ...(await original<typeof QuoteEmail>()),
+  quoteEmailConfig: delivery.config,
+  sendQuoteEmail: delivery.send,
+}))
+vi.mock('#/server/trusted/quotes', () => ({
+  recordQuoteDelivery: delivery.record,
 }))
 
 vi.mock('#/env', () => ({
@@ -50,6 +69,7 @@ vi.mock('#/lib/supabase/server', () => {
       'order',
       'limit',
       'is',
+      'or',
     ]) {
       q[m] = (...a: Array<unknown>) => (
         state.calls.push([`${table}.${m}`, ...a]),
@@ -129,6 +149,156 @@ beforeEach(() => {
   state.rpc = { data: QUOTE, error: null }
   state.rpcCalls = []
   state.calls = []
+  delivery.config.mockClear()
+  delivery.send
+    .mockReset()
+    .mockResolvedValue({ status: 'sent', messageId: 'provider-1' })
+  delivery.record.mockReset().mockResolvedValue(undefined)
+})
+
+describe('quote delivery and conversation boundaries', () => {
+  const input = { organizationId: ORG, quoteId: QUOTE }
+  const message = {
+    id: LINE,
+    body: 'Hello',
+    sender_kind: 'staff',
+    created_at: '2026-10-27T12:00:00Z',
+    staff_user_id: 'private',
+  }
+  function ready() {
+    state.results.quotes = [
+      {
+        data: {
+          id: QUOTE,
+          client_id: REQ,
+          title: 'Mow',
+          number: 'Q-1',
+          valid_until: '2026-12-01',
+        },
+        error: null,
+      },
+    ]
+    state.results.clients = [
+      {
+        data: { email: 'customer@example.com', archived_at: null },
+        error: null,
+      },
+    ]
+    state.results.organizations = [
+      { data: { name: 'Office', email: null }, error: null },
+    ]
+  }
+  it.each(['worker', 'portal', null])(
+    'denies %s on every new endpoint before domain queries',
+    async (role) => {
+      state.role = role
+      const api = caller().quotes
+      for (const call of [
+        () => api.send(input),
+        () => api.retryDelivery(input),
+        () => api.listMessages(input),
+        () =>
+          api.postMessage({ ...input, body: 'Hello', clientMessageId: LINE }),
+      ]) {
+        await expect(call()).rejects.toMatchObject({ code: 'FORBIDDEN' })
+      }
+      expect(state.rpcCalls).toEqual([])
+    },
+  )
+  it.each(['owner', 'admin', 'dispatcher'])(
+    'allows %s and records structured provider acceptance',
+    async (role) => {
+      state.role = role
+      ready()
+      await expect(caller().quotes.send(input)).resolves.toEqual({
+        id: QUOTE,
+        deliveryStatus: 'sent',
+      })
+      expect(state.calls).toContainEqual(['quotes.eq', 'organization_id', ORG])
+      expect(state.calls).toContainEqual(['quotes.eq', 'id', QUOTE])
+      expect(delivery.record).toHaveBeenCalledWith(QUOTE, {
+        status: 'sent',
+        messageId: 'provider-1',
+      })
+    },
+  )
+  it('rejects a quote hidden by the active org even for a multi-org member before the ID-only RPC', async () => {
+    state.results.quotes = [{ data: null, error: null }]
+    await expect(caller().quotes.retryDelivery(input)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+    expect(state.rpcCalls).toEqual([])
+    expect(delivery.config).not.toHaveBeenCalled()
+  })
+  it('validates saved recipient before committing a send', async () => {
+    ready()
+    state.results.clients = [
+      { data: { email: 'invalid', archived_at: null }, error: null },
+    ]
+    await expect(caller().quotes.send(input)).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+    })
+    expect(state.rpcCalls).toEqual([])
+  })
+  it('records a transport failure and reports pending when recording fails', async () => {
+    ready()
+    delivery.send.mockResolvedValue({ status: 'failed', messageId: null })
+    await expect(caller().quotes.retryDelivery(input)).resolves.toEqual({
+      id: QUOTE,
+      deliveryStatus: 'failed',
+    })
+    expect(state.rpcCalls[0]?.[0]).toBe('rotate_quote_token')
+    ready()
+    delivery.record.mockRejectedValue(new Error('private failure'))
+    await expect(caller().quotes.retryDelivery(input)).resolves.toEqual({
+      id: QUOTE,
+      deliveryStatus: 'pending',
+    })
+  })
+  it('returns only safe messages and filters history by quote and active org', async () => {
+    ready()
+    state.results.quote_messages = [{ data: [message], error: null }]
+    const page = await caller().quotes.listMessages(input)
+    expect(page.messages[0]).toEqual({
+      id: LINE,
+      body: 'Hello',
+      sender_kind: 'staff',
+      created_at: message.created_at,
+    })
+    expect(state.calls).toContainEqual([
+      'quote_messages.eq',
+      'organization_id',
+      ORG,
+    ])
+    expect(state.calls).toContainEqual(['quote_messages.eq', 'quote_id', QUOTE])
+  })
+  it('posts with explicit org scope and strips private attribution', async () => {
+    state.rpc = { data: [message], error: null }
+    const result = await caller().quotes.postMessage({
+      ...input,
+      body: ' Hello ',
+      clientMessageId: LINE,
+    })
+    expect(result).not.toHaveProperty('staff_user_id')
+    expect(state.rpcCalls).toContainEqual([
+      'post_quote_message',
+      {
+        p_organization_id: ORG,
+        p_quote_id: QUOTE,
+        p_body: 'Hello',
+        p_client_message_id: LINE,
+      },
+    ])
+  })
+  it('rejects unpaired cursors before domain access', async () => {
+    await expect(
+      caller().quotes.listMessages({
+        ...input,
+        cursor: { beforeId: LINE } as never,
+      }),
+    ).rejects.toThrow()
+    expect(state.rpcCalls).toEqual([])
+  })
 })
 
 describe('quotes access', () => {

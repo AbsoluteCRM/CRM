@@ -4,6 +4,19 @@ import { z } from 'zod'
 
 import { dbError } from './errors'
 import { requireOrgPermission } from './init'
+import {
+  messagePage,
+  quoteMessageBodySchema,
+  quoteMessageCursorSchema,
+  quoteMessageSchema,
+} from '#/integrations/quotes/public.schemas'
+import {
+  generateQuoteToken,
+  quoteEmailConfig,
+  quoteRecipient,
+  sendQuoteEmail,
+} from '#/server/quote-email'
+import { recordQuoteDelivery } from '#/server/trusted/quotes'
 
 import type { TRPCRouterRecord } from '@trpc/server'
 
@@ -59,7 +72,140 @@ async function seedFromService(ctx: Ctx, requestId: string, quoteId: string) {
   })
 }
 
+async function scopedQuote(ctx: Ctx, quoteId: string) {
+  const { data, error } = await ctx.supabase
+    .from('quotes')
+    .select(QUOTE_COLUMNS)
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', quoteId)
+    .maybeSingle()
+  if (error) throw dbError(error)
+  if (!data)
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Quote not found' })
+  return data
+}
+
+async function deliver(ctx: Ctx, quoteId: string, retry: boolean) {
+  const quote = await scopedQuote(ctx, quoteId)
+  const config = quoteEmailConfig()
+  const [client, organization] = await Promise.all([
+    ctx.supabase
+      .from('clients')
+      .select('email, archived_at')
+      .eq('organization_id', ctx.organizationId)
+      .eq('id', quote.client_id)
+      .maybeSingle(),
+    ctx.supabase
+      .from('organizations')
+      .select('name, email')
+      .eq('id', ctx.organizationId)
+      .maybeSingle(),
+  ])
+  if (
+    client.error ||
+    organization.error ||
+    !client.data ||
+    client.data.archived_at ||
+    !organization.data
+  )
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: 'Client or organization is unavailable.',
+    })
+  const email = quoteRecipient(client.data.email)
+  const { token, tokenHash } = generateQuoteToken()
+  const result = retry
+    ? await ctx.supabase.rpc('rotate_quote_token', {
+        p_quote_id: quoteId,
+        p_new_token_hash: tokenHash,
+      })
+    : await ctx.supabase.rpc('send_quote', {
+        p_quote_id: quoteId,
+        p_token_hash: tokenHash,
+      })
+  if (result.error) throw dbError(result.error)
+  const outcome = await sendQuoteEmail(config, {
+    organization: organization.data.name,
+    organizationEmail: organization.data.email,
+    number: quote.number,
+    title: quote.title,
+    validUntil: quote.valid_until ?? '',
+    email,
+    token,
+    tokenId: result.data,
+  })
+  try {
+    await recordQuoteDelivery(result.data, outcome)
+    return { id: quoteId, deliveryStatus: outcome.status }
+  } catch {
+    // Provider acceptance can precede a crash or recording failure. Pending is
+    // deliberately recoverable by rotating the token, never automatic retry.
+    return { id: quoteId, deliveryStatus: 'pending' as const }
+  }
+}
+
 export const quotesRouter = {
+  send: manageQuotes
+    .input(z.object({ quoteId: z.uuid() }))
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'quotes.send' }, () =>
+        deliver(ctx, input.quoteId, false),
+      ),
+    ),
+  retryDelivery: manageQuotes
+    .input(z.object({ quoteId: z.uuid() }))
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'quotes.retryDelivery' }, () =>
+        deliver(ctx, input.quoteId, true),
+      ),
+    ),
+  listMessages: manageQuotes
+    .input(
+      z.object({
+        quoteId: z.uuid(),
+        cursor: quoteMessageCursorSchema.optional(),
+      }),
+    )
+    .query(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'quotes.listMessages' }, async () => {
+        await scopedQuote(ctx, input.quoteId)
+        let query = ctx.supabase
+          .from('quote_messages')
+          .select('id, body, sender_kind, created_at')
+          .eq('organization_id', ctx.organizationId)
+          .eq('quote_id', input.quoteId)
+        if (input.cursor)
+          query = query.or(
+            `created_at.lt.${input.cursor.beforeCreatedAt},and(created_at.eq.${input.cursor.beforeCreatedAt},id.lt.${input.cursor.beforeId})`,
+          )
+        const { data, error } = await query
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(50)
+        if (error) throw dbError(error)
+        return messagePage(data)
+      }),
+    ),
+  postMessage: manageQuotes
+    .input(
+      z.object({
+        quoteId: z.uuid(),
+        body: quoteMessageBodySchema,
+        clientMessageId: z.uuid(),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'quotes.postMessage' }, async () => {
+        const { data, error } = await ctx.supabase.rpc('post_quote_message', {
+          p_organization_id: ctx.organizationId,
+          p_quote_id: input.quoteId,
+          p_body: input.body,
+          p_client_message_id: input.clientMessageId,
+        })
+        if (error) throw dbError(error)
+        return quoteMessageSchema.parse(data[0])
+      }),
+    ),
   taxRates: manageQuotes.query(({ ctx }) =>
     Sentry.startSpan({ name: 'quotes.taxRates' }, async () => {
       const { data, error } = await ctx.supabase

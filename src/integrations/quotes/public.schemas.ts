@@ -52,3 +52,15 @@ export type PublicQuoteData = z.infer<typeof publicQuoteSchema>
 export type QuoteMessage = z.infer<typeof quoteMessageSchema>
 export type QuoteMessageCursor = z.infer<typeof quoteMessageCursorSchema>
 export type QuoteMessagePage = z.infer<typeof quoteMessagePageSchema>
+
+export function messagePage(rows: unknown): QuoteMessagePage {
+  const messages = z.array(quoteMessageSchema).parse(rows)
+  const last = messages.at(-1)
+  return {
+    messages,
+    olderCursor:
+      messages.length === 50 && last
+        ? { beforeCreatedAt: last.created_at, beforeId: last.id }
+        : null,
+  }
+}
