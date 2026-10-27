@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react'
 import type { inferRouterOutputs } from '@trpc/server'
 
 import { Alert, Btn } from '#/components/crm/ui'
+import QuoteConversation from '#/components/quotes/QuoteConversation'
 import QuoteEditor, { QuoteHeaderBadges } from '#/components/quotes/QuoteEditor'
 import { useQuoteBuilder, useRequestQuotes } from '#/integrations/quotes/quotes'
 import type { TRPCRouter } from '#/integrations/trpc/router'
@@ -24,6 +25,7 @@ export default function RequestWorkspace({
   if (quoteId) {
     return (
       <BuilderView
+        key={`${organizationId}:${quoteId}`}
         organizationId={organizationId}
         quoteId={quoteId}
         onBack={() => setQuoteId(null)}
@@ -81,7 +83,7 @@ function BuilderView({
   onBack: () => void
 }) {
   const builder = useQuoteBuilder(organizationId, quoteId)
-  const { quote, taxRates, services } = builder.queries
+  const { quote, taxRates, services, clients } = builder.queries
 
   const back = (
     <Btn variant="outline" icon={ArrowLeft} onClick={onBack}>
@@ -89,7 +91,12 @@ function BuilderView({
     </Btn>
   )
 
-  if (quote.isError || taxRates.isError || services.isError) {
+  if (
+    quote.isError ||
+    taxRates.isError ||
+    services.isError ||
+    clients.isError
+  ) {
     return quote.error?.data?.code === 'NOT_FOUND' ? (
       <Alert tone="info" title="Quote not found" action={back}>
         It may have been removed.
@@ -105,6 +112,7 @@ function BuilderView({
               void quote.refetch()
               void taxRates.refetch()
               void services.refetch()
+              void clients.refetch()
             }}
           >
             Try again
@@ -115,7 +123,12 @@ function BuilderView({
       </Alert>
     )
   }
-  if (quote.isPending || taxRates.isPending || services.isPending) {
+  if (
+    quote.isPending ||
+    taxRates.isPending ||
+    services.isPending ||
+    clients.isPending
+  ) {
     return (
       <p className="py-10 text-center text-sm text-(--ink-3)" role="status">
         Loading quote…
@@ -123,6 +136,12 @@ function BuilderView({
     )
   }
 
+  const delivery = quote.data.delivery
+  const writable =
+    ['sent', 'approved', 'declined'].includes(quote.data.quote.status) &&
+    !!delivery &&
+    !delivery.revoked_at &&
+    Date.parse(delivery.expires_at) > Date.now()
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-(--ink-2)">
@@ -130,6 +149,13 @@ function BuilderView({
         {back}
       </div>
       <QuoteEditor
+        key={`${organizationId}:${quoteId}`}
+        recipient={
+          builder.queries.clients.data?.find(
+            (client) => client.id === quote.data.quote.client_id,
+          )?.email ?? null
+        }
+        onSend={builder.send}
         data={quote.data}
         taxRates={taxRates.data}
         services={services.data}
@@ -139,6 +165,30 @@ function BuilderView({
         onSaveLine={builder.saveLine}
         onDeleteLine={builder.deleteLine}
         onPullBack={builder.pullBack}
+      />
+      {!writable && (
+        <p className="text-sm text-(--ink-3)">
+          Conversation history is read-only while this quote has no active
+          customer link.
+        </p>
+      )}
+      <QuoteConversation
+        key={`${organizationId}:${quoteId}`}
+        messages={builder.history}
+        disabled={!writable}
+        loading={builder.messages.isPending}
+        error={
+          builder.messages.error
+            ? 'Could not load messages. Please try again.'
+            : null
+        }
+        hasOlder={builder.messages.hasNextPage}
+        loadingOlder={builder.messages.isFetchingNextPage}
+        onLoadOlder={async () => {
+          await builder.messages.fetchNextPage()
+        }}
+        onRetry={() => void builder.messages.refetch()}
+        onSend={builder.postMessage}
       />
     </div>
   )

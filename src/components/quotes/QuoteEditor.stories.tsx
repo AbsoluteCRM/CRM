@@ -140,6 +140,9 @@ export const DraftEditing: Story = {
       quantity: 1.5,
       unitPriceCents: 12000,
       isOptional: true,
+      frequency: 'one_time',
+      seasonStartMonth: null,
+      seasonEndMonth: null,
       taxRateIds: [GST],
     })
 
@@ -205,5 +208,41 @@ export const SaveFailed: Story = {
     await expect(within(canvasElement).getByRole('alert')).toHaveTextContent(
       "That didn't save",
     )
+  },
+}
+
+export const SendSavedDraft: Story = {
+  args: {
+    data: { ...draft, quote: { ...quote, valid_until: '2099-12-01' } },
+    recipient: 'alex@example.com',
+    onSend: fn(async () => true),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Title'), ' changed')
+    await userEvent.click(canvas.getByRole('button', { name: 'Send quote' }))
+    let dialog = within(canvas.getByRole('dialog'))
+    await expect(
+      dialog.getByText('Save your pending changes before sending.'),
+    ).toBeVisible()
+    await expect(
+      dialog.getByRole('button', { name: 'Send quote' }),
+    ).toBeDisabled()
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await userEvent.clear(canvas.getByLabelText('Title'))
+    await userEvent.type(canvas.getByLabelText('Title'), quote.title)
+    await userEvent.click(canvas.getByRole('button', { name: 'Add line' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Send quote' }))
+    dialog = within(canvas.getByRole('dialog'))
+    await expect(
+      dialog.getByRole('button', { name: 'Send quote' }),
+    ).toBeDisabled()
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Send quote' }))
+    dialog = within(canvas.getByRole('dialog'))
+    await expect(dialog.getByText('alex@example.com')).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: 'Send quote' }))
+    await expect(args.onSend).toHaveBeenCalledWith(false)
   },
 }

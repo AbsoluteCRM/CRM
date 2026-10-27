@@ -25,6 +25,7 @@ import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
 import { Route as AuthedTeamsRouteImport } from './routes/_authed/teams'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as PortalOrgSlugRouteImport } from './routes/portal/$orgSlug'
+import { Route as QTokenRouteImport } from './routes/q/$token'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -106,6 +107,11 @@ const PortalOrgSlugRoute = PortalOrgSlugRouteImport.update({
   path: '/portal/$orgSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QTokenRoute = QTokenRouteImport.update({
+  id: '/q/$token',
+  path: '/q/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
   id: '/api/trpc/$',
   path: '/api/trpc/$',
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/teams': typeof AuthedTeamsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/portal/$orgSlug': typeof PortalOrgSlugRoute
+  '/q/$token': typeof QTokenRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesByTo {
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/teams': typeof AuthedTeamsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/portal/$orgSlug': typeof PortalOrgSlugRoute
+  '/q/$token': typeof QTokenRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesById {
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/_authed/teams': typeof AuthedTeamsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/portal/$orgSlug': typeof PortalOrgSlugRoute
+  '/q/$token': typeof QTokenRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRouteTypes {
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/auth/callback'
     | '/portal/$orgSlug'
+    | '/q/$token'
     | '/api/trpc/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -204,6 +214,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/auth/callback'
     | '/portal/$orgSlug'
+    | '/q/$token'
     | '/api/trpc/$'
   id:
     | '__root__'
@@ -223,6 +234,7 @@ export interface FileRouteTypes {
     | '/_authed/teams'
     | '/auth/callback'
     | '/portal/$orgSlug'
+    | '/q/$token'
     | '/api/trpc/$'
   fileRoutesById: FileRoutesById
 }
@@ -234,6 +246,7 @@ export interface RootRouteChildren {
   SignUpRoute: typeof SignUpRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   PortalOrgSlugRoute: typeof PortalOrgSlugRoute
+  QTokenRoute: typeof QTokenRoute
   ApiTrpcSplatRoute: typeof ApiTrpcSplatRoute
 }
 
@@ -351,6 +364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalOrgSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/q/$token': {
+      id: '/q/$token'
+      path: '/q/$token'
+      fullPath: '/q/$token'
+      preLoaderRoute: typeof QTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/trpc/$': {
       id: '/api/trpc/$'
       path: '/api/trpc/$'
@@ -396,6 +416,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignUpRoute: SignUpRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   PortalOrgSlugRoute: PortalOrgSlugRoute,
+  QTokenRoute: QTokenRoute,
   ApiTrpcSplatRoute: ApiTrpcSplatRoute,
 }
 export const routeTree = rootRouteImport

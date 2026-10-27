@@ -76,6 +76,7 @@ function RequestsPage() {
           services={services.data}
           renderWorkspace={(request) => (
             <RequestWorkspace
+              key={`${organization.id}:${request.id}`}
               request={request}
               organizationId={organization.id}
             />
