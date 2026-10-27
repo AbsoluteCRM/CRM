@@ -178,7 +178,7 @@ else gets `P0002` (not found).
 ## `quote_messages`
 
 Append-only plain-text conversation for one quote revision. Migration:
-`quote_conversation` (local draft until applied and version-reconciled).
+`20261027214207_quote_conversation`, applied to the remote project.
 Standard `id`, `organization_id`, `created_at` and `updated_at` columns apply.
 
 | Column              | Type             | Notes                                                                                             |

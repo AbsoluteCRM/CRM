@@ -240,7 +240,47 @@ The auditor initially passed, then a supplemental check of optional-item totals 
 - Full route/procedure/hook integration, actual generated types, live email
   and signed-out customer verification, screenshots, final reviewer/security
   reviews and merge are still pending. Plan status remains approved.
+- Supabase connection restored on the user's next continuation. Read-only
+  inspection found 17 remote migration records versus 24 on main: the seven
+  unrecorded names are `crew_builder_mutations`, `crew_members_write_grants`,
+  `services_season_fields`, `requests_portal`, `portal_drop_frequency`,
+  `quote_request_link_and_share_tokens` and `quote_line_frequency`. Their
+  relevant tables/columns exist, and all 19 current function bodies introduced
+  or replaced by those files match the local versions after whitespace
+  normalization. This supports a missing-history diagnosis, but is not a
+  complete schema/grant equivalence proof. No remote writes were performed.
+  The workflow's migration-parity gate prevents applying the new migration or
+  regenerating types until reconciliation. Proposed next step: verify the
+  remaining constraints, indexes, policies and grants, restore only the
+  missing historical records without replaying existing DDL, then resume the
+  approved feature. User explicitly approved this reconciliation ("Yes,
+  continue"). Remaining constraints, indexes, policies, grants, defaults and
+  the expiry cron job were inspected and matched. The metadata-repair call was
+  interrupted by a session change; its remote completion must be checked
+  before retrying. On 2026-10-27, MCP startup reported OAuth token refresh
+  failure despite the connection remaining configured. Login renewal is in
+  progress; no assumption is made about the interrupted write's outcome.
 
 ## Scope-change log
 
-None.
+### Database reconciliation and application — 2026-10-27
+
+The user explicitly authorized restoring the seven verified historical
+migration records. The successful repair inserted versions and names only,
+without replaying DDL or changing application data. Fresh list_migrations then
+matched all 24 migrations on main; PR #49 was the only open PR.
+
+Applied `quote_conversation` with apply_migration; canonical version is
+`20261027214207`, and the local file was renamed accordingly. All six remote
+pgTAP files passed: audit regressions 36, followup hardening 14, conversation
+67, frequency 11, quote lifecycle 48 and review fixes 12 (188 assertions).
+Post-change advisors show no new unaccepted findings: the new authenticated
+security-definer `post_quote_message` is explicitly documented in rls.md, and
+the staff-user FK index has the existing unused-index informational notice.
+
+Fresh migration parity was checked before generating database.ts directly
+with Supabase MCP generate_typescript_types, because the local CLI/devenv
+toolchain is unavailable. This is actual project-generated output, formatted
+with Prettier; no database types were hand-authored. The original approval
+and feature scope remain in effect. Integration and final verification now
+resume against this schema.
