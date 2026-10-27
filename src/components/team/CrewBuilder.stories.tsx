@@ -143,13 +143,34 @@ export const CreateCrewPicksUniqueName: Story = {
 export const DragToCrew: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const card = canvas.getByText('Wade Worker', { selector: 'p' })
+    const card = canvas
+      .getByText('Wade Worker', { selector: 'p' })
+      .closest('[draggable]')!
     const column = canvas
       .getByDisplayValue('Crew B')
       .closest('[class*="w-72"]')!
     const dataTransfer = new DataTransfer()
-    await fireEvent.dragStart(card, { dataTransfer })
-    await fireEvent.drop(column, { dataTransfer })
+    await fireEvent(
+      card,
+      new DragEvent('dragstart', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await expect(dataTransfer.getData('text/member-id')).toBe('wade')
+    await fireEvent(
+      column,
+      new DragEvent('dragover', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await fireEvent(
+      column,
+      new DragEvent('drop', { dataTransfer, bubbles: true, cancelable: true }),
+    )
     await expect(args.actions.moveMember).toHaveBeenCalledWith('wade', 'c2')
   },
 }
@@ -157,11 +178,32 @@ export const DragToCrew: Story = {
 export const DragToUnassigned: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const card = canvas.getByText('Walt Worker', { selector: 'p' })
+    const card = canvas
+      .getByText('Walt Worker', { selector: 'p' })
+      .closest('[draggable]')!
     const column = canvas.getByText('Unassigned').closest('[class*="w-72"]')!
     const dataTransfer = new DataTransfer()
-    await fireEvent.dragStart(card, { dataTransfer })
-    await fireEvent.drop(column, { dataTransfer })
+    await fireEvent(
+      card,
+      new DragEvent('dragstart', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await expect(dataTransfer.getData('text/member-id')).toBe('walt')
+    await fireEvent(
+      column,
+      new DragEvent('dragover', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await fireEvent(
+      column,
+      new DragEvent('drop', { dataTransfer, bubbles: true, cancelable: true }),
+    )
     await expect(args.actions.moveMember).toHaveBeenCalledWith('walt', null)
   },
 }
@@ -170,7 +212,7 @@ export const SetLead: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.selectOptions(
-      canvas.getAllByLabelText('Crew lead')[0],
+      canvas.getAllByRole('combobox', { name: 'Crew lead' })[0],
       'wendy',
     )
     await expect(args.actions.setLead).toHaveBeenCalledWith('c1', 'wendy')
