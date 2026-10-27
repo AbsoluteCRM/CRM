@@ -112,7 +112,9 @@ export const crewsRouter = {
         const { error } = await ctx.supabase.rpc('move_crew_member', {
           p_organization_id: ctx.organizationId,
           p_member_id: input.memberId,
-          p_crew_id: input.crewId,
+          // SQL deliberately accepts null to unassign; generated RPC args omit
+          // nullability (20261014180000_crew_builder_mutations.sql).
+          p_crew_id: input.crewId as string,
         })
         if (error) throw toTRPCError(error)
       }),
@@ -125,7 +127,9 @@ export const crewsRouter = {
         const { error } = await ctx.supabase.rpc('set_crew_lead', {
           p_organization_id: ctx.organizationId,
           p_crew_id: input.crewId,
-          p_member_id: input.memberId,
+          // The same SQL contract accepts null to clear the lead. Keep the
+          // runtime null despite the generated RPC argument's string type.
+          p_member_id: input.memberId as string,
         })
         if (error) throw toTRPCError(error)
       }),
