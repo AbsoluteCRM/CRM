@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/tanstackstart-react'
 import { TRPCError, initTRPC } from '@trpc/server'
 import superjson from 'superjson'
 import { z } from 'zod'
@@ -19,10 +20,13 @@ const t = initTRPC.context<ReturnType<typeof createTRPCContext>>().create({
 })
 
 export const createTRPCRouter = t.router
-export const publicProcedure = t.procedure
+const baseProcedure = t.procedure.use(
+  Sentry.trpcMiddleware({ attachRpcInput: false }),
+)
+export const publicProcedure = baseProcedure
 
 // Require a valid Supabase user.
-export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
+export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
   const {
     data: { user },
     error,

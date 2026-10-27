@@ -5,7 +5,7 @@
  * Fetches the user permissions within the current organization context.
  * Wraps the application with the organization context.
  */
-import { createContext, use, useEffect, useMemo, useState } from 'react'
+import { createContext, use, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '#/integrations/auth/context'
 import { createSupabaseBrowserClient } from '#/lib/supabase/client'
@@ -28,6 +28,7 @@ interface OrganizationContextValue {
   isLoading: boolean
   error: string | null
   setActiveOrganization: (id: string) => void
+  reloadAndSelectOrganization: (id: string) => Promise<void>
 }
 
 interface OrganizationState {
@@ -102,6 +103,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const userId = isAuthenticated ? (user?.id ?? null) : null
   const [state, setState] = useState<OrganizationState>(() => emptyState())
 
+  const currentUserId = useRef(userId)
+  currentUserId.current = userId
+  const loadVersion = useRef(0)
+
   // Fetch context on user authentication change
   useEffect(() => {
     if (isAuthLoading || !userId) {
@@ -110,6 +115,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false
+    const version = ++loadVersion.current
     setState(emptyState(userId))
 
     async function loadOrganizations() {
@@ -125,7 +131,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           .order('created_at', { ascending: true })
           .order('id', { ascending: true })
 
-        if (cancelled) return
+        if (cancelled || version !== loadVersion.current) return
         if (error) throw error
 
         const organizations: Array<Organization> = []
@@ -147,7 +153,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           error: null,
         })
       } catch (error) {
-        if (cancelled) return
+        if (cancelled || version !== loadVersion.current) return
         setState({
           ...emptyState(userId),
           isLoading: false,
@@ -183,6 +189,48 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         isAuthLoading ||
         (userId !== null && (!isCurrentUser || state.isLoading)),
       error: isCurrentUser ? state.error : null,
+      reloadAndSelectOrganization: async (id) => {
+        const requestedUser = userId
+        if (!requestedUser) throw new Error('Sign in to open your team.')
+        const version = ++loadVersion.current
+        const supabase = createSupabaseBrowserClient()
+        const { data, error } = await supabase
+          .from('organization_members')
+          .select(
+            'role, organizations!organization_members_organization_id_fkey(id, name)',
+          )
+          .eq('user_id', requestedUser)
+          .eq('status', 'active')
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+        if (error)
+          throw new Error('Could not load your teams. Retry opening the team.')
+        const { data: auth } = await supabase.auth.getUser()
+        if (
+          auth.user?.id !== requestedUser ||
+          currentUserId.current !== requestedUser ||
+          version !== loadVersion.current
+        ) {
+          throw new Error(
+            'Your account changed. Sign in and open your team from the dashboard.',
+          )
+        }
+        const loaded = data
+          .map(membershipOrganization)
+          .filter((org): org is Organization => org !== null)
+        if (!loaded.some((org) => org.id === id))
+          throw new Error(
+            'Your team is not available yet. Retry opening the team.',
+          )
+        setState({
+          userId: requestedUser,
+          organizations: loaded,
+          activeId: id,
+          isLoading: false,
+          error: null,
+        })
+        saveOrganization(requestedUser, id)
+      },
       setActiveOrganization: (id) => {
         if (!userId || !organizations.some((org) => org.id === id)) return
         setState((current) =>

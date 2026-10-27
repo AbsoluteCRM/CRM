@@ -21,7 +21,11 @@ interface AuthContextValue {
   isLoading: boolean
   isAuthenticated: boolean
   signInWithPassword: (email: string, password: string) => Promise<AuthResult>
-  signUpWithPassword: (email: string, password: string) => Promise<AuthResult>
+  signUpWithPassword: (
+    email: string,
+    password: string,
+    options?: { emailRedirectTo?: string },
+  ) => Promise<AuthResult & { hasSession: boolean }>
   signOut: () => Promise<void>
 }
 
@@ -62,14 +66,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         return { error: error?.message ?? null }
       },
-      signUpWithPassword: async (email, password) => {
+      signUpWithPassword: async (email, password, options) => {
         const supabase = createSupabaseBrowserClient()
-        const { error } = await supabase.auth.signUp({ email, password })
-        return { error: error?.message ?? null }
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options,
+        })
+        return {
+          error: error?.message ?? null,
+          hasSession: data.session !== null,
+        }
       },
       signOut: async () => {
         const supabase = createSupabaseBrowserClient()
-        await supabase.auth.signOut()
+        const { error } = await supabase.auth.signOut()
+        if (error) throw new Error('Could not sign out. Try again.')
       },
     }),
     [user, isLoading],

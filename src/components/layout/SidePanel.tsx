@@ -6,7 +6,7 @@ import {
   MessageSquareDiff,
   Settings,
   Toolbox,
-  Users
+  Users,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
