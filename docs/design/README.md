@@ -27,10 +27,11 @@ Tailwind v4. Its tokens are in `src/styles.css`.
 
 ## Feature specs
 
-| Spec                          | Covers                                 | Screens        |
-| ----------------------------- | -------------------------------------- | -------------- |
-| [Calendar](../calendar/ui.md) | Weekly schedule and selected-day route | Calendar       |
-| [Requests](../requests/ui.md) | Public request portal                  | Request portal |
+| Spec                          | Covers                                  | Screens                     |
+| ----------------------------- | --------------------------------------- | --------------------------- |
+| [Calendar](../calendar/ui.md) | Weekly schedule and selected-day route  | Calendar                    |
+| [Services](../services/ui.md) | Service catalog and weather preferences | Services and Add/Edit modal |
+| [Requests](../requests/ui.md) | Public request portal                   | Request portal              |
 
 Other existing `_authed/*` pages predate this record. Each one gets its
 `ui.md` the next time a feature changes it.

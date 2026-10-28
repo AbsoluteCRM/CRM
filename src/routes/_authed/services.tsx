@@ -46,6 +46,7 @@ import {
   useServiceMutations,
   useServices,
 } from '#/integrations/services/services'
+import PrecipitationFields from '#/components/services/PrecipitationFields'
 import SeasonBar, { seasonText } from '#/components/services/SeasonBar'
 import { cn } from '#/lib/utils'
 import type { Frequency, Service, ServiceUnit } from '#/components/crm/types'
@@ -414,6 +415,8 @@ function ServiceModal({
     seasonEnd: service?.season?.end ?? 10,
     color: service?.color ?? SWATCHES[0],
     is_active: service?.is_active ?? true,
+    precipitation_type: service?.precipitation_type ?? 'none',
+    precipitation_action: service?.precipitation_action ?? 'none',
   })
   const [equip, setEquip] = useState('')
   const valid =
@@ -430,6 +433,8 @@ function ServiceModal({
       equipment: form.equipment,
       frequencies: form.frequencies,
       color: form.color,
+      precipitation_type: form.precipitation_type,
+      precipitation_action: form.precipitation_action,
       ...toSeasonColumns(
         form.yearRound
           ? null
@@ -685,6 +690,11 @@ function ServiceModal({
             </div>
           )}
         </div>
+        <PrecipitationFields
+          value={form}
+          disabled={mutations.saving}
+          onChange={(value) => setForm((f) => ({ ...f, ...value }))}
+        />
         <label className="flex items-center justify-between gap-3 sm:col-span-2">
           <span>
             <span className="block text-sm font-bold">Active</span>

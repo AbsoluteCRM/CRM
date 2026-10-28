@@ -27,3 +27,7 @@ Team invitations use requests@terraformaflow.com with a fixed terraformaflow.com
 ## 2026-10-21 — Match invitation acceptance to the application
 
 The user requested the acceptance page match the rest of the application. Reuse the existing AbsoluteCRM logo, cream/paper surfaces, forest/lime palette, display typography, and rounded CRM form controls across every acceptance state. Keep the current form labels and explicit acceptance behavior, with responsive spacing and wrapping for long emails.
+
+## 2026-10-28 — Service weather preferences
+
+The approved service precipitation plan adds a compact Weather preferences section to the existing Add/Edit service modal. Precipitation offers No dependency, Rain, Snow, and Rain or snow; Suggested action offers Schedule and Reschedule. No dependency resets the action to None and disables it; enabling a dependency defaults to Schedule. Explain that these settings are saved for future weather recommendations and generate no flags yet. Keep the existing modal styling and responsive field layout; no separate mock was supplied.

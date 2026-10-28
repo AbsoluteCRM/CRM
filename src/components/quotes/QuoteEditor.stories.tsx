@@ -24,6 +24,8 @@ const services = [
     color: '#7fb547',
     equipment: [],
     frequencies: ['one_time'],
+    precipitation_type: 'none',
+    precipitation_action: 'none',
     season_start_month: null,
     season_end_month: null,
     archived_at: null,

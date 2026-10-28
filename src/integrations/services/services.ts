@@ -27,6 +27,8 @@ export function toService(row: ServiceRow): Service {
     color: row.color,
     equipment: row.equipment,
     frequencies: row.frequencies,
+    precipitation_type: row.precipitation_type,
+    precipitation_action: row.precipitation_action,
     season: start !== null && end !== null ? { start, end } : null,
   }
 }
