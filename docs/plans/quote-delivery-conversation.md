@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `quote-delivery-conversation` / `feat/quote-delivery-conversation`
 - **Tier**: full: schema, public bearer-token access, email, staff and customer UI.
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%. Product choices are user-confirmed; the existing send/token RPCs, staff drawer, permissions and email sender were read. Remote schema parity is an execution prerequisite, not assumed verified.
 - **Plan-mode file**: this file; native plan mode is unavailable in this session. Only this uncommitted plan is written before approval.
 
@@ -284,3 +284,41 @@ toolchain is unavailable. This is actual project-generated output, formatted
 with Prettier; no database types were hand-authored. The original approval
 and feature scope remain in effect. Integration and final verification now
 resume against this schema.
+
+## Final implementation verification — 2026-10-28
+
+- UI integration landed in `18ce5f8`; narrow repairs to five stale story
+  interactions and the design record landed in `cc287fd`. No assertions were
+  removed or skipped. Staff recipient validation, send/retry, authoritative
+  status polling and conversation are connected. The public page lives in
+  `src/routes/q/$token.tsx`, matching the existing nested route convention.
+- Main checkout ran the exact verify command after pulling these commits:
+  `pnpm lint && pnpm check && pnpm exec vitest run && pnpm exec tsc --noEmit && pnpm build`.
+  Exit 0; 33 test files and all 262 tests passed. Known Nitro CommonJS diagnostics,
+  Vite shutdown timeout and dependency bundling notices still print despite
+  successful exit. No gate was bypassed.
+- Actual `.env.local` QA login and dedicated organization were verified in
+  Playwright. The user authorized the controlled recipient. Resend accepted
+  exactly three test emails. The first local observer missed the provider
+  response after a successful send, so the existing email was retrieved using
+  its stored provider ID instead of sending a duplicate. The resumed browser
+  flow passed. Inbox receipt is not claimed.
+- Live checks passed: signed-out quote view; initial HTML and POST no-store,
+  no-referrer/noindex headers; no customer auth cookies or token-bearing
+  cross-origin Referer; disabled PDF/optional controls; $105 required-only
+  total including tax; persisted two-way messages; acceptance and decline;
+  continued chat after both decisions; resend revoking the old link; invalid
+  and expired links hiding quote/chat; no jobs created. Only the isolated QA
+  token's expiry was shortened to test expiration.
+- Captured and inspected 16 implemented desktop/phone shots at device scale 2.
+  The recipient display text uses an example address; no token appears in the
+  design record. Screenshots are stored through Git LFS. No LFS software was
+  installed: the user declined that install, so existing GitHub authentication
+  and the documented basic transfer protocol were used, with downloaded hashes
+  checked before pointer files were committed.
+- The production client assets contain neither the configured Resend API key
+  nor the Supabase service-role key (private value comparisons; values not
+  printed). Fresh remote migration history contains all 25 expected entries;
+  fresh origin/main remains `760f926` and is already merged into the branch.
+- Required independent reviewer and security verdicts are recorded below
+  before merge. The feature scope and deferred extras remain unchanged.
