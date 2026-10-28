@@ -162,4 +162,4 @@ pnpm lint && pnpm check && pnpm exec vitest run && pnpm exec tsc --noEmit
 
 ## Scope-change log
 
-_None._
+No product scope changes. Tool substitution: the Supabase CLI is not installed in the environment, so it was run through pnpm dlx. `pnpm db:types` failed because the CLI's saved access token is invalid. The authenticated Supabase MCP `generate_typescript_types` produced the complete generated file instead (no manual type edits). Migration history was reconciled: remote-only `quote_conversation` belongs to open PR #49. The new migration applied as `20261028193420_services_precipitation_settings.sql`. New pgTAP coverage passed 31/31 assertions.
