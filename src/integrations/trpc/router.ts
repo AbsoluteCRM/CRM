@@ -14,6 +14,7 @@ import { portalRouter, requestsRouter } from './requests'
 import { quotesRouter } from './quotes'
 import { servicesRouter } from './services'
 import { teamsRouter } from './teams'
+import { weatherRouter } from './weather'
 
 import type { TRPCRouterRecord } from '@trpc/server'
 
@@ -78,6 +79,7 @@ const organizationRouter = {
 } satisfies TRPCRouterRecord
 
 export const trpcRouter = createTRPCRouter({
+  weather: weatherRouter,
   todos: todosRouter,
   teams: teamsRouter,
   auth: authRouter,

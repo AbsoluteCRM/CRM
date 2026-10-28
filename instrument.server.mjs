@@ -13,7 +13,7 @@ for (const file of ['.env.local', '.env']) {
 function redactInvitationData(value) {
   if (typeof value === 'string')
     return value
-      .replace(/((?:^|[?&])(?:token|code)=)[^&\s"']*/gi, '$1[redacted]')
+      .replace(/((?:^|[?&])(?:token|code|key)=)[^&\s"']*/gi, '$1[redacted]')
       .replace(/\b[a-f0-9]{64}\b/gi, '[redacted]')
       .replace(
         /[a-z0-9.!#$%&'*+/=?^_`{|}~-]+(?:@|%40)[a-z0-9.-]+\.[a-z]{2,}/gi,
@@ -24,7 +24,9 @@ function redactInvitationData(value) {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
-        /^(token|code)$/i.test(key) ? '[redacted]' : redactInvitationData(item),
+        /^(token|code|key)$/i.test(key)
+          ? '[redacted]'
+          : redactInvitationData(item),
       ]),
     )
   return value

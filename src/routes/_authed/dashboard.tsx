@@ -1,4 +1,9 @@
 import { useMemo, useState } from 'react'
+import { skipToken, useQuery } from '@tanstack/react-query'
+import { useTRPC } from '#/integrations/trpc/react'
+import { useOrganization } from '#/integrations/organization/context'
+import { WeatherBadge, WeatherCard } from '#/components/crm/DashboardWeather'
+import type { WeatherState } from '#/components/crm/DashboardWeather'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   ArrowDownRight,
@@ -33,20 +38,13 @@ import {
   Progress,
   StatusBadge,
 } from '#/components/crm/ui'
-import {
-  WEATHER_LABEL,
-  can,
-  forecastFor,
-  jobEnd,
-  useTenant,
-} from '#/components/crm/store'
+import { can, jobEnd, useTenant } from '#/components/crm/store'
 import {
   addDays,
   compactMoney,
   fmtDate,
   fmtLongDate,
   fmtTime,
-  fmtWeekday,
   money,
   relativeTime,
   startOfMonth,
@@ -54,7 +52,6 @@ import {
   todayISO,
 } from '#/components/crm/format'
 import type { Tenant } from '#/components/crm/store'
-import { WEATHER_ICON } from '#/components/crm/weatherIcons'
 import type { ActivityKind, Job } from '#/components/crm/types'
 import type { LucideIcon } from 'lucide-react'
 
@@ -107,8 +104,21 @@ function DashboardPage() {
   const t = useTenant()
   const firstName = t.me?.display_name.split(' ')[0] ?? 'there'
   const today = todayISO()
-  const wx = forecastFor(today, t.org.city)
-  const WxIcon = WEATHER_ICON[wx.condition]
+  const { organization } = useOrganization()
+  const trpc = useTRPC()
+  const query = useQuery(
+    trpc.weather.forecast.queryOptions(
+      organization ? { organizationId: organization.id } : skipToken,
+      { staleTime: 600_000, refetchInterval: 600_000, retry: false },
+    ),
+  )
+  const weather: WeatherState = {
+    data: query.data,
+    isError: query.isError,
+    retry: () => {
+      void query.refetch()
+    },
+  }
 
   return (
     <PageShell
@@ -121,10 +131,7 @@ function DashboardPage() {
       }
       actions={
         <>
-          <span className="hidden items-center gap-2 rounded-full border border-(--line) bg-(--paper) px-3 py-2 text-[13px] font-semibold text-(--ink-2) sm:inline-flex">
-            <WxIcon className="size-4 text-(--sky)" /> {wx.high}° ·{' '}
-            {WEATHER_LABEL[wx.condition]}
-          </span>
+          <WeatherBadge weather={weather} />
           {can.manageRequests(t.role) && (
             <Link
               to="/requests"
@@ -142,7 +149,11 @@ function DashboardPage() {
         </>
       }
     >
-      {t.role === 'worker' ? <WorkerDay t={t} /> : <OwnerDashboard t={t} />}
+      {t.role === 'worker' ? (
+        <WorkerDay t={t} weather={weather} />
+      ) : (
+        <OwnerDashboard t={t} weather={weather} />
+      )}
     </PageShell>
   )
 }
@@ -151,7 +162,7 @@ function DashboardPage() {
 // Owner / manager dashboard
 // ---------------------------------------------------------------------------
 
-function OwnerDashboard({ t }: { t: Tenant }) {
+function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
   const today = todayISO()
   const [range, setRange] = useState<'30d' | '12w'>('30d')
   const showRevenue = can.viewRevenue(t.role)
@@ -392,7 +403,7 @@ function OwnerDashboard({ t }: { t: Tenant }) {
       </section>
 
       {/* Weather */}
-      <WeatherCard t={t} />
+      <WeatherCard weather={weather} jobs={t.jobs} />
 
       {/* KPI groups */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:col-span-12 xl:grid-cols-4">
@@ -576,96 +587,6 @@ function KpiGroup({
   )
 }
 
-function WeatherCard({ t }: { t: Tenant }) {
-  const today = todayISO()
-  const days = Array.from({ length: 5 }, (_, i) =>
-    forecastFor(addDays(today, i), t.org.city),
-  )
-  const now = days[0]
-  const NowIcon = WEATHER_ICON[now.condition]
-  return (
-    <Card className="crm-rise flex flex-col overflow-hidden lg:col-span-4">
-      <div className="bg-gradient-to-br from-(--sky-100) to-(--paper) p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-[11px] font-bold tracking-[0.16em] text-(--sky) uppercase">
-              Weather · {t.org.city}
-            </p>
-            <p className="crm-display mt-2 text-5xl font-semibold">
-              {now.high}°
-            </p>
-            <p className="mt-1 text-sm text-(--ink-2)">
-              {WEATHER_LABEL[now.condition]} · Low {now.low}° · Wind {now.wind}{' '}
-              km/h
-            </p>
-          </div>
-          <NowIcon className="size-14 text-(--sky)" strokeWidth={1.4} />
-        </div>
-        <div className="mt-5 grid grid-cols-4 gap-2">
-          {days.slice(1).map((d) => {
-            const I = WEATHER_ICON[d.condition]
-            const alert = d.condition === 'rain' || d.condition === 'snow'
-            return (
-              <div
-                key={d.date}
-                className={`rounded-2xl px-2 py-2.5 text-center ${alert ? 'bg-(--paper) ring-1 ring-(--sky)/30' : 'bg-white/60'}`}
-              >
-                <p className="text-[11px] font-semibold text-(--ink-3)">
-                  {fmtWeekday(d.date)}
-                </p>
-                <I className="mx-auto my-1.5 size-5 text-(--sky)" />
-                <p className="text-[13px] font-bold">{d.high}°</p>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      <div className="flex flex-1 flex-col p-4">
-        <p className="mb-2 text-[11px] font-bold tracking-wider text-(--ink-3) uppercase">
-          Outdoor work ahead
-        </p>
-        <ul className="space-y-1.5">
-          {days.slice(1).map((d) => {
-            const I = WEATHER_ICON[d.condition]
-            const count = t.jobs.filter(
-              (j) =>
-                j.date === d.date &&
-                (j.status === 'assigned' || j.status === 'scheduled'),
-            ).length
-            const alert = d.condition === 'rain' || d.condition === 'snow'
-            return (
-              <li
-                key={d.date}
-                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-[13px] hover:bg-(--cream)"
-              >
-                <I className="size-4 shrink-0 text-(--sky)" />
-                <span className="w-10 font-semibold">{fmtWeekday(d.date)}</span>
-                <span className="w-12 text-xs text-(--ink-3)">{d.precip}%</span>
-                <span className="flex-1 text-(--ink-2)">
-                  {count} job{count === 1 ? '' : 's'}
-                </span>
-                {alert && count > 0 && (
-                  <Badge tone="sky">
-                    {d.condition === 'snow'
-                      ? 'Offer snow removal'
-                      : 'Review lawn jobs'}
-                  </Badge>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-        <Link
-          to="/calendar"
-          className="mt-auto inline-flex items-center gap-1 pt-3 text-[13px] font-semibold text-(--leaf-700) no-underline"
-        >
-          Open calendar <ArrowRight className="size-3.5" />
-        </Link>
-      </div>
-    </Card>
-  )
-}
-
 function TodayByCrew({ t }: { t: Tenant }) {
   const today = todayISO()
   const crews = t.crews.filter((c) => c.memberIds.length > 0)
@@ -806,7 +727,7 @@ function ActivityFeed({ t }: { t: Tenant }) {
 // Contractor view
 // ---------------------------------------------------------------------------
 
-function WorkerDay({ t }: { t: Tenant }) {
+function WorkerDay({ t, weather }: { t: Tenant; weather: WeatherState }) {
   const today = todayISO()
   const mine = t.visibleJobs
   const todayJobs = mine
@@ -877,7 +798,7 @@ function WorkerDay({ t }: { t: Tenant }) {
         </div>
       </section>
       <div className="flex flex-col gap-5 lg:col-span-4">
-        <WeatherCard t={t} />
+        <WeatherCard weather={weather} jobs={t.jobs} />
         <Card className="p-5">
           <p className="text-xs font-semibold text-(--ink-3)">
             Completed this week
