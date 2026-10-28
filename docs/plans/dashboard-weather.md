@@ -18,12 +18,12 @@ Replace simulated dashboard weather with WeatherAPI current conditions and avail
 
 ## Decisions
 
-| Question | Answer |
-| --- | --- |
-| Forecast length | User: use available forecast days. |
+| Question           | Answer                                                                       |
+| ------------------ | ---------------------------------------------------------------------------- |
+| Forecast length    | User: use available forecast days.                                           |
 | Displays and units | User: update both card and header, retain layout, show Calgary, °C and km/h. |
-| Location | User: hardcoded Calgary until geocoding is connected. |
-| Branch | User already created branch; retain it. |
+| Location           | User: hardcoded Calgary until geocoding is connected.                        |
+| Branch             | User already created branch; retain it.                                      |
 
 Agent defaults: coordinates 51.0447,-114.0719; request five days and render only returned days; ten-minute freshness; no new dependency. No new mock needed for preserving this layout.
 
@@ -33,10 +33,10 @@ None material. User approval of this audited plan is required before implementat
 
 ## Assumptions
 
-| Assumption | User-confirmed? |
-| --- | --- |
-| Existing key is intended for WeatherAPI server calls | yes, user supplied key for this integration |
-| Specific coordinates and ten-minute refresh are acceptable implementation defaults | no; minor defaults, user may veto |
+| Assumption                                                                         | User-confirmed?                             |
+| ---------------------------------------------------------------------------------- | ------------------------------------------- |
+| Existing key is intended for WeatherAPI server calls                               | yes, user supplied key for this integration |
+| Specific coordinates and ten-minute refresh are acceptable implementation defaults | no; minor defaults, user may veto           |
 
 ## Design refs
 

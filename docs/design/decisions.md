@@ -27,3 +27,7 @@ Team invitations use requests@terraformaflow.com with a fixed terraformaflow.com
 ## 2026-10-21 — Match invitation acceptance to the application
 
 The user requested the acceptance page match the rest of the application. Reuse the existing AbsoluteCRM logo, cream/paper surfaces, forest/lime palette, display typography, and rounded CRM form controls across every acceptance state. Keep the current form labels and explicit acceptance behavior, with responsive spacing and wrapping for long emails.
+
+## 2026-10-28 — Live Calgary dashboard weather
+
+The user confirmed that the dashboard card and header badge should both use live Calgary weather, retain their layout, show metric units (°C and km/h), and render only the forecast days available from WeatherAPI. Calgary coordinates remain fixed until geocoding is connected. See [Dashboard weather](../dashboard/ui.md).

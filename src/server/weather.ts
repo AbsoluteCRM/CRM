@@ -59,16 +59,14 @@ export function normalizeWeather(value: unknown) {
     updatedAt: data.current.last_updated_epoch,
     condition: weatherCategory(data.current.condition.code),
     text: data.current.condition.text,
-    days: data.forecast.forecastday
-      .slice(0, 5)
-      .map(({ date, day }) => ({
-        date,
-        high: day.maxtemp_c,
-        low: day.mintemp_c,
-        precip: Math.max(day.daily_chance_of_rain, day.daily_chance_of_snow),
-        condition: weatherCategory(day.condition.code),
-        text: day.condition.text,
-      })),
+    days: data.forecast.forecastday.slice(0, 5).map(({ date, day }) => ({
+      date,
+      high: day.maxtemp_c,
+      low: day.mintemp_c,
+      precip: Math.max(day.daily_chance_of_rain, day.daily_chance_of_snow),
+      condition: weatherCategory(day.condition.code),
+      text: day.condition.text,
+    })),
   }
 }
 export type WeatherForecast = ReturnType<typeof normalizeWeather>
