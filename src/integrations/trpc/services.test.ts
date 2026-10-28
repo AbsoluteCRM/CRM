@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 type State = {
   user: { id: string } | null
   role: string | null
+  membershipOrg: string
   result: { data: unknown; error: null | Record<string, string> }
   calls: Array<[string, ...Array<unknown>]>
 }
@@ -10,6 +11,7 @@ type State = {
 const state = vi.hoisted<State>(() => ({
   user: null,
   role: 'admin',
+  membershipOrg: '0198f0a0-0000-7000-8000-000000000001',
   result: { data: null, error: null },
   calls: [],
 }))
@@ -29,7 +31,7 @@ vi.mock('#/lib/supabase/server', () => {
         data: state.role
           ? {
               id: 'm1',
-              organization_id: ORG,
+              organization_id: state.membershipOrg,
               role: state.role,
               status: 'active',
             }
@@ -80,6 +82,7 @@ const input = {
 beforeEach(() => {
   state.user = { id: 'u1' }
   state.role = 'admin'
+  state.membershipOrg = ORG
   state.result = { data: [{ id: SVC }], error: null }
   state.calls = []
 })
@@ -252,5 +255,180 @@ describe('services.update and setArchived', () => {
       'string',
     )
     expect(updates[1][1]).toEqual({ archived_at: null })
+  })
+})
+
+describe('service precipitation preferences', () => {
+  const preference = {
+    precipitation_type: 'snow' as const,
+    precipitation_action: 'schedule' as const,
+  }
+
+  it('selects both fields on list and mutation responses', async () => {
+    await caller().services.list({ organizationId: ORG })
+    await caller().services.create({ ...input, ...preference })
+    await caller().services.update({
+      organizationId: ORG,
+      id: SVC,
+      ...preference,
+    })
+    await caller().services.setArchived({
+      organizationId: ORG,
+      id: SVC,
+      archived: false,
+    })
+    const selects = state.calls.filter(([key]) => key === 'services.select')
+    expect(selects).toHaveLength(4)
+    for (const [, columns] of selects) {
+      expect(columns).toContain('precipitation_type')
+      expect(columns).toContain('precipitation_action')
+    }
+  })
+
+  it('defaults omitted create preferences to none and preserves omitted update preferences', async () => {
+    await caller().services.create(input)
+    expect(
+      state.calls.find(([k]) => k === 'services.insert')?.[1],
+    ).toMatchObject({
+      precipitation_type: 'none',
+      precipitation_action: 'none',
+    })
+    await caller().services.update({
+      organizationId: ORG,
+      id: SVC,
+      name: 'Updated',
+    })
+    expect(state.calls.find(([k]) => k === 'services.update')?.[1]).toEqual({
+      name: 'Updated',
+    })
+  })
+
+  it.each([
+    ['none', 'none'],
+    ['rain', 'schedule'],
+    ['rain', 'reschedule'],
+    ['snow', 'schedule'],
+    ['snow', 'reschedule'],
+    ['any', 'schedule'],
+    ['any', 'reschedule'],
+  ] as const)(
+    'writes %s/%s atomically on create and update',
+    async (precipitation_type, precipitation_action) => {
+      const pair = { precipitation_type, precipitation_action }
+      await caller().services.create({ ...input, ...pair })
+      await caller().services.update({ organizationId: ORG, id: SVC, ...pair })
+      expect(
+        state.calls.find(([k]) => k === 'services.insert')?.[1],
+      ).toMatchObject(pair)
+      expect(state.calls.find(([k]) => k === 'services.update')?.[1]).toEqual(
+        pair,
+      )
+    },
+  )
+
+  it.each([
+    { precipitation_type: 'rain' },
+    { precipitation_action: 'schedule' },
+    { precipitation_type: 'none' },
+    { precipitation_action: 'none' },
+    { precipitation_type: 'none', precipitation_action: 'schedule' },
+    { precipitation_type: 'snow', precipitation_action: 'none' },
+    { precipitation_type: 'hail', precipitation_action: 'reschedule' },
+    { precipitation_type: 'rain', precipitation_action: 're_schedule' },
+    { precipitation_type: null, precipitation_action: null },
+  ])('rejects invalid input before writes: %j', async (pair) => {
+    // Exercise runtime input validation with values an untyped caller can send.
+    await expect(
+      caller().services.create({ ...input, ...pair } as never),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    await expect(
+      caller().services.update({
+        organizationId: ORG,
+        id: SVC,
+        ...pair,
+      } as never),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    expect(
+      state.calls.some(
+        ([k]) => k === 'services.insert' || k === 'services.update',
+      ),
+    ).toBe(false)
+  })
+
+  it.each(['owner', 'admin'])(
+    'allows %s to create and update preferences',
+    async (role) => {
+      state.role = role
+      await caller().services.create({ ...input, ...preference })
+      await caller().services.update({
+        organizationId: ORG,
+        id: SVC,
+        ...preference,
+      })
+      expect(state.calls.some(([k]) => k === 'services.insert')).toBe(true)
+      expect(state.calls.some(([k]) => k === 'services.update')).toBe(true)
+    },
+  )
+
+  it.each(['dispatcher', 'worker', 'portal', null])(
+    'denies %s both preference mutations',
+    async (role) => {
+      state.role = role
+      await expect(
+        caller().services.create({ ...input, ...preference }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+      await expect(
+        caller().services.update({
+          organizationId: ORG,
+          id: SVC,
+          ...preference,
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+      expect(
+        state.calls.some(
+          ([k]) => k === 'services.insert' || k === 'services.update',
+        ),
+      ).toBe(false)
+    },
+  )
+
+  it('uses only the verified active organization for a multi-org user', async () => {
+    const other = '0198f0a0-0000-7000-8000-000000000003'
+    for (const org of [ORG, other]) {
+      state.calls = []
+      state.membershipOrg = org
+      await caller().services.list({ organizationId: org })
+      await caller().services.create({
+        ...input,
+        organizationId: org,
+        ...preference,
+      })
+      await caller().services.update({
+        organizationId: org,
+        id: SVC,
+        ...preference,
+      })
+      expect(
+        state.calls.filter(
+          ([k, column]) => k === 'services.eq' && column === 'organization_id',
+        ),
+      ).toEqual([
+        ['services.eq', 'organization_id', org],
+        ['services.eq', 'organization_id', org],
+      ])
+      expect(
+        state.calls.find(([k]) => k === 'services.insert')?.[1],
+      ).toMatchObject({ organization_id: org })
+      expect(state.calls).toContainEqual(['members.eq', 'organization_id', org])
+    }
+  })
+
+  it('rejects a service belonging to another organization', async () => {
+    state.result = { data: [], error: null }
+    await expect(
+      caller().services.update({ organizationId: ORG, id: SVC, ...preference }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(state.calls).toContainEqual(['services.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['services.eq', 'id', SVC])
   })
 })

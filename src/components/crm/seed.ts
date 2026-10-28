@@ -70,6 +70,8 @@ export const DEFAULT_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> =
         'Backpack blower',
       ],
       frequencies: ['weekly', 'biweekly'],
+      precipitation_type: 'none',
+      precipitation_action: 'none',
       season: { start: 4, end: 10 },
     },
     {
@@ -83,6 +85,8 @@ export const DEFAULT_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> =
       color: '#3f8f5b',
       equipment: ['Broadcast spreader'],
       frequencies: ['monthly', 'one_time'],
+      precipitation_type: 'none',
+      precipitation_action: 'none',
       season: { start: 4, end: 9 },
     },
     {
@@ -95,6 +99,8 @@ export const DEFAULT_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> =
       color: '#a5c25a',
       equipment: ['Backpack sprayer', 'PPE kit'],
       frequencies: ['monthly', 'one_time'],
+      precipitation_type: 'none',
+      precipitation_action: 'none',
       season: { start: 5, end: 9 },
     },
     {
@@ -108,6 +114,8 @@ export const DEFAULT_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> =
       color: '#6aa6c9',
       equipment: ['Plow truck', 'Snow blower', 'Salt spreader'],
       frequencies: ['one_time', 'weekly'],
+      precipitation_type: 'none',
+      precipitation_action: 'none',
       season: { start: 11, end: 3 },
     },
     {
@@ -121,6 +129,8 @@ export const DEFAULT_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> =
       color: '#d98a3d',
       equipment: ['Leaf vacuum', 'Backpack blower', 'Dump trailer'],
       frequencies: ['one_time'],
+      precipitation_type: 'none',
+      precipitation_action: 'none',
       season: { start: 9, end: 11 },
     },
     {
@@ -134,6 +144,8 @@ export const DEFAULT_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> =
       color: '#c8d96a',
       equipment: ['Power rake', 'Backpack blower', 'Dump trailer'],
       frequencies: ['one_time'],
+      precipitation_type: 'none',
+      precipitation_action: 'none',
       season: { start: 3, end: 5 },
     },
     {
@@ -147,6 +159,8 @@ export const DEFAULT_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> =
       color: '#5c7c3a',
       equipment: ['Chainsaw', 'Pole saw', 'Ladder', 'Chipper'],
       frequencies: ['one_time'],
+      precipitation_type: 'none',
+      precipitation_action: 'none',
       season: null,
     },
   ]
@@ -163,6 +177,8 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
     color: '#8bbf9f',
     equipment: ['Hedge trimmer', 'Hand pruners', 'Tarps'],
     frequencies: ['one_time', 'monthly'],
+    precipitation_type: 'none',
+    precipitation_action: 'none',
     season: { start: 5, end: 10 },
   },
   {
@@ -176,6 +192,8 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
     color: '#b9a46b',
     equipment: ['Core aerator'],
     frequencies: ['one_time'],
+    precipitation_type: 'none',
+    precipitation_action: 'none',
     season: { start: 4, end: 10 },
   },
   {
@@ -188,6 +206,8 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
     color: '#4fa3a5',
     equipment: ['Tow-behind compressor'],
     frequencies: ['one_time'],
+    precipitation_type: 'none',
+    precipitation_action: 'none',
     season: { start: 9, end: 11 },
   },
   {
@@ -201,6 +221,8 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
     color: '#8a5a3c',
     equipment: ['Wheelbarrows', 'Dump trailer'],
     frequencies: ['one_time'],
+    precipitation_type: 'none',
+    precipitation_action: 'none',
     season: { start: 4, end: 10 },
   },
   {
@@ -214,6 +236,8 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
     color: '#4c9a2a',
     equipment: ['Sod cutter', 'Roller', 'Skid steer'],
     frequencies: ['one_time'],
+    precipitation_type: 'none',
+    precipitation_action: 'none',
     season: { start: 5, end: 9 },
   },
   {
@@ -226,6 +250,8 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
     color: '#e07a8f',
     equipment: ['Hand tools'],
     frequencies: ['one_time'],
+    precipitation_type: 'none',
+    precipitation_action: 'none',
     season: { start: 5, end: 6 },
   },
 ]
