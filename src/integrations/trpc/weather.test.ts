@@ -2,10 +2,15 @@ import { beforeEach, expect, it, vi } from 'vitest'
 
 const ORG = '0198f0a0-0000-7000-8000-000000000001'
 const OTHER = '0198f0a0-0000-7000-8000-000000000002'
-const state = vi.hoisted(() => ({
+const state = vi.hoisted<{
+  user: boolean
+  roles: Record<string, string>
+  calls: Array<[string, unknown]>
+  weather: ReturnType<typeof vi.fn>
+}>(() => ({
   user: true,
   roles: {},
-  calls: [] as Array<[string, unknown]>,
+  calls: [],
   weather: vi.fn(),
 }))
 vi.mock('#/server/weather', () => ({ getWeatherForecast: state.weather }))

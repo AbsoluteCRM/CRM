@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
-const config = vi.hoisted(() => ({
+const config = vi.hoisted<{ WEATHER_API_KEY: string | undefined }>(() => ({
   WEATHER_API_KEY: 'secret-weather-key',
 }))
 vi.mock('#/env', () => ({ env: config }))
