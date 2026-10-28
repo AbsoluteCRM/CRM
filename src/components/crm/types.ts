@@ -145,6 +145,8 @@ export interface Service {
   color: string
   equipment: Array<string>
   frequencies: Array<Frequency>
+  precipitation_type: 'none' | 'rain' | 'snow' | 'any'
+  precipitation_action: 'none' | 'schedule' | 'reschedule'
   /** No column yet: seasonal availability, months 1-12 inclusive (wraps over new year). Null = year-round. */
   season: { start: number; end: number } | null
 }

@@ -1534,6 +1534,57 @@ export type Database = {
           },
         ]
       }
+      quote_messages: {
+        Row: {
+          body: string
+          client_message_id: string
+          created_at: string
+          id: string
+          organization_id: string
+          quote_id: string
+          sender_kind: string
+          staff_user_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          client_message_id: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          quote_id: string
+          sender_kind: string
+          staff_user_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          client_message_id?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          quote_id?: string
+          sender_kind?: string
+          staff_user_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'quote_messages_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'quote_messages_quote_fkey'
+            columns: ['organization_id', 'quote_id']
+            isOneToOne: false
+            referencedRelation: 'quotes'
+            referencedColumns: ['organization_id', 'id']
+          },
+        ]
+      }
       quote_share_tokens: {
         Row: {
           created_at: string
@@ -2051,6 +2102,8 @@ export type Database = {
           id: string
           name: string
           organization_id: string
+          precipitation_action: Database['public']['Enums']['service_precipitation_action']
+          precipitation_type: Database['public']['Enums']['service_precipitation_type']
           season_end_month: number | null
           season_start_month: number | null
           unit: Database['public']['Enums']['service_unit']
@@ -2068,6 +2121,8 @@ export type Database = {
           id?: string
           name: string
           organization_id: string
+          precipitation_action?: Database['public']['Enums']['service_precipitation_action']
+          precipitation_type?: Database['public']['Enums']['service_precipitation_type']
           season_end_month?: number | null
           season_start_month?: number | null
           unit?: Database['public']['Enums']['service_unit']
@@ -2085,6 +2140,8 @@ export type Database = {
           id?: string
           name?: string
           organization_id?: string
+          precipitation_action?: Database['public']['Enums']['service_precipitation_action']
+          precipitation_type?: Database['public']['Enums']['service_precipitation_type']
           season_end_month?: number | null
           season_start_month?: number | null
           unit?: Database['public']['Enums']['service_unit']
@@ -2514,7 +2571,7 @@ export type Database = {
       get_portal: { Args: { p_slug: string }; Returns: Json }
       move_crew_member: {
         Args: {
-          p_crew_id: string | null
+          p_crew_id: string
           p_member_id: string
           p_organization_id: string
         }
@@ -2673,6 +2730,46 @@ export type Database = {
         Returns: undefined
       }
       portal_token_get_quote: { Args: { p_token_hash: string }; Returns: Json }
+      portal_token_list_messages: {
+        Args: {
+          p_before_created_at?: string
+          p_before_id?: string
+          p_token_hash: string
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          sender_kind: string
+        }[]
+      }
+      portal_token_post_message: {
+        Args: {
+          p_body: string
+          p_client_message_id: string
+          p_token_hash: string
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          sender_kind: string
+        }[]
+      }
+      post_quote_message: {
+        Args: {
+          p_body: string
+          p_client_message_id: string
+          p_organization_id: string
+          p_quote_id: string
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          sender_kind: string
+        }[]
+      }
       pull_back_quote: { Args: { p_quote_id: string }; Returns: undefined }
       record_quote_delivery: {
         Args: {
@@ -2698,7 +2795,7 @@ export type Database = {
       set_crew_lead: {
         Args: {
           p_crew_id: string
-          p_member_id: string | null
+          p_member_id: string
           p_organization_id: string
         }
         Returns: undefined
@@ -2834,6 +2931,8 @@ export type Database = {
       route_status:
         'draft' | 'optimized' | 'published' | 'in_progress' | 'completed'
       service_frequency: 'one_time' | 'weekly' | 'biweekly' | 'monthly'
+      service_precipitation_action: 'none' | 'schedule' | 'reschedule'
+      service_precipitation_type: 'none' | 'rain' | 'snow' | 'any'
       service_unit:
         'each' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
       time_source: 'app' | 'manual' | 'auto'
@@ -3015,6 +3114,8 @@ export const Constants = {
         'completed',
       ],
       service_frequency: ['one_time', 'weekly', 'biweekly', 'monthly'],
+      service_precipitation_action: ['none', 'schedule', 'reschedule'],
+      service_precipitation_type: ['none', 'rain', 'snow', 'any'],
       service_unit: [
         'each',
         'hour',
