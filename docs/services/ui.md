@@ -20,6 +20,11 @@ Part of the [AbsoluteCRM design record](../design/README.md).
 
 ## Add/Edit service
 
+<img src="shots/service-add-desktop.png" alt="Add service modal with Snow and Schedule weather preferences on desktop" width="620">
+<img src="shots/service-edit-desktop.png" alt="Edit service modal with persisted Rain and Reschedule weather preferences on desktop" width="620">
+<img src="shots/service-add-phone.png" alt="Add service weather preferences with Snow and Schedule on a phone" width="195">
+<img src="shots/service-edit-phone.png" alt="Edit service weather preferences with persisted Rain and Reschedule on a phone" width="195">
+
 - **Route**: overlay on `/services`.
 - **Roles**: owners and admins.
 - **Layout**: existing CRM modal and form controls. A compact Weather preferences fieldset follows Seasonal availability and precedes Active. Its Precipitation and Suggested action selects use the existing styled native select controls, explicit labels, and a responsive two-column layout.
@@ -29,4 +34,4 @@ Part of the [AbsoluteCRM design record](../design/README.md).
 - **Origin**: approved service precipitation plan, built without a mock.
 - **Code**: `src/routes/_authed/services.tsx`, `src/components/services/PrecipitationFields.tsx`; interaction coverage in `PrecipitationFields.stories.tsx`.
 
-Implemented desktop (1440×900) and phone (390×844) screenshots at device scale factor 2 are captured during the signed-in application verification and added in this PR.
+Captured on 2026-10-28 in the running app, signed in as the seeded owner in the dedicated Quote Delivery QA organization: desktop 1440×900 and phone 390×844, device scale factor 2. Verified create snow/schedule; edit rain/reschedule; reopen; an unrelated save retaining the pair; any/reschedule; and clear/reopen none/none. The dedicated QA service remains disabled for weather recommendations after verification.
