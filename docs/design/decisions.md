@@ -39,3 +39,6 @@ and job creation are deferred. Do not add message or decision notification
 emails in this PR. No mock was supplied; follow the existing CRM components
 and public portal styling. Implementation and verification are tracked in
 [the approved plan](../plans/quote-delivery-conversation.md).
+## 2026-10-28 — Service weather preferences
+
+The approved service precipitation plan adds a compact Weather preferences section to the existing Add/Edit service modal. Precipitation offers No dependency, Rain, Snow, and Rain or snow; Suggested action offers Schedule and Reschedule. No dependency resets the action to None and disables it; enabling a dependency defaults to Schedule. Explain that these settings are saved for future weather recommendations and generate no flags yet. Keep the existing modal styling and responsive field layout; no separate mock was supplied.

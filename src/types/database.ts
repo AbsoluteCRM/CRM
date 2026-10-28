@@ -2102,6 +2102,8 @@ export type Database = {
           id: string
           name: string
           organization_id: string
+          precipitation_action: Database['public']['Enums']['service_precipitation_action']
+          precipitation_type: Database['public']['Enums']['service_precipitation_type']
           season_end_month: number | null
           season_start_month: number | null
           unit: Database['public']['Enums']['service_unit']
@@ -2119,6 +2121,8 @@ export type Database = {
           id?: string
           name: string
           organization_id: string
+          precipitation_action?: Database['public']['Enums']['service_precipitation_action']
+          precipitation_type?: Database['public']['Enums']['service_precipitation_type']
           season_end_month?: number | null
           season_start_month?: number | null
           unit?: Database['public']['Enums']['service_unit']
@@ -2136,6 +2140,8 @@ export type Database = {
           id?: string
           name?: string
           organization_id?: string
+          precipitation_action?: Database['public']['Enums']['service_precipitation_action']
+          precipitation_type?: Database['public']['Enums']['service_precipitation_type']
           season_end_month?: number | null
           season_start_month?: number | null
           unit?: Database['public']['Enums']['service_unit']
@@ -2925,6 +2931,8 @@ export type Database = {
       route_status:
         'draft' | 'optimized' | 'published' | 'in_progress' | 'completed'
       service_frequency: 'one_time' | 'weekly' | 'biweekly' | 'monthly'
+      service_precipitation_action: 'none' | 'schedule' | 'reschedule'
+      service_precipitation_type: 'none' | 'rain' | 'snow' | 'any'
       service_unit:
         'each' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
       time_source: 'app' | 'manual' | 'auto'
@@ -3106,6 +3114,8 @@ export const Constants = {
         'completed',
       ],
       service_frequency: ['one_time', 'weekly', 'biweekly', 'monthly'],
+      service_precipitation_action: ['none', 'schedule', 'reschedule'],
+      service_precipitation_type: ['none', 'rain', 'snow', 'any'],
       service_unit: [
         'each',
         'hour',

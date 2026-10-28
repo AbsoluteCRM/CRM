@@ -7,7 +7,7 @@ import { organizationProcedure, requireOrgPermission } from './init'
 import type { TRPCRouterRecord } from '@trpc/server'
 
 export const SERVICE_COLUMNS =
-  'id, organization_id, name, description, unit, default_price_cents, default_duration_minutes, color, equipment, frequencies, season_start_month, season_end_month, archived_at, created_at, updated_at'
+  'id, organization_id, name, description, unit, default_price_cents, default_duration_minutes, color, equipment, frequencies, season_start_month, season_end_month, precipitation_type, precipitation_action, archived_at, created_at, updated_at'
 
 const manageServices = requireOrgPermission('manageServices')
 
@@ -39,6 +39,8 @@ const fields = {
   // Both months or neither; start after end wraps over new year.
   season_start_month: month.nullable(),
   season_end_month: month.nullable(),
+  precipitation_type: z.enum(['none', 'rain', 'snow', 'any']).optional(),
+  precipitation_action: z.enum(['none', 'schedule', 'reschedule']).optional(),
 }
 
 const seasonIsPaired = (v: {
@@ -51,6 +53,19 @@ const seasonIsPaired = (v: {
 const seasonMessage = {
   message: 'Set both season months or neither',
   path: ['season_start_month'],
+}
+
+const precipitationIsPaired = (v: {
+  precipitation_type?: string
+  precipitation_action?: string
+}) =>
+  (v.precipitation_type === undefined) ===
+    (v.precipitation_action === undefined) &&
+  (v.precipitation_type === 'none') === (v.precipitation_action === 'none')
+
+const precipitationMessage = {
+  message: 'Set both precipitation and suggested action, or disable both',
+  path: ['precipitation_type'],
 }
 
 export const servicesRouter = {
@@ -67,13 +82,23 @@ export const servicesRouter = {
   ),
 
   create: manageServices
-    .input(z.object(fields).refine(seasonIsPaired, seasonMessage))
+    .input(
+      z
+        .object(fields)
+        .refine(seasonIsPaired, seasonMessage)
+        .refine(precipitationIsPaired, precipitationMessage),
+    )
     .mutation(({ ctx, input }) =>
       Sentry.startSpan({ name: 'services.create' }, async () => {
         const { organizationId: _org, ...values } = input
         const { data, error } = await ctx.supabase
           .from('services')
-          .insert({ ...values, organization_id: ctx.organizationId })
+          .insert({
+            ...values,
+            precipitation_type: values.precipitation_type ?? 'none',
+            precipitation_action: values.precipitation_action ?? 'none',
+            organization_id: ctx.organizationId,
+          })
           .select(SERVICE_COLUMNS)
           .single()
         if (error) throw toTRPCError(error)
@@ -85,7 +110,8 @@ export const servicesRouter = {
     .input(
       z
         .object({ id: z.uuid(), ...partial(fields) })
-        .refine(seasonIsPaired, seasonMessage),
+        .refine(seasonIsPaired, seasonMessage)
+        .refine(precipitationIsPaired, precipitationMessage),
     )
     .mutation(({ ctx, input }) =>
       Sentry.startSpan({ name: 'services.update' }, async () => {

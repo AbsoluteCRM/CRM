@@ -30,6 +30,7 @@ Tailwind v4. Its tokens are in `src/styles.css`.
 | Spec                          | Covers                                 | Screens                           |
 | ----------------------------- | -------------------------------------- | --------------------------------- |
 | [Calendar](../calendar/ui.md) | Weekly schedule and selected-day route | Calendar                          |
+| [Services](../services/ui.md) | Service catalog and weather preferences | Services and Add/Edit modal |
 | [Requests](../requests/ui.md) | Public request portal                  | Request portal                    |
 | [Quotes](../quotes/ui.md)     | Quote delivery and conversation        | Staff send dialog, customer quote |
 
