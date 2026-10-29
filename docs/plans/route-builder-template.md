@@ -161,7 +161,7 @@ Fresh `/root/reviewer` passed whole diff at `3b28677`; no blockers/unresolved. C
 
 ### Revision audit
 
-Fresh `/root/revision_plan_auditor` returned **pass**, confidence **high**, with no blocking, non-blocking or unresolved findings. Checked the entire revised plan against user decisions, Teams creation/drag patterns, nullable-crew UI template separation, visit uniqueness/date/sequence and crew conflicts, unhappy paths, keyboard/touch alternatives, workflow/template, scripts, actual browser drags, replacement screenshots and fresh reviewer/security gates. Pre-existing: five independently reproduced unrelated assertion failures; merge remains blocked while the full suite fails. Main checked git status after the read-only audit: only this plan is modified. Awaiting user approval of this revised plan.
+Fresh `/root/revision_plan_auditor` returned **pass**, confidence **high**, with no blocking, non-blocking or unresolved findings. Checked the entire revised plan against user decisions, Teams creation/drag patterns, nullable-crew UI template separation, visit uniqueness/date/sequence and crew conflicts, unhappy paths, keyboard/touch alternatives, workflow/template, scripts, actual browser drags, replacement screenshots and fresh reviewer/security gates. Pre-existing: five independently reproduced unrelated assertion failures; merge remains blocked while the full suite fails. Main checked git status after the read-only audit: only this plan is modified. User subsequently approved this revised plan; recorded in the Scope-change log.
 
 ## Scope-change log
 
@@ -169,7 +169,7 @@ Fresh `/root/revision_plan_auditor` returned **pass**, confidence **high**, with
 
 - Verification order corrected: router CLI removes the Start-specific type registration; normal build restores it before tsc. No generator config/manual generated-tree edits.
 - 2026-10-29: User requested explicit Existing routes, Create route and Available jobs sections after initial implementation. Implementation stopped and plan returned to draft.
-- 2026-10-29: User clarified empty templates before crew assignment, Teams reference, crew dropdown and dragging jobs between routes; confirmed selectable route cards. Revised plan adopts these decisions, separates unassigned local templates from non-null-crew DB rows, and retains daily route constraints. Awaiting fresh audit and approval.
+- 2026-10-29: User clarified empty templates before crew assignment, Teams reference, crew dropdown and dragging jobs between routes; confirmed selectable route cards. Revised plan adopts these decisions, separates unassigned local templates from non-null-crew DB rows, and retains daily route constraints. Fresh revision audit passed and the user subsequently approved; see Audit log and Scope-change approval.
 
 ## Previous implementation verification (historical; rerun for revision)
 
@@ -186,3 +186,15 @@ Fresh `/root/revision_plan_auditor` returned **pass**, confidence **high**, with
 - Phone verification at 390×844 passed Add/Move/Remove alternatives and no horizontal page overflow. Screenshot inspection caught and corrected a clipped date field by wrapping the Create route controls; final phone image shows the full date.
 - Real-drag harness uses card padding and compact drop targets in a taller viewport to avoid Playwright auto-scroll moving its precomputed source point. Initial event diagnostics showed the harness dragging another visit, not a state-transfer failure. All three intended real transfer paths pass with stable coordinates.
 - Replaced and visually inspected desktop (1440×900), phone and phone-draft (390×844) screenshots at device scale factor 2. Files under `docs/route-builder/shots/` use Git LFS. Fresh reviewer and security verdicts will be recorded after their audits.
+
+## Revised review verdicts
+
+### Reviewer: pass, confidence high
+
+Fresh read-only `/root/revision_reviewer` reviewed the entire diff at `6682e7a`. No blocking or unresolved findings. Checked three-section layout, empty creation, nullable-crew template separation, crew/date exclusivity, visit uniqueness and sequences, atomic native and fallback transfers, date/search/reset lifecycle, role denial, generated route/callers, meaningful stories, design artifacts, and absence of secrets/network/persistence/suppressions. Independently ran TypeScript successfully and verified baseline/final failure logs. Non-blocking: full-suite gate still fails; security review was pending at the time. Working tree clean after review.
+
+### Security: pass, confidence high
+
+Fresh read-only `/root/revision_security` reviewed the entire diff at `6682e7a`. No findings or could-not-verify entries. Checked documented RLS/data-access model, authenticated layout and worker render gate, synthetic fixtures with type-only database imports, absence of live queries/loaders/APIs/persistence, validated custom drag MIME and IDs/date/destination, React rendering and no credential/service-role/SQL/RLS changes. Pre-existing: client-only authenticated guard and demo-store role context; this prototype introduces no real protected data access. Main checked status after review: only its known screenshot-alt-text correction, no agent writes.
+
+Both reviews passed the complete implemented feature. Final bookkeeping records these verdicts and corrects screenshot alt text; no feature code changed after the reviewed head. PR #63 remains draft and unmerged because the required full-suite check has five independently reproduced pre-existing assertion failures. Worktrees remain available while the PR is open; workflow cleanup occurs after merge.

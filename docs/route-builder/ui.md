@@ -34,7 +34,7 @@ See the [design record README](../design/README.md) for the visual system and sc
 
 **Desktop** (1440×900, device scale factor 2):
 
-<img src="shots/route-builder-desktop.png" alt="Route Builder with empty route creation, selectable route cards, available jobs, and an illustrative preview" width="720">
+<img src="shots/route-builder-desktop.png" alt="Route Builder with empty route creation, selectable route cards, crew dropdowns, and available jobs" width="720">
 
 **Phone** (390×844, device scale factor 2):
 
