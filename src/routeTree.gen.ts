@@ -20,6 +20,7 @@ import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedJobsRouteImport } from './routes/_authed/jobs'
 import { Route as AuthedOnboardingRouteImport } from './routes/_authed/onboarding'
 import { Route as AuthedRequestsRouteImport } from './routes/_authed/requests'
+import { Route as AuthedRouteBuilderRouteImport } from './routes/_authed/route-builder'
 import { Route as AuthedServicesRouteImport } from './routes/_authed/services'
 import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
 import { Route as AuthedTeamsRouteImport } from './routes/_authed/teams'
@@ -81,6 +82,11 @@ const AuthedRequestsRoute = AuthedRequestsRouteImport.update({
   path: '/requests',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedRouteBuilderRoute = AuthedRouteBuilderRouteImport.update({
+  id: '/route-builder',
+  path: '/route-builder',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedServicesRoute = AuthedServicesRouteImport.update({
   id: '/services',
   path: '/services',
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/jobs': typeof AuthedJobsRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/requests': typeof AuthedRequestsRoute
+  '/route-builder': typeof AuthedRouteBuilderRoute
   '/services': typeof AuthedServicesRoute
   '/settings': typeof AuthedSettingsRoute
   '/teams': typeof AuthedTeamsRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/jobs': typeof AuthedJobsRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/requests': typeof AuthedRequestsRoute
+  '/route-builder': typeof AuthedRouteBuilderRoute
   '/services': typeof AuthedServicesRoute
   '/settings': typeof AuthedSettingsRoute
   '/teams': typeof AuthedTeamsRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/_authed/jobs': typeof AuthedJobsRoute
   '/_authed/onboarding': typeof AuthedOnboardingRoute
   '/_authed/requests': typeof AuthedRequestsRoute
+  '/_authed/route-builder': typeof AuthedRouteBuilderRoute
   '/_authed/services': typeof AuthedServicesRoute
   '/_authed/settings': typeof AuthedSettingsRoute
   '/_authed/teams': typeof AuthedTeamsRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/onboarding'
     | '/requests'
+    | '/route-builder'
     | '/services'
     | '/settings'
     | '/teams'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/onboarding'
     | '/requests'
+    | '/route-builder'
     | '/services'
     | '/settings'
     | '/teams'
@@ -218,6 +229,7 @@ export interface FileRouteTypes {
     | '/_authed/jobs'
     | '/_authed/onboarding'
     | '/_authed/requests'
+    | '/_authed/route-builder'
     | '/_authed/services'
     | '/_authed/settings'
     | '/_authed/teams'
@@ -316,6 +328,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRequestsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/route-builder': {
+      id: '/_authed/route-builder'
+      path: '/route-builder'
+      fullPath: '/route-builder'
+      preLoaderRoute: typeof AuthedRouteBuilderRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/services': {
       id: '/_authed/services'
       path: '/services'
@@ -368,6 +387,7 @@ interface AuthedRouteChildren {
   AuthedJobsRoute: typeof AuthedJobsRoute
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute
   AuthedRequestsRoute: typeof AuthedRequestsRoute
+  AuthedRouteBuilderRoute: typeof AuthedRouteBuilderRoute
   AuthedServicesRoute: typeof AuthedServicesRoute
   AuthedSettingsRoute: typeof AuthedSettingsRoute
   AuthedTeamsRoute: typeof AuthedTeamsRoute
@@ -380,6 +400,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedJobsRoute: AuthedJobsRoute,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedRequestsRoute: AuthedRequestsRoute,
+  AuthedRouteBuilderRoute: AuthedRouteBuilderRoute,
   AuthedServicesRoute: AuthedServicesRoute,
   AuthedSettingsRoute: AuthedSettingsRoute,
   AuthedTeamsRoute: AuthedTeamsRoute,
