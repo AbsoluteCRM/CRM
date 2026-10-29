@@ -96,3 +96,11 @@ service-role helpers; see [requests tables](../database/tables/requests.md).
 **Code**: [`src/routes/portal/$orgSlug.tsx`](../../src/routes/portal/$orgSlug.tsx),
 [`src/components/portal/RequestModal.tsx`](../../src/components/portal/RequestModal.tsx),
 [`src/server/trusted/portal.ts`](../../src/server/trusted/portal.ts).
+
+## Monthly service pricing
+
+Portal service cards and request-modal price subtitles display “per month”
+for the `monthly` unit, replacing the former “per job” option. Monthly
+services remain available to internal Requests and its quote workflow; the
+internal request list does not add a pricing-unit column. Pricing units are
+independent of the service's offered visit frequencies.

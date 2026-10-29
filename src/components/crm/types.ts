@@ -130,7 +130,7 @@ export interface Property {
 
 /** `service_unit` in catalog-tax.md. */
 export type ServiceUnit =
-  'each' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
+  'monthly' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
 export type Frequency = 'one_time' | 'weekly' | 'biweekly' | 'monthly'
 
 export interface Service {

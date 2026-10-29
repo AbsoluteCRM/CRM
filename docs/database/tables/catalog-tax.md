@@ -4,12 +4,18 @@ Standard columns are described in the [README](../README.md#conventions).
 
 ## Enums
 
-| Enum                           | Values                                                      |
-| ------------------------------ | ----------------------------------------------------------- |
-| `service_unit`                 | `each`, `hour`, `visit`, `sqft`, `linear_ft`, `yard`, `bag` |
-| `service_frequency`            | `one_time`, `weekly`, `biweekly`, `monthly`                 |
-| `service_precipitation_type`   | `none`, `rain`, `snow`, `any`                               |
-| `service_precipitation_action` | `none`, `schedule`, `reschedule`                            |
+| Enum                           | Values                                                         |
+| ------------------------------ | -------------------------------------------------------------- |
+| `service_unit`                 | `monthly`, `hour`, `visit`, `sqft`, `linear_ft`, `yard`, `bag` |
+| `service_frequency`            | `one_time`, `weekly`, `biweekly`, `monthly`                    |
+| `service_precipitation_type`   | `none`, `rain`, `snow`, `any`                                  |
+| `service_precipitation_action` | `none`, `schedule`, `reschedule`                               |
+
+`monthly` is displayed as “per month”. It replaces the former `each` pricing
+unit (displayed as “per job”), including existing and archived services and
+the database default. This is a pricing unit only: it does not create a
+subscription or change the service's visit frequencies. The Services form
+continues to initially select `visit` for new services.
 
 ## `services`
 
@@ -21,7 +27,7 @@ rewrite history.
 | -------------------------- | ------------------------------ | ---- | -------------- | ------------------------------------------------------------------------------------------ |
 | `name`                     | `text`                         | no   |                | Unique per org among non-archived rows                                                     |
 | `description`              | `text`                         | yes  |                | Default line description                                                                   |
-| `unit`                     | `service_unit`                 | no   | `'each'`       |                                                                                            |
+| `unit`                     | `service_unit`                 | no   | `'monthly'`    |                                                                                            |
 | `default_price_cents`      | `bigint`                       | no   | `0`            | Check `>= 0`                                                                               |
 | `default_duration_minutes` | `integer`                      | yes  |                | Check `> 0`. Seeds the visit duration                                                      |
 | `archived_at`              | `timestamptz`                  | yes  |                | Archived services are hidden from pickers (not enforced by the database on new lines)      |

@@ -56,7 +56,7 @@ export const Route = createFileRoute('/_authed/services')({
 })
 
 const UNIT_LABEL: Record<ServiceUnit, string> = {
-  each: 'per job',
+  monthly: 'per month',
   visit: 'per visit',
   hour: 'per hour',
   sqft: 'per sq ft',
@@ -468,7 +468,7 @@ function ServiceModal({
       onClose={onClose}
       width={680}
       title={service ? `Edit ${service.name}` : 'Add a service'}
-      subtitle="Defaults used when quoting and scheduling. You can still override price per job."
+      subtitle="Defaults used when quoting and scheduling. You can still override the price when quoting."
       footer={
         <>
           <Btn variant="ghost" onClick={onClose}>

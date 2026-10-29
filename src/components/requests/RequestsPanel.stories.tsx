@@ -13,7 +13,7 @@ const service = {
   organization_id: '0198f0a0-0000-7000-8000-000000000001',
   name: 'Lawn maintenance',
   description: null,
-  unit: 'each',
+  unit: 'monthly',
   default_price_cents: 20000,
   default_duration_minutes: 60,
   color: '#7fb547',

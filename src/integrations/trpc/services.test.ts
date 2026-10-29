@@ -258,6 +258,60 @@ describe('services.update and setArchived', () => {
   })
 })
 
+describe('service pricing units', () => {
+  it('creates monthly pricing without changing the service frequency or price', async () => {
+    state.result = { data: { id: SVC, unit: 'monthly' }, error: null }
+    await expect(
+      caller().services.create({ ...input, unit: 'monthly' }),
+    ).resolves.toEqual({ id: SVC, unit: 'monthly' })
+    expect(
+      state.calls.find(([k]) => k === 'services.insert')?.[1],
+    ).toMatchObject({
+      organization_id: ORG,
+      unit: 'monthly',
+      default_price_cents: input.default_price_cents,
+      frequencies: input.frequencies,
+    })
+  })
+
+  it('updates only the pricing unit to monthly in the verified organization', async () => {
+    state.result = { data: [{ id: SVC, unit: 'monthly' }], error: null }
+    await expect(
+      caller().services.update({
+        organizationId: ORG,
+        id: SVC,
+        unit: 'monthly',
+      }),
+    ).resolves.toEqual({ id: SVC, unit: 'monthly' })
+    expect(state.calls.find(([k]) => k === 'services.update')?.[1]).toEqual({
+      unit: 'monthly',
+    })
+    expect(state.calls).toContainEqual(['services.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['services.eq', 'id', SVC])
+  })
+
+  it.each(['each', 'job'])(
+    'rejects removed unit %s before create or update writes',
+    async (unit) => {
+      await expect(
+        caller().services.create({ ...input, unit } as never),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+      await expect(
+        caller().services.update({
+          organizationId: ORG,
+          id: SVC,
+          unit,
+        } as never),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+      expect(
+        state.calls.some(
+          ([k]) => k === 'services.insert' || k === 'services.update',
+        ),
+      ).toBe(false)
+    },
+  )
+})
+
 describe('service precipitation preferences', () => {
   const preference = {
     precipitation_type: 'snow' as const,

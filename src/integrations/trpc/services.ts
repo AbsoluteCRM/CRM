@@ -28,7 +28,15 @@ const month = z.number().int().min(1).max(12)
 const fields = {
   name: z.string().trim().min(1),
   description: z.string().trim().nullable(),
-  unit: z.enum(['each', 'hour', 'visit', 'sqft', 'linear_ft', 'yard', 'bag']),
+  unit: z.enum([
+    'monthly',
+    'hour',
+    'visit',
+    'sqft',
+    'linear_ft',
+    'yard',
+    'bag',
+  ]),
   default_price_cents: z.number().int().min(0),
   default_duration_minutes: z.number().int().min(1).nullable(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),

@@ -67,7 +67,7 @@ begin
   insert into public.services (organization_id, name, unit, default_price_cents, default_duration_minutes)
   values (v_org, 'Weekly mowing', 'visit', 4500, 45) returning id into v_mow;
   insert into public.services (organization_id, name, unit, default_price_cents, default_duration_minutes)
-  values (v_org, 'Spring cleanup', 'each', 25000, 180) returning id into v_cleanup;
+  values (v_org, 'Spring cleanup', 'monthly', 25000, 180) returning id into v_cleanup;
   insert into public.services (organization_id, name, unit, default_price_cents, default_duration_minutes)
   values (v_org, 'Hedge trimming', 'hour', 6000, 60) returning id into v_hedge;
   insert into public.service_default_taxes (organization_id, service_id, tax_rate_id)

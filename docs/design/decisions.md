@@ -31,3 +31,11 @@ The user requested the acceptance page match the rest of the application. Reuse 
 ## 2026-10-28 — Live Calgary dashboard weather
 
 The user confirmed that the dashboard card and header badge should both use live Calgary weather, retain their layout, show metric units (°C and km/h), and render only the forecast days available from WeatherAPI. Calgary coordinates remain fixed until geocoding is connected. See [Dashboard weather](../dashboard/ui.md).
+
+## 2026-10-28: Monthly service pricing unit
+
+Replace the service pricing unit displayed as “per job” (stored as `each`)
+with `monthly`, displayed as “per month” in Services and the public portal
+(including the request modal). The user confirmed migrating all existing
+`each` services. Keep `visit` pricing available. Monthly pricing does not
+change visit frequency or introduce automatic subscription billing.

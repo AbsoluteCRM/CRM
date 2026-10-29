@@ -122,7 +122,7 @@ export const DEFAULT_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> =
       name: 'Fall Cleanup',
       description:
         'Leaf removal, bed cutback, final mow, and debris haul-away before winter.',
-      unit: 'each',
+      unit: 'monthly',
       default_price_cents: 17500,
       default_duration_minutes: 150,
       is_active: true,
@@ -137,7 +137,7 @@ export const DEFAULT_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> =
       name: 'Spring Cleanup',
       description:
         'Debris removal, power raking, bed edging, and first cut of the season.',
-      unit: 'each',
+      unit: 'monthly',
       default_price_cents: 22500,
       default_duration_minutes: 180,
       is_active: true,
@@ -170,7 +170,7 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
     name: 'Hedge & Shrub Trimming',
     description:
       'Pruning and shaping of hedges, shrubs, and ornamental bushes.',
-    unit: 'each',
+    unit: 'monthly',
     default_price_cents: 13500,
     default_duration_minutes: 120,
     is_active: true,
@@ -185,7 +185,7 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
     name: 'Lawn Aeration',
     description:
       'Core aeration to improve soil oxygen, water absorption, and root growth.',
-    unit: 'each',
+    unit: 'monthly',
     default_price_cents: 12000,
     default_duration_minutes: 60,
     is_active: true,
@@ -199,7 +199,7 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
   {
     name: 'Irrigation Winterization',
     description: 'Blow-out and shutdown of residential irrigation systems.',
-    unit: 'each',
+    unit: 'monthly',
     default_price_cents: 12500,
     default_duration_minutes: 60,
     is_active: true,
@@ -243,7 +243,7 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
   {
     name: 'Seasonal Flower Planting',
     description: 'Seasonal annuals and ornamentals in existing beds.',
-    unit: 'each',
+    unit: 'monthly',
     default_price_cents: 18000,
     default_duration_minutes: 120,
     is_active: false,

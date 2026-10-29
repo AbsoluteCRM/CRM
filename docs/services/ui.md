@@ -35,3 +35,10 @@ Part of the [AbsoluteCRM design record](../design/README.md).
 - **Code**: `src/routes/_authed/services.tsx`, `src/components/services/PrecipitationFields.tsx`; interaction coverage in `PrecipitationFields.stories.tsx`.
 
 Captured on 2026-10-28 in the running app, signed in as the seeded owner in the dedicated Quote Delivery QA organization: desktop 1440×900 and phone 390×844, device scale factor 2. Verified create snow/schedule; edit rain/reschedule; reopen; an unrelated save retaining the pair; any/reschedule; and clear/reopen none/none. The dedicated QA service remains disabled for weather recommendations after verification.
+
+## Monthly pricing unit
+
+The service card and Add/Edit pricing-unit select use “per month” for
+`monthly`. The former “per job” unit is removed. Existing services using that
+unit migrate to monthly pricing; new forms still initially select “per visit”.
+Visit frequencies and service prices retain their existing meaning.
