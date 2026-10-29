@@ -186,11 +186,27 @@ export function makeStops(
     sequence: i + 1,
   }))
 }
-export function initialDrafts() {
-  const route = makeRoute(crews[0].id, EXAMPLE_DATE)
-  return {
-    [route.id]: { route, stops: makeStops(route.id, ['visit-0', 'visit-1']) },
-  }
+// Local work in progress is deliberately separate from a database route row:
+// database routes require crew_id, while an empty UI template has no crew yet.
+export type RouteTemplate = {
+  id: string
+  label: string
+  date: string
+  crewId: string | null
+  visitIds: Array<string>
+}
+export function initialTemplates(): Array<RouteTemplate> {
+  const rows = [
+    makeRoute(crews[0].id, EXAMPLE_DATE),
+    makeRoute(crews[1].id, EXAMPLE_DATE),
+  ]
+  return rows.map((row, index) => ({
+    id: row.id,
+    label: `Route ${index + 1}`,
+    date: row.route_date,
+    crewId: row.crew_id,
+    visitIds: index === 0 ? ['visit-0', 'visit-1'] : ['visit-3'],
+  }))
 }
 export function visitDetails(visitId: string) {
   const visit = visits.find((v) => v.id === visitId)
