@@ -135,3 +135,14 @@ None.
 ## Approval
 
 User approved this audited plan on 2026-10-28: “Approved”.
+
+## Implementation verification (2026-10-28)
+
+- Remote MCP access restored with `codex mcp login supabase`; the Snap CLI saved the new login under its own configuration directory. No credentials were added to the repository.
+- Migration history matched main plus this branch and the open quote-conversation PR #49. Applied enum rename as version `20261029012936`.
+- Before/after normalized service fingerprint: `7d1ea42b4d026be6615060b34b4a681a` for all seven services; after migration four monthly, three visit. All service data retained. Database default is monthly and old labels are absent.
+- Types regenerated with Supabase MCP `generate_typescript_types` because the CLI/devenv are unavailable; the only generated changes are the enum union and runtime constant. No hand edits.
+- All seven hermetic pgTAP suites passed, including six new monthly-unit assertions. Security/performance advisor findings are unchanged from baseline.
+- `pnpm lint`, `pnpm check`, and `pnpm exec tsc --noEmit` pass.
+- Full Vitest suite: 254 passed, five failed. A baseline run using `origin/main` source reproduced the same five failures (250 passed): RequestsPanel “Filters And Read Only Details”, QuoteEditor “Draft Editing”, and CrewBuilder “Drag To Crew”, “Drag To Unassigned”, “Set Lead”. Existing failures prevent merging under the workflow; no assertions were weakened or skipped.
+- Feature browser checks and reviewer/security audits pending. PR #62 remains draft.

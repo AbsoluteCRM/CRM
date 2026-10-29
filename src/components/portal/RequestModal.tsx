@@ -15,7 +15,7 @@ import { useTRPC } from '#/integrations/trpc/react'
 import type { PortalService } from '#/server/trusted/portal'
 
 export const UNIT_LABEL: Record<string, string> = {
-  each: 'per job',
+  monthly: 'per month',
   visit: 'per visit',
   hour: 'per hour',
   sqft: 'per sq ft',

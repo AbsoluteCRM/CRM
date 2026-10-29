@@ -2934,7 +2934,7 @@ export type Database = {
       service_precipitation_action: 'none' | 'schedule' | 'reschedule'
       service_precipitation_type: 'none' | 'rain' | 'snow' | 'any'
       service_unit:
-        'each' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
+        'monthly' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
       time_source: 'app' | 'manual' | 'auto'
       visit_status:
         | 'unscheduled'
@@ -3117,7 +3117,7 @@ export const Constants = {
       service_precipitation_action: ['none', 'schedule', 'reschedule'],
       service_precipitation_type: ['none', 'rain', 'snow', 'any'],
       service_unit: [
-        'each',
+        'monthly',
         'hour',
         'visit',
         'sqft',

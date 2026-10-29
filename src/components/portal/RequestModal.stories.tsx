@@ -14,7 +14,7 @@ const service: PortalService = {
   id: '0198f0a0-0000-7000-8000-000000000002',
   name: 'Bi-Weekly Lawn Maintenance',
   description: null,
-  unit: 'each',
+  unit: 'monthly',
   default_price_cents: 19998,
   default_duration_minutes: 60,
   color: '#7fb547',
@@ -89,6 +89,7 @@ const reset = () => submit.mockClear()
 export const AsksForContactDetailsOnly: Story = {
   play: async () => {
     reset()
+    await expect(body().getByText('From $199.98 per month')).toBeVisible()
     await expect(body().getByLabelText('Your name')).toBeVisible()
     await expect(body().getByLabelText('Service address')).toBeVisible()
     await expect(body().queryByLabelText('How often?')).toBeNull()
