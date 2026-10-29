@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `route-builder-template` / `feat/route-builder-template`
 - **Tier**: full; new UI feature with a new route.
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%; interaction scope and roles are user-confirmed, styling and visit/route relationships are verified in the repo. Remaining defaults are minor visual choices.
 - **Plan-mode file**: this file; native plan mode is unavailable. Only this uncommitted plan is written before approval. Approval is an explicit chat reply to the audited proposal.
 
@@ -144,4 +144,8 @@ pnpm generate-routes && pnpm build && pnpm exec tsc --noEmit && pnpm lint && pnp
 - Seven existing suites cannot import without `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`: clients, client mutations, crews, crew mutations, services, Calendar stories, and SeasonBar stories. The isolated implementation worktree intentionally has no `.env.local`; final verification loads environment only in the main checkout.
 - Five assertions outside this feature fail: QuoteEditor Draft Editing expects a callback object without the current frequency/season fields; RequestsPanel Filters And Read Only Details expects two description values but gets one; CrewBuilder Drag To Crew and Drag To Unassigned record no callback; CrewBuilder Set Lead resolves its label to the crown SVG instead of the select. These tests and implementations were not changed.
 - `pnpm exec vitest run src/components/route-builder/RouteBuilder.stories.tsx --reporter=verbose`: **8 passed**, 1 file passed. Covers populated, add/remove/reorder, crew/date drafts, search/reset, all assigned, empty date, filtered empty, and mobile stories. Existing Nitro/CommonJS runner messages appear in stderr without failing these tests.
-- Running-app screenshots, role-denied verification, review verdicts, and environment-loaded full-suite verification remain with the main agent before merge.
+- Main-checkout verification on 2026-10-29, using `pnpm exec dotenv -e .env.local -- bash -c` to run the exact Verify command: generation, production build, TypeScript, ESLint and Prettier pass. Vitest: **262 passed, 5 failed**, 25 files passed / 3 failed. Only the five assertions listed above remain. All eight new Route Builder stories pass in the full run.
+- Baseline confirmed before pulling implementation: the same five failures reproduced in QuoteEditor, RequestsPanel and CrewBuilder while the main checkout contained only the approved plan and original user navigation edits. Unrelated implementations and tests remain unchanged. The full-suite gate fails, so this PR must not merge.
+- Authenticated running-app verification with the seeded test user passed: add/remove/reorder, per-crew exclusion, search, empty date, reset, refresh reset, owner/admin/dispatcher access, worker direct navigation denied, sidebar hidden for workers, no browser page errors and no horizontal overflow at 390px.
+- Captured and visually inspected `route-builder-desktop.png` at 1440×900 and `route-builder-phone.png` / `route-builder-phone-draft.png` at 390×844, all at device scale factor 2. Screenshots are in `docs/route-builder/shots/` and use Git LFS.
+- Reviewer and security verdicts will be recorded below before final handoff. PR remains draft because the full-suite merge gate fails.

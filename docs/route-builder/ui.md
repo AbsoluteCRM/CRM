@@ -39,4 +39,14 @@ Available visit cards show job number, customer, address, service, duration, and
 
 **Code**: `src/routes/_authed/route-builder.tsx`, `src/components/route-builder/RouteBuilder.tsx`, `src/components/route-builder/mock-data.ts`, and `src/components/route-builder/RouteBuilder.stories.tsx`.
 
-**Verification**: Storybook interactions cover adding/removing, both reorder directions and boundaries, contiguous numbering, duration and preview updates, assignment exclusion across crews, preserved crew/date drafts, empty dates, all-assigned and filtered-empty pools, search fields, and reset. Running-app desktop and phone captures are added during final verification.
+**Verification**: All eight Storybook stories pass. Interactions cover adding/removing, both reorder directions and boundaries, contiguous numbering, duration and preview updates, assignment exclusion across crews, preserved crew/date drafts, empty dates, all-assigned and filtered-empty pools, search fields, and reset. Signed-in running-app verification also confirms refresh reset, owner/admin/dispatcher access, worker denial on direct navigation, and no horizontal overflow at 390px. The full suite has five independently reproduced pre-existing assertion failures; see the plan's verification record.
+
+**Desktop** (1440×900, device scale factor 2):
+
+<img src="shots/route-builder-desktop.png" alt="Route Builder with date and crew selection above available jobs, an ordered North crew draft, and an illustrative route map" width="720">
+
+**Phone** (390×844, device scale factor 2):
+
+<img src="shots/route-builder-phone.png" alt="Phone layout with Route Builder heading, demo notice, date and crew selectors, and the start of the available-job pool" width="320">
+
+<img src="shots/route-builder-phone-draft.png" alt="Phone layout scrolled to the North crew draft with two numbered visits, reorder and remove controls, and a two-hour-forty-five-minute work total" width="320">
