@@ -91,6 +91,7 @@ export type Section =
   | 'teams'
   | 'services'
   | 'settings'
+  | 'route-builder'
 
 export function canSee(role: OrgRole, section: Section) {
   if (role !== 'worker') return true

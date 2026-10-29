@@ -7,6 +7,7 @@ import {
   Settings,
   Toolbox,
   Users,
+  Route,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
@@ -27,6 +28,12 @@ const NAV = [
     icon: MessageSquareDiff,
     to: '/requests',
     section: 'requests',
+  },
+  {
+    label: 'Route Builder',
+    icon: Route,
+    to: '/route-builder',
+    section: 'route-builder',
   },
   { label: 'Calendar', icon: Calendar, to: '/calendar', section: 'calendar' },
   { label: 'Jobs', icon: HardHat, to: '/jobs', section: 'jobs' },

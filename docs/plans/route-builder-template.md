@@ -16,11 +16,11 @@ Build a polished `/route-builder` prototype with an available-job pool, an order
 
 ## Decisions
 
-| # | Question | Answer |
-| --- | --- | --- |
-| Q1 | Interaction scope | User chose interactive mock builder: add/remove/reorder stops and crew selection, resetting on refresh. |
-| Q2 | Roles | User chose existing visibility: owner, admin, dispatcher. |
-| Q3 | Styling and data | User requested existing page styling and mock data shaped like the database. |
+| #   | Question          | Answer                                                                                                  |
+| --- | ----------------- | ------------------------------------------------------------------------------------------------------- |
+| Q1  | Interaction scope | User chose interactive mock builder: add/remove/reorder stops and crew selection, resetting on refresh. |
+| Q2  | Roles             | User chose existing visibility: owner, admin, dispatcher.                                               |
+| Q3  | Styling and data  | User requested existing page styling and mock data shaped like the database.                            |
 
 Agent defaults (minor; the user may veto them):
 
@@ -34,11 +34,11 @@ None that change the approved scope. The audited plan still needs explicit user 
 
 ## Assumptions
 
-| Assumption | User-confirmed? |
-| --- | --- |
-| Local-only interactive edits reset on refresh | yes |
-| Owner/admin/dispatcher access | yes |
-| Mock rather than live database reads/writes | yes, original request |
+| Assumption                                        | User-confirmed?          |
+| ------------------------------------------------- | ------------------------ |
+| Local-only interactive edits reset on refresh     | yes                      |
+| Owner/admin/dispatcher access                     | yes                      |
+| Mock rather than live database reads/writes       | yes, original request    |
 | Specific visual arrangement and example customers | no; minor defaults D1–D3 |
 
 ## Design refs
@@ -62,8 +62,8 @@ None. Read existing generated types only. No Supabase calls or database writes.
 
 ### Routes and UI
 
-| Route | Screen | States |
-| --- | --- | --- |
+| Route            | Screen        | States                                                                                                       |
+| ---------------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
 | `/route-builder` | Route Builder | Populated draft, empty draft, all visits assigned, filtered-empty job pool, date with no visits, role denied |
 
 - Add `src/routes/_authed/route-builder.tsx` as a thin PageShell wrapper with `allowed={canSee(t.role, 'route-builder')}` and a restricted-content fallback for workers. All fixture content sits inside the gated child component. Follow current authenticated layout conventions; no loader or protected prefetch.
@@ -113,7 +113,7 @@ No new packages, map SDK, drag/drop library, or optimizer dependency.
 ## Verify command
 
 ```bash
-pnpm generate-routes && pnpm exec tsc --noEmit && pnpm lint && pnpm check && pnpm exec vitest run && pnpm build
+pnpm generate-routes && pnpm build && pnpm exec tsc --noEmit && pnpm lint && pnpm check && pnpm exec vitest run
 ```
 
 ## Verification
@@ -136,4 +136,4 @@ pnpm generate-routes && pnpm exec tsc --noEmit && pnpm lint && pnpm check && pnp
 
 ## Scope-change log
 
-_None._
+- Verification order corrected during implementation: TanStack Router CLI generation removes the Start-specific type registration that the Start Vite plugin regenerates during build. Run the existing build before TypeScript so the generated route tree includes that registration. No generator configuration or generated files are edited manually; feature scope is unchanged.
