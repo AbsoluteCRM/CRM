@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `route-builder-template` / `feat/route-builder-template`
 - **Tier**: full; new UI feature and route.
-- **Status**: approved (revision after initial implementation)
+- **Status**: implemented (revision after initial implementation)
 - **Confidence**: 95%; user confirmed empty templates before crew assignment, dropdown crew selection, selectable route cards, cross-route dragging, and Teams as reference. Daily route/visit constraints are verified in the repo.
 - **Plan-mode file**: this file; native plan mode is unavailable. Revision changes only this uncommitted plan until fresh audit and explicit chat approval.
 - **PR**: https://github.com/AbsoluteCRM/CRM/pull/63 (draft).
@@ -177,3 +177,12 @@ Fresh `/root/revision_plan_auditor` returned **pass**, confidence **high**, with
 - Initial main env-loaded full suite: **262 passed, 5 failed**, 25 files passed /3 failed. All eight new Route Builder stories pass. Five unchanged assertions fail in QuoteEditor Draft Editing, RequestsPanel Filters And Read Only Details, CrewBuilder Drag To Crew, Drag To Unassigned and Set Lead.
 - All five failures reproduced before pulling feature code; `/tmp/route-builder-baseline.log` and `/tmp/route-builder-final-verify.log` contain evidence. No unrelated test fixes or weakened checks. Full-suite gate blocks merging even with feature reviews passing.
 - Previous signed-in browser verification passed editing, crew isolation, search/date/reset/refresh, roles, no page errors and no horizontal overflow. Previous screenshots were captured and inspected as Git LFS. They must be replaced and all relevant checks rerun for the revision.
+
+## Revised implementation verification
+
+- Implementer commits: `4b18b49` route board and stories; `f671543` design text; `9a3a0c8` responsive date-field wrapping. All pushed to PR #63. Eight revised Route Builder stories pass.
+- Main checkout ran the exact Verify command with its environment loaded after the final code change. Generation, production build, TypeScript, ESLint and Prettier pass. Full suite: **262 passed, 5 failed**, 25 files passed / 3 failed. Failures remain the independently reproduced unchanged QuoteEditor, RequestsPanel and CrewBuilder assertions recorded above. Full-suite gate fails; do not merge.
+- Authenticated Chromium verified native `dragTo` pool→route, route→route and route→pool, adding a visit to an unassigned template, empty creation, crew assignment/clearing, occupied-crew exclusion, reset/refresh reset, owner/admin/dispatcher access and worker direct-navigation denial.
+- Phone verification at 390×844 passed Add/Move/Remove alternatives and no horizontal page overflow. Screenshot inspection caught and corrected a clipped date field by wrapping the Create route controls; final phone image shows the full date.
+- Real-drag harness uses card padding and compact drop targets in a taller viewport to avoid Playwright auto-scroll moving its precomputed source point. Initial event diagnostics showed the harness dragging another visit, not a state-transfer failure. All three intended real transfer paths pass with stable coordinates.
+- Replaced and visually inspected desktop (1440×900), phone and phone-draft (390×844) screenshots at device scale factor 2. Files under `docs/route-builder/shots/` use Git LFS. Fresh reviewer and security verdicts will be recorded after their audits.
