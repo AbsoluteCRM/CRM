@@ -137,3 +137,11 @@ pnpm generate-routes && pnpm build && pnpm exec tsc --noEmit && pnpm lint && pnp
 ## Scope-change log
 
 - Verification order corrected during implementation: TanStack Router CLI generation removes the Start-specific type registration that the Start Vite plugin regenerates during build. Run the existing build before TypeScript so the generated route tree includes that registration. No generator configuration or generated files are edited manually; feature scope is unchanged.
+
+## Implementation verification
+
+- Worktree verification on 2026-10-29: `pnpm generate-routes && pnpm build && pnpm exec tsc --noEmit && pnpm lint && pnpm check && pnpm exec vitest run` passes generation, build, TypeScript, ESLint, and Prettier, then stops at the full Vitest suite: 10 files failed / 18 passed; 5 tests failed / 160 passed.
+- Seven existing suites cannot import without `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`: clients, client mutations, crews, crew mutations, services, Calendar stories, and SeasonBar stories. The isolated implementation worktree intentionally has no `.env.local`; final verification loads environment only in the main checkout.
+- Five assertions outside this feature fail: QuoteEditor Draft Editing expects a callback object without the current frequency/season fields; RequestsPanel Filters And Read Only Details expects two description values but gets one; CrewBuilder Drag To Crew and Drag To Unassigned record no callback; CrewBuilder Set Lead resolves its label to the crown SVG instead of the select. These tests and implementations were not changed.
+- `pnpm exec vitest run src/components/route-builder/RouteBuilder.stories.tsx --reporter=verbose`: **8 passed**, 1 file passed. Covers populated, add/remove/reorder, crew/date drafts, search/reset, all assigned, empty date, filtered empty, and mobile stories. Existing Nitro/CommonJS runner messages appear in stderr without failing these tests.
+- Running-app screenshots, role-denied verification, review verdicts, and environment-loaded full-suite verification remain with the main agent before merge.

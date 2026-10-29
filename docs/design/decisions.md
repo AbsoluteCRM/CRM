@@ -39,3 +39,7 @@ with `monthly`, displayed as “per month” in Services and the public portal
 (including the request modal). The user confirmed migrating all existing
 `each` services. Keep `visit` pricing available. Monthly pricing does not
 change visit frequency or introduce automatic subscription billing.
+
+## 2026-10-29 — Interactive Route Builder prototype
+
+The user requested a Route Builder template matching the existing CRM styling, using mock data shaped like the database. They chose local add/remove/reorder and crew selection interactions, with edits resetting on refresh, and access for owner, admin, and dispatcher. The approved plan includes date-specific crew drafts, search, and reset. Use a clearly labeled schematic preview and demo notice; live assignment, publication, and optimization remain outside this prototype. See [Route Builder UI](../route-builder/ui.md).
