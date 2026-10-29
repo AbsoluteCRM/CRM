@@ -219,7 +219,7 @@ export function RouteBuilder({
             </p>
           </div>
           <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto">
-            <label className="min-w-0 flex-1 text-xs font-bold text-(--ink-2)">
+            <label className="min-w-0 flex-1 basis-40 text-xs font-bold text-(--ink-2)">
               Route date
               <TextInput
                 aria-label="Route date"
