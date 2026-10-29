@@ -43,3 +43,7 @@ change visit frequency or introduce automatic subscription billing.
 ## 2026-10-29 — Interactive Route Builder prototype
 
 The user requested a Route Builder template matching the existing CRM styling, using mock data shaped like the database. They chose local add/remove/reorder and crew selection interactions, with edits resetting on refresh, and access for owner, admin, and dispatcher. The approved plan includes date-specific crew drafts, search, and reset. Use a clearly labeled schematic preview and demo notice; live assignment, publication, and optimization remain outside this prototype. See [Route Builder UI](../route-builder/ui.md).
+
+## 2026-10-29 — Route templates and a drag-and-drop board
+
+The user revised Route Builder to three explicit sections: Existing routes, Create route and Available jobs, using Teams CrewBuilder as the reference. Create a genuinely empty template before assigning a crew or adding jobs. Selectable route cards show crew/date/status/count/duration; a dropdown includes No crew. Native drag moves visits from the pool to any route, between routes and back to the pool, with equivalent keyboard/touch controls. Keep all edits local until refresh. Unassigned templates use a separate UI model because database routes require a crew; assigned crews remain unique per date. See [Route Builder UI](../route-builder/ui.md).

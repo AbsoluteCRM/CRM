@@ -1,8 +1,8 @@
 See the [design record README](../design/README.md) for the visual system and screen-spec conventions.
 
-| Screen        | Route            | What it shows                                                          |
-| ------------- | ---------------- | ---------------------------------------------------------------------- |
-| Route Builder | `/route-builder` | Available job visits, a local crew/date draft, and a schematic preview |
+| Screen        | Route            | What it shows                                                                       |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------- |
+| Route Builder | `/route-builder` | Existing routes, empty template creation, available visits, and a schematic preview |
 
 ## Route Builder
 
@@ -10,43 +10,34 @@ See the [design record README](../design/README.md) for the visual system and sc
 
 **Roles**: Owner, admin, and dispatcher can use the builder. Workers receive the existing PageShell access-denied card, including on direct navigation. The authenticated layout handles sign-in. This prototype has no server data access.
 
-**Layout**: PageShell supplies the Operations kicker, display heading, cream surface, and footer. A sage demo notice and Reset demo action precede a paper card with native date and crew selectors. On wide screens, three columns show the available-job pool, route draft, and schematic map with its illustrative-preview notice. Smaller screens stack these cards. Existing CRM Card, Badge, Btn, IconBtn, SearchInput, TextInput, SelectInput, and EmptyState primitives supply rounded corners, leaf/lime tokens, focus rings, and typography.
+**Layout**: The PageShell cream surface and sage mock notice precede three distinct sections. Create route pairs the page-level date filter with a creation button, following Teams CrewBuilder. Existing routes is a responsive board of rounded paper cards, beside Available jobs on desktop and above it on phone. Each route has its own selection button, Draft badge, crew dropdown, date, stop count, on-site duration and ordered draggable visit cards. The selected route has a compact illustrative schematic beneath the board. Cards stack on phone without horizontal page scrolling.
 
-Available visit cards show job number, customer, address, service, duration, and arrival window or flexible-arrival fallback. Draft cards have contiguous numbered stops and accessible up/down/remove controls. The crew summary shows the mock vehicle and start time. Totals show stop count and on-site work only. The schematic reflects the selected draft order and never presents driving estimates.
-
-**States**:
-
-- Populated draft: North crew begins with two visits on October 29, 2026; four visits remain available.
-- Empty draft: South crew initially has no stops; guidance explains how to add visits.
-- All assigned: the pool explains that visits are on routes and can be released by removing a stop.
-- Filtered-empty: guidance suggests searching by customer, address, job number, or service.
-- Empty date: dates other than the example date have no mock visits; guidance points back to October 29, 2026.
-- Role denied: workers see the established restricted-content card.
-- No loading or remote-error state is necessary for synchronous local fixtures.
+**States**: Route 1 starts with two North crew visits; Route 2 starts with one South crew visit. Three visits remain available. Creating a route selects an empty, unassigned template. Crew options occupied by another route on that date are disabled. Dates without routes show creation guidance and dates without visits explain the example date. Filtered-empty and all-assigned pools have dedicated guidance. Workers see the existing denied state. Fixtures are synchronous, with no loading or remote-error state.
 
 **Interactions**:
 
-- Date and crew select a separate local draft for that pair, preserving other drafts.
-- Search filters only unassigned visits on the selected date.
-- Add to route appends the visit. A visit assigned to any draft disappears from every crew's pool, preventing duplicate assignments.
-- Remove returns a visit to its date's available pool. Up/down controls reorder stops and are disabled at list boundaries. Every edit rebuilds contiguous one-based sequences and updates the schematic and on-site total.
-- Reset demo restores the initial drafts, date, crew, and search with a status message. Refresh also discards all edits.
-- No save, publish, optimization, live assignment, or persistence action is offered.
+- Create route adds a uniquely labeled empty template for the selected date, before choosing a crew or jobs. Multiple unassigned templates are allowed.
+- Select a route to target the pool Add buttons and illustrative preview. Selection is separate from all embedded controls.
+- Crew dropdowns include No crew. Assignment and clearing preserve visits; each crew can have at most one route per date.
+- Drag visit cards from pool to any route, between routes, or back to Available jobs. Labeled route/pool regions highlight when accepting a visit. Native drag uses a custom visit MIME type. Unknown, wrong-date, duplicate and same-route transfers cannot lose or duplicate visits.
+- Add, remove, Move to route dropdown/action, and up/down controls provide keyboard and touch equivalents. Transfers are atomic and renumber ordered stops from one; summaries and schematic follow the same state. A live status announces changes and invalid transfers.
+- Search matches customer, address, job number and service. Date changes filter routes/pool without creating or rescheduling routes; returning preserves edits.
+- Reset demo restores seeds, date, selection and search. Refresh discards all edits. No live assignment, publication or persistence is offered.
 
-**Data**: `src/components/route-builder/mock-data.ts` selects fields from generated `Tables` types for jobs, visits, crews, routes, route stops, clients, and properties. Shared synthetic organization IDs and explicit foreign-key relationships join visits to jobs and customer/property records. Assignment derives from route stops, never a visit crew field. Schematic coordinates live separately from database-shaped records. There are no network calls or store mutations.
+**Data**: Typed fixtures select generated `Tables` fields for jobs, visits, crews, routes, route stops, clients and properties, with shared synthetic organization and consistent foreign keys. Seeded route rows have required crew IDs. A separate local UI `RouteTemplate` type permits nullable crew, presentation labels and ordered visit IDs; an unassigned template is not a database row. Derived route stops have contiguous one-based sequences. Visit assignment comes from route membership, never a visit crew field. Arrival windows are ISO timestamps displayed in the example Calgary timezone. Schematic coordinates are separate display data. No network calls or shared store mutations occur.
 
 **Origin**: Built without a mock, following the approved [Route Builder plan](../plans/route-builder-template.md) and existing CRM styling.
 
 **Code**: `src/routes/_authed/route-builder.tsx`, `src/components/route-builder/RouteBuilder.tsx`, `src/components/route-builder/mock-data.ts`, and `src/components/route-builder/RouteBuilder.stories.tsx`.
 
-**Verification**: All eight Storybook stories pass. Interactions cover adding/removing, both reorder directions and boundaries, contiguous numbering, duration and preview updates, assignment exclusion across crews, preserved crew/date drafts, empty dates, all-assigned and filtered-empty pools, search fields, and reset. Signed-in running-app verification also confirms refresh reset, owner/admin/dispatcher access, worker denial on direct navigation, and no horizontal overflow at 390px. The full suite has five independently reproduced pre-existing assertion failures; see the plan's verification record.
+**Verification**: Revised stories cover empty creation and unique labels, crew conflicts/clearing, selection, all three drag pathways, invalid/same-route drops, fallback transfers/reordering, summaries/preview, date preservation, search/reset and empty/mobile states. Real browser drags and refreshed screenshots are recorded by the main agent before final review. The exact worktree command `pnpm generate-routes && pnpm build && pnpm exec tsc --noEmit && pnpm lint && pnpm check && pnpm exec vitest run` passes generation, build, TypeScript, ESLint and Prettier, then reports 10 failed / 18 passed files and 5 failed / 160 passed assertions. Seven suites require the intentionally absent worktree environment; five assertions in QuoteEditor, RequestsPanel and CrewBuilder are independently reproduced baseline failures. All eight revised Route Builder stories pass. Existing runner CommonJS/Nitro messages and server shutdown timeout also appear. Main must rerun with its environment; the full-suite gate remains blocked.
 
 **Desktop** (1440×900, device scale factor 2):
 
-<img src="shots/route-builder-desktop.png" alt="Route Builder with date and crew selection above available jobs, an ordered North crew draft, and an illustrative route map" width="720">
+<img src="shots/route-builder-desktop.png" alt="Route Builder with empty route creation, selectable route cards, available jobs, and an illustrative preview" width="720">
 
 **Phone** (390×844, device scale factor 2):
 
-<img src="shots/route-builder-phone.png" alt="Phone layout with Route Builder heading, demo notice, date and crew selectors, and the start of the available-job pool" width="320">
+<img src="shots/route-builder-phone.png" alt="Phone layout with Route Builder heading, demo notice, date filter, and Create route controls" width="320">
 
-<img src="shots/route-builder-phone-draft.png" alt="Phone layout scrolled to the North crew draft with two numbered visits, reorder and remove controls, and a two-hour-forty-five-minute work total" width="320">
+<img src="shots/route-builder-phone-draft.png" alt="Phone layout showing a route card with crew selection, ordered visit cards, and keyboard transfer controls" width="320">
