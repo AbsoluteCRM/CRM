@@ -5,6 +5,7 @@ import { toast } from '#/components/crm/ui'
 import { useOrganization } from '#/integrations/organization/context'
 import { useTRPC } from '#/integrations/trpc/react'
 import type { TRPCRouter } from '#/integrations/trpc/router'
+import type { AddressParts } from '#/components/address/address'
 
 export type ClientRow =
   inferRouterOutputs<TRPCRouter>['clients']['list'][number]
@@ -16,6 +17,39 @@ export type UpdateClientPatch = Omit<
   inferRouterInputs<TRPCRouter>['clients']['update'],
   'organizationId' | 'clientId'
 >
+
+export type ClientAddressInput = NonNullable<UpdateClientPatch['address']>
+
+/** "12 Elm St, Unit 4" and "Calgary, AB T2X 1A1", or null without an address. */
+export function clientAddressLines(c: ClientRow) {
+  if (!c.billing_address_line1) return null
+  const street = [c.billing_address_line1, c.billing_address_line2]
+    .filter(Boolean)
+    .join(', ')
+  const regionPostal = [c.billing_region, c.billing_postal_code]
+    .filter(Boolean)
+    .join(' ')
+  const place = [c.billing_city, regionPostal].filter(Boolean).join(', ')
+  return { street, place }
+}
+
+export const toClientAddress = (a: AddressParts): ClientAddressInput => ({
+  address_line1: a.line1,
+  address_line2: a.line2,
+  city: a.city,
+  region: a.region,
+  postal_code: a.postalCode,
+  country: a.country,
+})
+
+export const clientAddressParts = (c: ClientRow): AddressParts => ({
+  line1: c.billing_address_line1 ?? '',
+  line2: c.billing_address_line2 ?? '',
+  city: c.billing_city ?? '',
+  region: c.billing_region ?? '',
+  postalCode: c.billing_postal_code ?? '',
+  country: c.billing_country ?? 'CA',
+})
 
 export function useClients() {
   const trpc = useTRPC()
@@ -82,6 +116,18 @@ export function useClientMutations() {
                       ...(vars.company_name !== undefined && {
                         company_name: vars.company_name || null,
                       }),
+                      ...(vars.address !== undefined && {
+                        billing_address_line1:
+                          vars.address?.address_line1.trim() ?? null,
+                        billing_address_line2:
+                          vars.address?.address_line2?.trim() || null,
+                        billing_city: vars.address?.city.trim() ?? null,
+                        billing_region: vars.address?.region?.trim() || null,
+                        billing_postal_code:
+                          vars.address?.postal_code?.trim().toUpperCase() ||
+                          null,
+                        billing_country: vars.address?.country ?? null,
+                      }),
                     }
                   : c,
               )
@@ -99,6 +145,10 @@ export function useClientMutations() {
       create.mutateAsync({ ...base, ...input }),
     updateClient: (clientId: string, patch: UpdateClientPatch) =>
       update.mutate({ ...base, clientId, ...patch }),
+    /** Awaitable updateClient. */
+    saveClient: (clientId: string, patch: UpdateClientPatch) =>
+      update.mutateAsync({ ...base, clientId, ...patch }),
+    saving: update.isPending,
     creating: create.isPending,
   }
 }
