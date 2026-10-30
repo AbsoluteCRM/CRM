@@ -23,6 +23,7 @@ import { ROLE_LABEL, actions, can, useTenant } from '#/components/crm/store'
 import { Toaster } from '#/components/crm/ui'
 import { fmtDate } from '#/components/crm/format'
 import type { OrgRole } from '#/components/crm/types'
+import AppThemeStyles from './AppTheme'
 
 function useClickOutside(onOutside: () => void) {
   const ref = useRef<HTMLDivElement>(null)
@@ -218,6 +219,7 @@ export default function Header() {
   return (
     <header className="fixed top-0 right-0 left-0 z-40 flex h-16 items-center gap-3 border-b border-(--line) bg-(--paper)/90 pr-4 pl-[92px] backdrop-blur-md sm:pr-6">
       <Toaster />
+      <AppThemeStyles />
 
       {/* Workspace (tenant) switcher */}
       <Menu
