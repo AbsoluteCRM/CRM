@@ -22,6 +22,7 @@ export const env = createEnv({
     VITE_SUPABASE_URL: z.string().url(),
     VITE_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
     VITE_GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+    VITE_GEOAPIFY_API_KEY: z.string().min(1).optional(),
   },
 
   /**
