@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { ArrowRight, LogOut } from 'lucide-react'
 
+import AuthShell, { AuthCard } from '#/components/auth/AuthShell'
+import PasswordInput from '#/components/auth/PasswordInput'
+import { Alert, Btn, Field, TextInput, btnClass } from '#/components/crm/ui'
 import { useAuth } from '#/integrations/auth/context'
-import { Button } from '#/components/ui/button/button'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
 
 export const Route = createFileRoute('/sign-up')({
+  head: () => ({ meta: [{ title: 'Start your free trial · AbsoluteCRM' }] }),
   component: SignUpPage,
 })
 
@@ -20,93 +22,114 @@ function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-svh items-center justify-center">
-        Loading...
-      </div>
-    )
-  }
-
-  if (isAuthenticated) {
-    return (
-      <div className="flex min-h-svh flex-col items-center justify-center gap-4">
-        <p className="text-lg">Signed in as {user?.email}</p>
-        <Button
-          onClick={async () => {
-            await signOut()
-            navigate({ to: '/' })
-          }}
-        >
-          Sign out
-        </Button>
-      </div>
-    )
-  }
-
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     setError(null)
     setIsSubmitting(true)
-
     const { error: authError } = await signUpWithPassword(email, password)
-
     setIsSubmitting(false)
-
     if (authError) {
       setError(authError)
       return
     }
-
     navigate({ to: '/' })
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center">
-      <form
-        onSubmit={handleSubmit}
-        className="flex w-full max-w-sm flex-col gap-4 p-8"
-      >
-        <h1 className="text-2xl font-bold">Create an account</h1>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={6}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </div>
-
-        {error && <p className="text-sm text-destructive">{error}</p>}
-
-        <Button type="submit" disabled={isSubmitting}>
-          Sign up
-        </Button>
-
-        <Link
-          to="/sign-in"
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+    <AuthShell>
+      {isLoading ? (
+        <p role="status" className="text-center text-sm text-(--ink-3)">
+          Loading…
+        </p>
+      ) : isAuthenticated ? (
+        <AuthCard
+          title="You’re signed in"
+          subtitle={
+            <>
+              Signed in as <strong>{user?.email}</strong>.
+            </>
+          }
         >
-          Already have an account? Sign in
-        </Link>
-      </form>
-    </div>
+          <div className="flex flex-col gap-2">
+            <Link
+              to="/dashboard"
+              className={btnClass('primary', 'lg', 'w-full')}
+            >
+              Go to dashboard <ArrowRight className="size-4" />
+            </Link>
+            <Btn
+              variant="ghost"
+              icon={LogOut}
+              className="w-full"
+              onClick={async () => {
+                await signOut()
+                navigate({ to: '/' })
+              }}
+            >
+              Sign out
+            </Btn>
+          </div>
+        </AuthCard>
+      ) : (
+        <AuthCard
+          title="Start your free trial"
+          subtitle="Create your account, then set up your company."
+          footer={
+            <>
+              Already have an account?{' '}
+              <Link
+                to="/sign-in"
+                className="font-semibold text-(--leaf-700) underline-offset-4 hover:underline"
+              >
+                Sign in
+              </Link>
+            </>
+          }
+        >
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {error && (
+              <Alert tone="danger" title="We couldn’t create your account">
+                {error}
+              </Alert>
+            )}
+            <Field label="Work email" htmlFor="email">
+              <TextInput
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@company.com"
+                required
+                className="h-11"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </Field>
+            <Field
+              label="Password"
+              htmlFor="password"
+              hint="At least 6 characters."
+            >
+              <PasswordInput
+                id="password"
+                autoComplete="new-password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </Field>
+            <Btn
+              type="submit"
+              size="lg"
+              className="mt-2 w-full"
+              disabled={isSubmitting}
+              iconRight={isSubmitting ? undefined : ArrowRight}
+            >
+              {isSubmitting ? 'Creating account…' : 'Create account'}
+            </Btn>
+          </form>
+        </AuthCard>
+      )}
+    </AuthShell>
   )
 }
