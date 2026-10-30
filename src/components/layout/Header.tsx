@@ -210,6 +210,10 @@ export default function Header() {
     setActiveOrganization,
   } = useOrganization()
   const orgName = organization?.name ?? (orgLoading ? 'Loading…' : 'No company')
+  // Only owners start new companies (or someone who has none yet).
+  const canAddCompany = organization
+    ? organization.role === 'owner'
+    : !orgLoading
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const { count: newRequests, latest } = useNewRequests()
@@ -298,13 +302,17 @@ export default function Header() {
                   )}
                 </button>
               ))}
-              <div className="my-1 h-px bg-(--line)" />
-              <Link to="/onboarding" className={menuItem} onClick={close}>
-                <span className="flex size-7 items-center justify-center rounded-full bg-(--lime-200) text-(--leaf-900)">
-                  <Plus className="size-4" />
-                </span>
-                Add a company
-              </Link>
+              {canAddCompany && (
+                <>
+                  <div className="my-1 h-px bg-(--line)" />
+                  <Link to="/onboarding" className={menuItem} onClick={close}>
+                    <span className="flex size-7 items-center justify-center rounded-full bg-(--lime-200) text-(--leaf-900)">
+                      <Plus className="size-4" />
+                    </span>
+                    Add a company
+                  </Link>
+                </>
+              )}
               <p className="flex items-start gap-2 px-3 pt-2 pb-2 text-[11px] leading-snug text-(--ink-3)">
                 <ShieldCheck className="mt-px size-3.5 shrink-0 text-(--leaf-600)" />
                 Each company is an isolated workspace. Data never crosses
@@ -426,10 +434,12 @@ export default function Header() {
                   settings
                 </Link>
               )}
-              <Link to="/onboarding" onClick={close} className={menuItem}>
-                <Building2 className="size-4 text-(--ink-3)" /> Set up a new
-                company
-              </Link>
+              {canAddCompany && (
+                <Link to="/onboarding" onClick={close} className={menuItem}>
+                  <Building2 className="size-4 text-(--ink-3)" /> Set up a new
+                  company
+                </Link>
+              )}
               <button
                 type="button"
                 className={menuItem}
