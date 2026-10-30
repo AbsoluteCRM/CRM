@@ -91,7 +91,7 @@ export const AsksForContactDetailsOnly: Story = {
     reset()
     await expect(body().getByText('From $199.98 per month')).toBeVisible()
     await expect(body().getByLabelText('Your name')).toBeVisible()
-    await expect(body().getByLabelText('Service address')).toBeVisible()
+    await expect(body().getByLabelText('Street address')).toBeVisible()
     await expect(body().queryByLabelText('How often?')).toBeNull()
   },
 }
@@ -110,7 +110,8 @@ export const SubmitsAndConfirms: Story = {
     reset()
     await userEvent.type(body().getByLabelText('Your name'), 'Jane Doe')
     await userEvent.type(body().getByLabelText('Email'), 'Jane@Example.com')
-    await userEvent.type(body().getByLabelText('Service address'), '1 Main St')
+    await userEvent.type(body().getByLabelText('Street address'), '1 Main St')
+    await userEvent.type(body().getByLabelText('City'), 'Edmonton')
     await userEvent.click(body().getByRole('button', { name: 'Send request' }))
     await expect(await body().findByText('Request sent')).toBeVisible()
     await expect(submit).toHaveBeenCalledTimes(1)
@@ -118,6 +119,7 @@ export const SubmitsAndConfirms: Story = {
       orgSlug: 'test-organization',
       serviceId: service.id,
       name: 'Jane Doe',
+      address: expect.stringContaining('1 Main St, Edmonton'),
       website: '',
     })
   },
@@ -131,7 +133,8 @@ export const ShowsRateLimitError: Story = {
     })
     await userEvent.type(body().getByLabelText('Your name'), 'Jane Doe')
     await userEvent.type(body().getByLabelText('Email'), 'jane@example.com')
-    await userEvent.type(body().getByLabelText('Service address'), '1 Main St')
+    await userEvent.type(body().getByLabelText('Street address'), '1 Main St')
+    await userEvent.type(body().getByLabelText('City'), 'Edmonton')
     await userEvent.click(body().getByRole('button', { name: 'Send request' }))
     await expect(
       await body().findByText('Too many requests. Please try again later.'),

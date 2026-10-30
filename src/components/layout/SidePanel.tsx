@@ -110,10 +110,10 @@ export default function SidePanel() {
           {NAV.filter((n) => canSee(t.role, n.section)).map((n) => (
             <IconRow
               key={n.to}
-              // Contractors only see their own availability there.
+              // Contractors only see their own schedule there.
               label={
                 n.section === 'teams' && t.role === 'worker'
-                  ? 'Availability'
+                  ? 'My Schedule'
                   : n.label
               }
               icon={n.icon}
