@@ -110,7 +110,12 @@ export default function SidePanel() {
           {NAV.filter((n) => canSee(t.role, n.section)).map((n) => (
             <IconRow
               key={n.to}
-              label={n.label}
+              // Contractors only see their own availability there.
+              label={
+                n.section === 'teams' && t.role === 'worker'
+                  ? 'Availability'
+                  : n.label
+              }
               icon={n.icon}
               route={n.to}
               badge={n.section === 'requests' ? newRequests : undefined}

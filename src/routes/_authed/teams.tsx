@@ -46,7 +46,12 @@ import CrewBuilder from '#/components/team/CrewBuilder'
 import { awayOn } from '#/components/team/availability-utils'
 import type { Away } from '#/components/team/availability-utils'
 import MembersTab from '#/components/team/MembersTab'
-import { useCrewMutations, useCrews } from '#/integrations/crews/crews'
+import MyCrew from '#/components/team/MyCrew'
+import {
+  useArchivedCrews,
+  useCrewMutations,
+  useCrews,
+} from '#/integrations/crews/crews'
 import {
   useInviteTeamMember,
   useMyMember,
@@ -144,6 +149,7 @@ function TeamsPage() {
     return map
   }, [team.data, today, hours, timeOff.data])
   const realCrews = crews.data ?? []
+  const archivedCrews = useArchivedCrews(editable)
   const realActive = realMembers.filter((m) => m.status === 'active')
   const outToday = new Set(
     (timeOff.data ?? [])
@@ -161,16 +167,26 @@ function TeamsPage() {
     return (
       <PageShell
         kicker="Workforce"
-        title="My availability"
-        subtitle="Your schedule for the next two weeks. Request sick days and other time off here."
+        title="Availability"
+        subtitle="Your crew and your schedule for the next two weeks. Request sick days and other time off here."
       >
         {me ? (
-          <MyAvailability
-            me={me}
-            timeOff={timeOff.data ?? []}
-            hours={hours}
-            actions={availabilityActions}
-          />
+          <>
+            <MyCrew
+              me={me}
+              crew={realCrews.find((c) =>
+                c.crew_members.some((cm) => cm.member_id === me.id),
+              )}
+              members={realMembers}
+              loading={crews.isLoading}
+            />
+            <MyAvailability
+              me={me}
+              timeOff={timeOff.data ?? []}
+              hours={hours}
+              actions={availabilityActions}
+            />
+          </>
         ) : (
           <p role="status" className="py-10 text-center text-sm text-(--ink-3)">
             {team.isLoading
@@ -243,7 +259,11 @@ function TeamsPage() {
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: 'members', label: 'Team list', count: team.data?.length },
+          {
+            value: 'members',
+            label: 'Team list',
+            count: team.data?.filter((m) => m.role === 'worker').length,
+          },
           { value: 'crews', label: 'Crew builder', count: realCrews.length },
           {
             value: 'availability',
@@ -257,6 +277,7 @@ function TeamsPage() {
       {tab === 'members' && (
         <MembersTab
           members={team.data ?? []}
+          crews={realCrews}
           isLoading={team.isLoading}
           error={team.error}
         />
@@ -270,6 +291,7 @@ function TeamsPage() {
           editable={editable}
           actions={crewActions}
           away={awayToday}
+          archived={archivedCrews.data}
         />
       )}
       {tab === 'availability' && (
