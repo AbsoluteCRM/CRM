@@ -22,6 +22,7 @@ import {
   Btn,
   Card,
   CardHeader,
+  ColorDot,
   CheckPill,
   EmptyState,
   Field,
@@ -37,6 +38,7 @@ import {
   DAY_STATE_STYLE,
   KIND_LABEL,
   WEEKDAY_SHORT,
+  compactSchedule,
   dayState,
   hhmm,
   openWeekdays,
@@ -101,6 +103,25 @@ function Legend() {
   )
 }
 
+export type BoardCrew = {
+  name: string
+  color: string | null
+  crew_members: Array<{ member_id: string }>
+}
+
+function CrewTag({ crew }: { crew?: BoardCrew }) {
+  if (!crew) return null
+  return (
+    <span
+      className="flex min-w-0 shrink items-center gap-1 text-[11px] font-medium text-(--ink-3)"
+      title={crew.name}
+    >
+      <ColorDot color={crew.color ?? '#8a8f6a'} className="size-2" />
+      <span className="truncate">{crew.name}</span>
+    </span>
+  )
+}
+
 const cellText: Record<DayState, string> = {
   available: '',
   off_day: '–',
@@ -123,6 +144,7 @@ export function AvailabilityBoard({
   myMemberId,
   canManage,
   actions,
+  crews = [],
   today = todayISO(),
 }: {
   members: Array<TeamMember>
@@ -131,15 +153,22 @@ export function AvailabilityBoard({
   myMemberId: string | null
   canManage: boolean
   actions: AvailabilityActions
+  crews?: Array<BoardCrew>
   today?: string
 }) {
   const days = Array.from({ length: DAYS_SHOWN }, (_, i) => addDays(today, i))
+  const crewOf = (id: string) =>
+    crews.find((c) => c.crew_members.some((cm) => cm.member_id === id))
+  // By crew, then name; people without a crew (and office staff) go last.
   const people = members
     .filter((m) => m.status === 'active')
+    .map((m) => ({ m, crew: crewOf(m.id) }))
     .sort(
       (a, b) =>
-        Number(a.role !== 'worker') - Number(b.role !== 'worker') ||
-        a.display_name.localeCompare(b.display_name),
+        Number(!a.crew) - Number(!b.crew) ||
+        Number(a.m.role !== 'worker') - Number(b.m.role !== 'worker') ||
+        (a.crew?.name ?? '').localeCompare(b.crew?.name ?? '') ||
+        a.m.display_name.localeCompare(b.m.display_name),
     )
   const name = (id: string) =>
     members.find((m) => m.id === id)?.display_name ?? 'Former member'
@@ -220,7 +249,7 @@ export function AvailabilityBoard({
                 </tr>
               </thead>
               <tbody>
-                {people.map((m) => (
+                {people.map(({ m, crew }) => (
                   <tr key={m.id}>
                     <td className="pr-2">
                       {canManage ? (
@@ -230,21 +259,29 @@ export function AvailabilityBoard({
                           className="group flex w-full cursor-pointer flex-col items-start rounded-lg px-1.5 py-1 text-left hover:bg-(--sage)"
                           aria-label={`Edit ${m.display_name}'s schedule`}
                         >
-                          <span className="flex w-full items-center gap-1 truncate text-[13px] font-semibold text-(--ink)">
-                            {m.display_name}
-                            <Pencil className="size-3 opacity-0 group-hover:opacity-60" />
+                          <span className="flex w-full min-w-0 items-center gap-1.5 text-[13px] font-semibold text-(--ink)">
+                            <span className="truncate">{m.display_name}</span>
+                            <CrewTag crew={crew} />
+                            <Pencil className="size-3 shrink-0 opacity-0 group-hover:opacity-60" />
                           </span>
-                          <span className="truncate text-[11px] text-(--ink-3)">
-                            {scheduleText(m)}
+                          <span
+                            className="truncate text-[11px] text-(--ink-3)"
+                            title={scheduleText(m)}
+                          >
+                            {compactSchedule(m)}
                           </span>
                         </button>
                       ) : (
                         <div className="px-1.5 py-1">
-                          <p className="truncate text-[13px] font-semibold">
-                            {m.display_name}
+                          <p className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold">
+                            <span className="truncate">{m.display_name}</span>
+                            <CrewTag crew={crew} />
                           </p>
-                          <p className="truncate text-[11px] text-(--ink-3)">
-                            {scheduleText(m)}
+                          <p
+                            className="truncate text-[11px] text-(--ink-3)"
+                            title={scheduleText(m)}
+                          >
+                            {compactSchedule(m)}
                           </p>
                         </div>
                       )}
@@ -420,7 +457,7 @@ export function AvailabilityBoard({
       {recordFor && (
         <TimeOffModal
           mode="record"
-          members={people}
+          members={people.map((p) => p.m)}
           defaults={recordFor}
           busy={actions.busy}
           onClose={() => setRecordFor(null)}
@@ -483,15 +520,14 @@ export function MyAvailability({
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Card className="min-w-0">
-        <CardHeader
-          title="My schedule"
-          subtitle={scheduleText(me)}
-          action={
-            <Btn icon={Thermometer} onClick={() => setRequesting(true)}>
-              Request time off
-            </Btn>
-          }
-        />
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
+          <p className="text-base font-semibold text-(--ink)">
+            {scheduleText(me)}
+          </p>
+          <Btn icon={Thermometer} onClick={() => setRequesting(true)}>
+            Request time off
+          </Btn>
+        </div>
         <div className="grid grid-cols-7 gap-2 p-5">
           {days.map((d) => {
             const s = dayState(me, d, hours, timeOff)

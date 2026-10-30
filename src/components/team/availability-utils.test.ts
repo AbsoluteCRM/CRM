@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'vitest'
 
 import { DEFAULT_BUSINESS_HOURS } from '#/integrations/settings/schema'
-import { awayOn, dayState, monthDay } from './availability-utils'
+import {
+  awayOn,
+  compactDays,
+  crewSchedule,
+  dayState,
+  monthDay,
+} from './availability-utils'
 import type { TimeOff } from '#/integrations/teams/availability'
 
 const member = { id: 'm1', work_days: [1, 2, 3, 4, 5] }
@@ -86,5 +92,35 @@ test('a recorded day off shows as a day off and counts as away', () => {
   expect(awayOn(member, '2026-11-04', DEFAULT_BUSINESS_HOURS, dayOff)).toEqual({
     kind: 'day_off',
     returns: '2026-11-05',
+  })
+})
+
+describe('crew schedules', () => {
+  test('shortens weekdays into runs, wrapping past Sunday', () => {
+    expect(compactDays([1, 2, 3, 4, 5])).toBe('M–F')
+    expect(compactDays([2, 3, 4, 5, 6, 7])).toBe('T–Su')
+    expect(compactDays([5, 6, 7, 1, 2])).toBe('F–T')
+    expect(compactDays([1, 3, 5])).toBe('M, W, F')
+    expect(compactDays([4, 6])).toBe('Th, Sa')
+    expect(compactDays([1, 2, 4, 5])).toBe('M–T, Th–F')
+    expect(compactDays([])).toBe('No days')
+    expect(compactDays([1, 2, 3, 4, 5, 6, 7])).toBe('Every day')
+  })
+
+  test('takes the most common schedule and lists anyone different', () => {
+    const p = (name: string, days: Array<number>, start = '08:00:00') => ({
+      display_name: name,
+      work_days: days,
+      work_start: start,
+      work_end: '17:00:00',
+    })
+    expect(crewSchedule([])).toBeNull()
+    expect(
+      crewSchedule([
+        p('A', [1, 2, 3, 4, 5]),
+        p('B', [1, 2, 3, 4, 5]),
+        p('C', [2, 3, 4, 5, 6], '07:30:00'),
+      ]),
+    ).toEqual({ label: 'M–F · 8a–5p', varies: ['C: T–Sa · 7:30a–5p'] })
   })
 })

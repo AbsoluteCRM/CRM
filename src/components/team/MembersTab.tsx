@@ -79,9 +79,9 @@ export default function MembersTab({
           className="w-44"
           aria-label="Sort by"
         >
-          <option value="crew">Sort: Crew</option>
-          <option value="status">Sort: Status</option>
-          <option value="name">Sort: Name</option>
+          <option value="crew">Crew</option>
+          <option value="status">Status</option>
+          <option value="name">Name</option>
         </SelectInput>
       </div>
       {error ? (

@@ -21,7 +21,7 @@ import {
   Modal,
   TextInput,
 } from '#/components/crm/ui'
-import { KIND_LABEL, monthDay } from './availability-utils'
+import { KIND_LABEL, crewSchedule, monthDay } from './availability-utils'
 import type { Away } from './availability-utils'
 import type { OrgRole } from '#/components/crm/types'
 import type {
@@ -127,7 +127,7 @@ function MemberCard({
       </p>
       {away && (
         <span
-          className="shrink-0 text-[11px] font-semibold whitespace-nowrap"
+          className="mr-0.5 shrink-0 rounded-full border border-(--line) bg-(--paper) px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap"
           title={`${KIND_LABEL[away.kind]}${away.returns ? `, back ${monthDay(away.returns)}` : ''}`}
         >
           {away.returns ? `Returns ${monthDay(away.returns)}` : 'Away'}
@@ -163,6 +163,7 @@ function CrewColumn({
     null,
   )
   const out = members.filter((m) => away.has(m.id)).length
+  const schedule = crew ? crewSchedule(members) : null
   const droppable = editable && !crew?.inactive
 
   return (
@@ -215,14 +216,28 @@ function CrewColumn({
               ) : (
                 <p className="text-[15px] font-bold">{crew.name}</p>
               )}
-              {crew.inactive && <Badge tone="gray">Inactive</Badge>}
+              {schedule && (
+                <span
+                  className="shrink-0 rounded-full bg-(--cream-2) px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-(--ink-2)"
+                  title={
+                    schedule.varies.length
+                      ? `Most of the crew works ${schedule.label}. Different: ${schedule.varies.join('; ')}`
+                      : `Crew works ${schedule.label}`
+                  }
+                >
+                  {schedule.label}
+                  {schedule.varies.length > 0 && '*'}
+                </span>
+              )}
             </div>
             <p className="mt-1 flex items-center gap-3 px-1 text-xs text-(--ink-3)">
               <span className="flex items-center gap-1">
                 <Users className="size-3" /> {members.length}
               </span>
               {out > 0 && <span>{out} out today</span>}
-              {crew.inactive && <span>Takes no new routes</span>}
+              {crew.inactive && (
+                <Badge tone="gray">Inactive · no new routes</Badge>
+              )}
             </p>
           </>
         ) : (

@@ -119,3 +119,65 @@ export function awayOn(
 /** "11/03" */
 export const monthDay = (iso: string) =>
   `${iso.slice(5, 7)}/${iso.slice(8, 10)}`
+
+const DAY_ABBR = ['M', 'T', 'W', 'Th', 'F', 'Sa', 'Su']
+
+/**
+ * ISO weekdays as short runs: [1..5] → "M–F", [2..7] → "T–Su",
+ * [5,6,7,1,2] → "F–T" (wrapping past Sunday), [1,3,5] → "M, W, F".
+ */
+export function compactDays(days: Array<number>) {
+  const on = new Set(days)
+  if (on.size === 0) return 'No days'
+  if (on.size === 7) return 'Every day'
+  const prev = (d: number) => (d === 1 ? 7 : d - 1)
+  const next = (d: number) => (d === 7 ? 1 : d + 1)
+  const runs: Array<string> = []
+  for (let d = 1; d <= 7; d++) {
+    if (!on.has(d) || on.has(prev(d))) continue
+    let end = d
+    while (on.has(next(end))) end = next(end)
+    runs.push(
+      end === d ? DAY_ABBR[d - 1] : `${DAY_ABBR[d - 1]}–${DAY_ABBR[end - 1]}`,
+    )
+  }
+  return runs.join(', ')
+}
+
+/** "08:00" → "8a", "16:30" → "4:30p". */
+const shortTime = (t: string) => {
+  const [h, m] = hhmm(t).split(':').map(Number)
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${h < 12 ? 'a' : 'p'}`
+}
+
+export const compactSchedule = (
+  m: Pick<TeamMember, 'work_days' | 'work_start' | 'work_end'>,
+) =>
+  m.work_days.length === 0
+    ? 'No regular days'
+    : `${compactDays(m.work_days)} · ${shortTime(m.work_start)}–${shortTime(m.work_end)}`
+
+/**
+ * A crew's schedule, read from its members (it isn't stored on the crew). The
+ * most common schedule wins; `varies` lists anyone on a different one.
+ */
+export function crewSchedule(
+  members: Array<
+    Pick<TeamMember, 'display_name' | 'work_days' | 'work_start' | 'work_end'>
+  >,
+) {
+  if (members.length === 0) return null
+  const counts = new Map<string, number>()
+  for (const m of members) {
+    const s = compactSchedule(m)
+    counts.set(s, (counts.get(s) ?? 0) + 1)
+  }
+  const [label] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
+  return {
+    label,
+    varies: members
+      .filter((m) => compactSchedule(m) !== label)
+      .map((m) => `${m.display_name}: ${compactSchedule(m)}`),
+  }
+}
