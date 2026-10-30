@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
+import { availabilityRouter } from './availability'
 import { clientsRouter } from './clients'
 import { crewsRouter } from './crews'
 import {
@@ -83,6 +84,7 @@ export const trpcRouter = createTRPCRouter({
   weather: weatherRouter,
   todos: todosRouter,
   teams: teamsRouter,
+  availability: availabilityRouter,
   auth: authRouter,
   organization: organizationRouter,
   clients: clientsRouter,
