@@ -3,7 +3,13 @@ import { createHmac } from 'node:crypto'
 import { TRPCError } from '@trpc/server'
 
 import { env } from '#/env'
+import { parseCompanySettings } from '#/integrations/settings/schema'
 import { createSupabaseAdminClient } from './supabase-admin'
+import type {
+  BusinessHours,
+  EmbedSettings,
+  PortalPalette,
+} from '#/integrations/settings/schema'
 import type { Database } from '#/types/database'
 
 type Frequency = Database['public']['Enums']['service_frequency']
@@ -13,7 +19,8 @@ export type PortalService = {
   name: string
   description: string | null
   unit: string
-  default_price_cents: number
+  /** Null when the company hides prices on its public page. */
+  default_price_cents: number | null
   default_duration_minutes: number | null
   color: string
   frequencies: Array<Frequency>
@@ -21,15 +28,44 @@ export type PortalService = {
   season_end_month: number | null
 }
 
+/**
+ * Everything the public request page may show. Built from an allow-list: the
+ * service-role client can read any column, so nothing else leaves this file.
+ */
 export type Portal = {
   organization_name: string
+  /** False when the company switched online requests off in Settings. */
+  accepting: boolean
+  brand_color: string
+  palette: PortalPalette
+  logo_url: string | null
+  tagline: string | null
+  mission: string | null
+  about: string | null
+  timezone: string
+  /** Null when the company hides it. */
+  contact: {
+    email: string | null
+    phone: string | null
+    address: string | null
+  } | null
+  business_hours: BusinessHours | null
+  service_areas: Array<string> | null
+  embed: Pick<EmbedSettings, 'enabled' | 'compact'>
   services: Array<PortalService>
 }
 
-export async function getPortal(slug: string): Promise<Portal> {
-  const { data, error } = await createSupabaseAdminClient().rpc('get_portal', {
-    p_slug: slug,
-  })
+const PORTAL_ORG_COLUMNS =
+  'id, name, email, phone, address_line1, city, region, postal_code, timezone, logo_path, settings'
+
+const LOGO_URL_TTL_SECONDS = 60 * 60 * 6
+
+async function loadPortalOrg(slug: string) {
+  const { data, error } = await createSupabaseAdminClient()
+    .from('organizations')
+    .select(PORTAL_ORG_COLUMNS)
+    .eq('slug', slug)
+    .maybeSingle()
   if (error) {
     throw new TRPCError({
       code: 'INTERNAL_SERVER_ERROR',
@@ -40,7 +76,65 @@ export async function getPortal(slug: string): Promise<Portal> {
   if (!data) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Portal not found' })
   }
-  return data as unknown as Portal
+  return { ...data, settings: parseCompanySettings(data.settings) }
+}
+
+export async function getPortal(slug: string): Promise<Portal> {
+  const admin = createSupabaseAdminClient()
+  const org = await loadPortalOrg(slug)
+  const online = org.settings.online_requests
+
+  let services: Array<PortalService> = []
+  if (online.enabled) {
+    const { data, error } = await admin.rpc('get_portal', { p_slug: slug })
+    if (error) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to load the portal',
+        cause: error,
+      })
+    }
+    services = (
+      (data as { services?: Array<PortalService> } | null)?.services ?? []
+    ).map((s) => (online.show_prices ? s : { ...s, default_price_cents: null }))
+  }
+
+  let logoUrl: string | null = null
+  if (org.logo_path) {
+    const signed = await admin.storage
+      .from('org-files')
+      .createSignedUrl(org.logo_path, LOGO_URL_TTL_SECONDS)
+    logoUrl = signed.data?.signedUrl ?? null
+  }
+
+  const address = [
+    org.address_line1,
+    [org.city, org.region].filter(Boolean).join(', '),
+    org.postal_code,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  return {
+    organization_name: org.name,
+    accepting: online.enabled,
+    brand_color: org.settings.brand_color,
+    palette: online.palette,
+    logo_url: logoUrl,
+    tagline: online.tagline,
+    mission: online.mission,
+    about: online.about,
+    timezone: org.timezone,
+    contact: online.show_contact
+      ? { email: org.email, phone: org.phone, address: address || null }
+      : null,
+    business_hours: online.show_hours ? org.settings.business_hours : null,
+    service_areas: online.show_service_areas
+      ? org.settings.service_areas
+      : null,
+    embed: { enabled: online.embed.enabled, compact: online.embed.compact },
+    services,
+  }
 }
 
 // The proxy must overwrite X-Real-IP. Outside production there is no proxy.
@@ -63,6 +157,43 @@ export function hashClientIp(headers: Headers) {
   return createHmac('sha256', env.PORTAL_IP_HMAC_KEY).update(ip).digest('hex')
 }
 
+const CAPTCHA_FAILED = {
+  code: 'BAD_REQUEST' as const,
+  message: 'Please complete the “I’m not a robot” check and try again.',
+}
+
+/**
+ * Cloudflare Turnstile check. Skipped when TURNSTILE_SECRET_KEY isn't set
+ * (local development); the honeypot and rate limit still apply.
+ */
+export async function verifyCaptcha(token: string | null, headers: Headers) {
+  const secret = env.TURNSTILE_SECRET_KEY
+  if (!secret) return
+  if (!token) throw new TRPCError(CAPTCHA_FAILED)
+  const body = new URLSearchParams({ secret, response: token })
+  const ip = headers.get('x-real-ip')?.trim()
+  if (ip) body.set('remoteip', ip)
+  let ok = false
+  try {
+    const response = await fetch(
+      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      { method: 'POST', body, signal: AbortSignal.timeout(8_000) },
+    )
+    const result: unknown = await response.json()
+    ok =
+      typeof result === 'object' &&
+      result !== null &&
+      'success' in result &&
+      result.success === true
+  } catch {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'We couldn’t verify the form. Please try again.',
+    })
+  }
+  if (!ok) throw new TRPCError(CAPTCHA_FAILED)
+}
+
 const SUBMIT_ERRORS: Partial<
   Record<string, { code: TRPCError['code']; message: string }>
 > = {
@@ -70,6 +201,10 @@ const SUBMIT_ERRORS: Partial<
   portal_invalid_service: {
     code: 'BAD_REQUEST',
     message: 'That service is no longer available. Please reload the page.',
+  },
+  portal_closed: {
+    code: 'FORBIDDEN',
+    message: 'This company isn’t accepting online requests right now.',
   },
   portal_rate_limited: {
     code: 'TOO_MANY_REQUESTS',
@@ -87,6 +222,11 @@ export async function submitRequest(args: {
   notes: string | null
   ipHash: string
 }) {
+  // The on/off switch lives in organizations.settings; check it before writing.
+  const org = await loadPortalOrg(args.slug)
+  if (!org.settings.online_requests.enabled) {
+    throw new TRPCError({ ...SUBMIT_ERRORS.portal_closed! })
+  }
   const { data, error } = await createSupabaseAdminClient().rpc(
     'submit_request',
     {

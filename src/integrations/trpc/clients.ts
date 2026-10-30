@@ -31,6 +31,42 @@ const emailField = z
   .pipe(z.union([z.literal(''), z.email().max(254)]))
   .optional()
 
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((v) => v || null)
+
+/** The client's address, stored in the clients.billing_* columns. */
+export const clientAddressInput = z.object({
+  address_line1: z.string().trim().min(1).max(200),
+  address_line2: optionalText(100),
+  city: z.string().trim().min(1).max(100),
+  region: optionalText(60),
+  postal_code: optionalText(20).transform((v) => v?.toUpperCase() ?? null),
+  country: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{2}$/, 'Use a two-letter country code'),
+})
+
+type ClientAddress = z.output<typeof clientAddressInput>
+
+/** Billing columns for an address; null clears them all. */
+function billingColumns(a: ClientAddress | null) {
+  return {
+    billing_address_line1: a?.address_line1 ?? null,
+    billing_address_line2: a?.address_line2 ?? null,
+    billing_city: a?.city ?? null,
+    billing_region: a?.region ?? null,
+    billing_postal_code: a?.postal_code ?? null,
+    billing_country: a?.country ?? null,
+  }
+}
+
 export const clientsRouter = {
   // RLS limits rows to orgs the caller is office staff in; the org filter picks the active one.
   list: protectedProcedure
@@ -62,6 +98,7 @@ export const clientsRouter = {
         email: emailField,
         phone: z.string().trim().max(40).optional(),
         company_name: z.string().trim().min(1).max(200).optional(),
+        address: clientAddressInput.optional(),
       }),
     )
     .mutation(({ ctx, input }) =>
@@ -78,6 +115,7 @@ export const clientsRouter = {
               input.kind === 'company'
                 ? (input.company_name ?? input.display_name)
                 : null,
+            ...(input.address && billingColumns(input.address)),
           })
           .select(CLIENT_COLUMNS)
           .single()
@@ -98,6 +136,8 @@ export const clientsRouter = {
           phone: z.string().trim().max(40).optional(),
           notes: z.string().nullable().optional(),
           company_name: z.string().trim().max(200).optional(),
+          /** Null removes the address. */
+          address: clientAddressInput.nullable().optional(),
         })
         .refine(
           (v) =>
@@ -107,7 +147,8 @@ export const clientsRouter = {
             v.email !== undefined ||
             v.phone !== undefined ||
             v.notes !== undefined ||
-            v.company_name !== undefined,
+            v.company_name !== undefined ||
+            v.address !== undefined,
           { message: 'Nothing to update' },
         ),
     )
@@ -129,6 +170,7 @@ export const clientsRouter = {
             ...(input.company_name !== undefined && {
               company_name: input.company_name || null,
             }),
+            ...(input.address !== undefined && billingColumns(input.address)),
           })
           .eq('organization_id', ctx.organizationId)
           .eq('id', input.clientId)

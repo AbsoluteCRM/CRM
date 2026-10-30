@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Crown, GripVertical, Plus, Truck, Users } from 'lucide-react'
 
-import { Avatar, Badge, Btn, ColorDot, StatusBadge } from '#/components/crm/ui'
+import { Avatar, Badge, Btn, ColorDot } from '#/components/crm/ui'
 import type { OrgRole } from '#/components/crm/types'
 import type { Crew } from '#/integrations/crews/crews'
 import type { TeamMember } from '#/integrations/teams/teams'
@@ -71,20 +71,24 @@ function MemberCard({
     >
       {editable && <GripVertical className="size-4 shrink-0 text-(--ink-3)" />}
       <Avatar name={m.display_name} color={m.color ?? undefined} size={30} />
-      <p className="flex min-w-0 flex-1 items-center gap-1 truncate text-[13px] font-bold">
+      <p
+        className="min-w-0 flex-1 truncate text-[13px] font-bold"
+        title={m.display_name}
+      >
         {m.display_name}
         {crewLead && (
-          <Crown className="size-3.5 text-(--sun)" aria-label="Crew lead" />
+          <Crown
+            className="ml-1 inline size-3.5 align-[-2px] text-(--sun)"
+            aria-label="Crew lead"
+          />
         )}
       </p>
-      <Badge
-        tone={
-          m.role === 'owner' ? 'dark' : m.role === 'worker' ? 'gray' : 'lime'
-        }
-      >
-        {ROLE_LABEL[m.role]}
-      </Badge>
-      <StatusBadge status={m.status} />
+      {m.role !== 'worker' && (
+        // Contractors are the norm here; only flag office staff placed in a crew.
+        <Badge tone={m.role === 'owner' ? 'dark' : 'lime'}>
+          {ROLE_LABEL[m.role]}
+        </Badge>
+      )}
     </div>
   )
 }
@@ -163,7 +167,7 @@ function CrewColumn({
           <>
             <p className="text-[15px] font-bold">Unassigned</p>
             <p className="mt-1 text-xs text-(--ink-3)">
-              Drag people onto a crew
+              Active contractors not in a crew. Drag them onto one.
             </p>
           </>
         )}
@@ -251,9 +255,12 @@ export default function CrewBuilder({
     return <p className="p-5 text-sm text-(--ink-3)">Loading crews…</p>
   }
 
+  // Only active contractors can be placed: invited or disabled people and
+  // office staff stay off the board.
   const unassigned = members.filter(
     (m) =>
-      m.status !== 'disabled' &&
+      m.role === 'worker' &&
+      m.status === 'active' &&
       !localCrews.some((c) => c.memberIds.includes(m.id)),
   )
   const crewMembers = (c: LocalCrew) =>

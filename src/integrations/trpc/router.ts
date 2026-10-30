@@ -1,7 +1,9 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
+import { availabilityRouter } from './availability'
 import { clientsRouter } from './clients'
+import { propertiesRouter } from './properties'
 import { crewsRouter } from './crews'
 import {
   createTRPCRouter,
@@ -11,8 +13,10 @@ import {
   requireOrgPermission,
 } from './init'
 import { portalRouter, requestsRouter } from './requests'
+import { quoteLinkRouter } from './quote-links'
 import { quotesRouter } from './quotes'
 import { servicesRouter } from './services'
+import { settingsRouter } from './settings'
 import { teamsRouter } from './teams'
 import { weatherRouter } from './weather'
 
@@ -82,14 +86,18 @@ export const trpcRouter = createTRPCRouter({
   weather: weatherRouter,
   todos: todosRouter,
   teams: teamsRouter,
+  availability: availabilityRouter,
   auth: authRouter,
   organization: organizationRouter,
   clients: clientsRouter,
+  properties: propertiesRouter,
   crews: crewsRouter,
   services: servicesRouter,
+  settings: settingsRouter,
   portal: portalRouter,
   requests: requestsRouter,
   quotes: quotesRouter,
+  quoteLink: quoteLinkRouter,
 })
 
 export type TRPCRouter = typeof trpcRouter

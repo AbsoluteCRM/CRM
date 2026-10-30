@@ -9,6 +9,8 @@ export const env = createEnv({
     SERVER_URL: z.string().optional(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
     PORTAL_IP_HMAC_KEY: z.string().min(16).optional(),
+    // Cloudflare Turnstile. When set, public request forms must pass the check.
+    TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
   },
 
   /**
@@ -22,6 +24,8 @@ export const env = createEnv({
     VITE_SUPABASE_URL: z.string().url(),
     VITE_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
     VITE_GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+    VITE_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
+    VITE_GEOAPIFY_API_KEY: z.string().min(1).optional(),
   },
 
   /**
