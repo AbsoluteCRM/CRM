@@ -109,6 +109,12 @@ export function useCrewMutations() {
     ),
   )
 
+  const archive = useMutation(
+    trpc.crews.archive.mutationOptions(
+      optimistic((crews, v) => crews.filter((c) => c.id !== v.crewId)),
+    ),
+  )
+
   const moveMember = useMutation(
     trpc.crews.moveMember.mutationOptions(
       optimistic((crews, v) => applyMove(crews, v.memberId, v.crewId)),
@@ -129,6 +135,11 @@ export function useCrewMutations() {
       update.mutate({ ...base, crewId, name }),
     setVehicle: (crewId: string, vehicle: string | null) =>
       update.mutate({ ...base, crewId, vehicle }),
+    deleteCrew: (crewId: string) =>
+      archive.mutateAsync({ ...base, crewId }).then(
+        () => true,
+        () => false,
+      ),
     moveMember: (memberId: string, crewId: string | null) =>
       moveMember.mutate({ ...base, memberId, crewId }),
     setLead: (crewId: string, memberId: string | null) =>

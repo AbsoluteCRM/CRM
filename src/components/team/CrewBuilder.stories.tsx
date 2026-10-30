@@ -53,6 +53,7 @@ const meta = {
       setVehicle: fn(),
       moveMember: fn(),
       setLead: fn(),
+      deleteCrew: fn(() => Promise.resolve(true)),
     },
     crewsLoading: false,
     crewsError: null,
@@ -119,6 +120,7 @@ export const CreateCrew: Story = {
       setVehicle: fn(),
       moveMember: fn(),
       setLead: fn(),
+      deleteCrew: fn(() => Promise.resolve(true)),
     },
   },
   play: async ({ canvasElement, args }) => {

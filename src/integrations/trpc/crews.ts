@@ -105,6 +105,33 @@ export const crewsRouter = {
       }),
     ),
 
+  // Archived rather than deleted: past routes still point at the crew. Its
+  // members go back to Unassigned, and the name can be reused.
+  archive: manageCrews
+    .input(z.object({ crewId: z.uuid() }))
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'crews.archive' }, async () => {
+        const members = await ctx.supabase
+          .from('crew_members')
+          .delete()
+          .eq('organization_id', ctx.organizationId)
+          .eq('crew_id', input.crewId)
+        if (members.error) throw toTRPCError(members.error)
+        const { data, error } = await ctx.supabase
+          .from('crews')
+          .update({ archived_at: new Date().toISOString() })
+          .eq('organization_id', ctx.organizationId)
+          .eq('id', input.crewId)
+          .is('archived_at', null)
+          .select('id')
+        if (error) throw toTRPCError(error)
+        if (data.length === 0) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Crew not found' })
+        }
+        return { id: input.crewId }
+      }),
+    ),
+
   moveMember: manageCrews
     .input(z.object({ memberId: z.uuid(), crewId: z.uuid().nullable() }))
     .mutation(({ ctx, input }) =>

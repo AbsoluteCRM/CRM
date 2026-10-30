@@ -18,7 +18,7 @@ vi.mock('#/lib/supabase/server', () => {
   const chain = (table: string) => {
     const q: Record<string, unknown> = {}
     const done = () => Promise.resolve(state.result)
-    for (const m of ['select', 'eq', 'insert', 'update']) {
+    for (const m of ['select', 'eq', 'is', 'insert', 'update', 'delete']) {
       q[m] = (...a: Array<unknown>) => (
         state.calls.push([`${table}.${m}`, ...a]),
         q
@@ -228,5 +228,41 @@ describe('crews.update', () => {
     await expect(
       caller().crews.update({ organizationId: ORG, crewId: CREW }),
     ).rejects.toThrow()
+  })
+})
+
+describe('crews.archive', () => {
+  it('unassigns the members, then archives the crew in the verified org', async () => {
+    state.result = { data: [{ id: CREW }], error: null }
+    await caller().crews.archive({ organizationId: ORG, crewId: CREW })
+    const names = state.calls.map((c) => c[0])
+    expect(names.indexOf('crew_members.delete')).toBeLessThan(
+      names.indexOf('crews.update'),
+    )
+    expect(state.calls).toContainEqual([
+      'crew_members.eq',
+      'organization_id',
+      ORG,
+    ])
+    expect(state.calls).toContainEqual(['crew_members.eq', 'crew_id', CREW])
+    const patch = state.calls.find((c) => c[0] === 'crews.update')?.[1]
+    expect(Object.keys(patch as object)).toEqual(['archived_at'])
+    expect(state.calls).toContainEqual(['crews.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['crews.is', 'archived_at', null])
+  })
+
+  it('returns NOT_FOUND for a crew outside the org or already deleted', async () => {
+    state.result = { data: [], error: null }
+    await expect(
+      caller().crews.archive({ organizationId: ORG, crewId: CREW }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('rejects workers', async () => {
+    state.role = 'worker'
+    await expect(
+      caller().crews.archive({ organizationId: ORG, crewId: CREW }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    expect(state.calls.some((c) => c[0] === 'crews.update')).toBe(false)
   })
 })
