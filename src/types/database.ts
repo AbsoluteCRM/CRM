@@ -1112,14 +1112,18 @@ export type Database = {
       }
       organization_members: {
         Row: {
+          certifications: string[]
           color: string | null
           created_at: string
           display_name: string
           email: string | null
           home_location: unknown
+          hours_worked: number
           id: string
+          jobs_completed: number
           organization_id: string
           phone: string | null
+          rating: number | null
           role: Database['public']['Enums']['org_role']
           status: Database['public']['Enums']['member_status']
           updated_at: string
@@ -1129,14 +1133,18 @@ export type Database = {
           work_start: string
         }
         Insert: {
+          certifications?: string[]
           color?: string | null
           created_at?: string
           display_name: string
           email?: string | null
           home_location?: unknown
+          hours_worked?: number
           id?: string
+          jobs_completed?: number
           organization_id: string
           phone?: string | null
+          rating?: number | null
           role?: Database['public']['Enums']['org_role']
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
@@ -1146,14 +1154,18 @@ export type Database = {
           work_start?: string
         }
         Update: {
+          certifications?: string[]
           color?: string | null
           created_at?: string
           display_name?: string
           email?: string | null
           home_location?: unknown
+          hours_worked?: number
           id?: string
+          jobs_completed?: number
           organization_id?: string
           phone?: string | null
+          rating?: number | null
           role?: Database['public']['Enums']['org_role']
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
