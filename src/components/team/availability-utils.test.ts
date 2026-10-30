@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { DEFAULT_BUSINESS_HOURS } from '#/integrations/settings/schema'
-import { awayOn, monthDay } from './availability-utils'
+import { awayOn, dayState, monthDay } from './availability-utils'
 import type { TimeOff } from '#/integrations/teams/availability'
 
 const member = { id: 'm1', work_days: [1, 2, 3, 4, 5] }
@@ -76,4 +76,15 @@ describe('awayOn', () => {
 
 test('monthDay formats MM/DD', () => {
   expect(monthDay('2026-11-05')).toBe('11/05')
+})
+
+test('a recorded day off shows as a day off and counts as away', () => {
+  const dayOff = [off('2026-11-04', '2026-11-04', { kind: 'day_off' })]
+  expect(dayState(member, '2026-11-04', DEFAULT_BUSINESS_HOURS, dayOff)).toBe(
+    'off_day',
+  )
+  expect(awayOn(member, '2026-11-04', DEFAULT_BUSINESS_HOURS, dayOff)).toEqual({
+    kind: 'day_off',
+    returns: '2026-11-05',
+  })
 })

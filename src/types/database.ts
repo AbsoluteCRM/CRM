@@ -2553,6 +2553,10 @@ export type Database = {
     }
     Functions: {
       cancel_time_off: { Args: { p_id: string }; Returns: undefined }
+      clear_time_off: {
+        Args: { p_end: string; p_member_id: string; p_start: string }
+        Returns: number
+      }
       accept_invitation: {
         Args: { p_token: string }
         Returns: {
@@ -3028,7 +3032,7 @@ export type Database = {
       service_precipitation_type: 'none' | 'rain' | 'snow' | 'any'
       service_unit:
         'monthly' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
-      time_off_kind: 'sick' | 'vacation' | 'personal'
+      time_off_kind: 'sick' | 'vacation' | 'personal' | 'day_off'
       time_off_status: 'pending' | 'approved' | 'declined' | 'cancelled'
       time_source: 'app' | 'manual' | 'auto'
       visit_status:
@@ -3220,7 +3224,7 @@ export const Constants = {
         'yard',
         'bag',
       ],
-      time_off_kind: ['sick', 'vacation', 'personal'],
+      time_off_kind: ['sick', 'vacation', 'personal', 'day_off'],
       time_off_status: ['pending', 'approved', 'declined', 'cancelled'],
       time_source: ['app', 'manual', 'auto'],
       visit_status: [

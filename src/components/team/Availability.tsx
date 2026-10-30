@@ -57,6 +57,12 @@ export type AvailabilityActions = {
     note?: string | null,
   ) => Promise<boolean>
   cancel: (id: string) => Promise<boolean>
+  /** Clears approved time off in a range (marks the member available). */
+  clear: (input: {
+    memberId: string
+    start: string
+    end: string
+  }) => Promise<boolean>
   setSchedule: (input: {
     memberId: string
     workDays: Array<number>
@@ -185,10 +191,16 @@ export function AvailabilityBoard({
               body="Invite people from the Team list."
             />
           ) : (
-            <table className="w-full min-w-[900px] border-separate border-spacing-1 text-xs">
+            <table className="w-full min-w-[900px] table-fixed border-separate border-spacing-1 text-xs">
+              <colgroup>
+                <col className="w-52" />
+                {days.map((d) => (
+                  <col key={d} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
-                  <th className="w-52" />
+                  <th />
                   {days.map((d) => (
                     <th
                       key={d}
@@ -374,7 +386,7 @@ export function AvailabilityBoard({
                 <span
                   className={cn(
                     'rounded-full px-2 py-0.5 text-[11px] font-bold',
-                    DAY_STATE_STYLE[t.kind],
+                    DAY_STATE_STYLE[t.kind === 'day_off' ? 'off_day' : t.kind],
                   )}
                 >
                   {KIND_LABEL[t.kind]}
@@ -419,6 +431,11 @@ export function AvailabilityBoard({
               memberId: input.memberId,
             })
             if (ok) toast(`Time off saved for ${name(input.memberId)}`)
+            return ok
+          }}
+          onClear={async (input) => {
+            const ok = await actions.clear(input)
+            if (ok) toast(`${name(input.memberId)} is available`)
             return ok
           }}
         />
@@ -570,6 +587,12 @@ export function MyAvailability({
   )
 }
 
+type Choice = TimeOff['kind'] | 'available'
+const CHOICE_LABEL: Record<Choice, string> = {
+  available: 'Available',
+  ...KIND_LABEL,
+}
+
 export function TimeOffModal({
   mode,
   members = [],
@@ -577,6 +600,7 @@ export function TimeOffModal({
   busy,
   onClose,
   onSubmit,
+  onClear,
 }: {
   mode: 'request' | 'record'
   members?: Array<TeamMember>
@@ -584,18 +608,28 @@ export function TimeOffModal({
   busy: boolean
   onClose: () => void
   onSubmit: (input: TimeOffInput & { memberId?: string }) => Promise<boolean>
+  /** Record mode: clears time off so the member is available again. */
+  onClear?: (input: {
+    memberId: string
+    start: string
+    end: string
+  }) => Promise<boolean>
 }) {
   const today = todayISO()
   const [memberId, setMemberId] = useState(
     defaults.memberId ?? members.at(0)?.id ?? '',
   )
-  const [kind, setKind] = useState<TimeOff['kind']>(
-    mode === 'request' ? 'sick' : 'vacation',
-  )
+  // Nothing is picked until the person chooses; picking it again unselects it.
+  const [kind, setKind] = useState<Choice | null>(null)
+  const choices: Array<Choice> =
+    mode === 'record' && onClear
+      ? ['available', 'day_off', 'sick', 'vacation', 'personal']
+      : ['sick', 'vacation', 'personal', 'day_off']
   const [start, setStart] = useState(defaults.date ?? today)
   const [end, setEnd] = useState(defaults.date ?? today)
   const [note, setNote] = useState('')
   const invalid =
+    kind === null ||
     end < start ||
     (mode === 'request' && end < today) ||
     (mode === 'record' && !memberId)
@@ -609,7 +643,7 @@ export function TimeOffModal({
       subtitle={
         mode === 'request'
           ? 'Your manager is asked to approve it.'
-          : 'Saved as approved.'
+          : 'Saved as approved. Pick Available to undo time off.'
       }
       footer={
         <>
@@ -619,13 +653,17 @@ export function TimeOffModal({
           <Btn
             disabled={invalid || busy}
             onClick={async () => {
-              const ok = await onSubmit({
-                memberId: mode === 'record' ? memberId : undefined,
-                kind,
-                start,
-                end,
-                note: note.trim() || null,
-              })
+              if (kind === null) return
+              const ok =
+                kind === 'available'
+                  ? await (onClear?.({ memberId, start, end }) ?? false)
+                  : await onSubmit({
+                      memberId: mode === 'record' ? memberId : undefined,
+                      kind,
+                      start,
+                      end,
+                      note: note.trim() || null,
+                    })
               if (ok) onClose()
             }}
           >
@@ -656,16 +694,22 @@ export function TimeOffModal({
         )}
         <Field label="Type" className="sm:col-span-2">
           <div className="flex flex-wrap gap-2">
-            {(['sick', 'vacation', 'personal'] as const).map((k) => (
+            {choices.map((k) => (
               <CheckPill
                 key={k}
                 checked={kind === k}
-                onChange={() => setKind(k)}
+                onChange={() => setKind(kind === k ? null : k)}
               >
-                {KIND_LABEL[k]}
+                {CHOICE_LABEL[k]}
               </CheckPill>
             ))}
           </div>
+          {kind === 'available' && (
+            <p className="mt-2 text-xs text-(--ink-3)">
+              Removes approved time off on these days. Days outside them stay
+              off. To change their regular days, edit their schedule instead.
+            </p>
+          )}
         </Field>
         <Field label="From" htmlFor="to-start">
           <TextInput
@@ -688,23 +732,25 @@ export function TimeOffModal({
             onChange={(e) => setEnd(e.target.value)}
           />
         </Field>
-        <Field
-          label="Note (optional)"
-          htmlFor="to-note"
-          className="sm:col-span-2"
-        >
-          <TextInput
-            id="to-note"
-            maxLength={500}
-            value={note}
-            placeholder={
-              mode === 'request'
-                ? 'For example: fever, doctor’s note to follow'
-                : ''
-            }
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </Field>
+        {kind !== 'available' && (
+          <Field
+            label="Note (optional)"
+            htmlFor="to-note"
+            className="sm:col-span-2"
+          >
+            <TextInput
+              id="to-note"
+              maxLength={500}
+              value={note}
+              placeholder={
+                mode === 'request'
+                  ? 'For example: fever, doctor’s note to follow'
+                  : ''
+              }
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </Field>
+        )}
       </div>
     </Modal>
   )

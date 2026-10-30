@@ -38,6 +38,7 @@ export const KIND_LABEL: Record<TimeOff['kind'], string> = {
   sick: 'Sick',
   vacation: 'Vacation',
   personal: 'Personal',
+  day_off: 'Day off',
 }
 
 /** ISO weekday: 1 = Monday … 7 = Sunday. */
@@ -77,7 +78,7 @@ export function dayState(
       t.member_id === member.id && t.start_date <= date && t.end_date >= date,
   )
   const approved = mine.find((t) => t.status === 'approved')
-  if (approved) return approved.kind
+  if (approved) return approved.kind === 'day_off' ? 'off_day' : approved.kind
   if (!member.work_days.includes(isoWeekday(date))) return 'off_day'
   if (mine.some((t) => t.status === 'pending')) return 'pending'
   return 'available'
