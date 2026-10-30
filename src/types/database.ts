@@ -347,6 +347,7 @@ export type Database = {
           default_end_location: unknown
           default_start_location: unknown
           default_start_time: string
+          disabled_at: string | null
           id: string
           max_work_minutes: number | null
           name: string
@@ -361,6 +362,7 @@ export type Database = {
           default_end_location?: unknown
           default_start_location?: unknown
           default_start_time?: string
+          disabled_at?: string | null
           id?: string
           max_work_minutes?: number | null
           name: string
@@ -375,6 +377,7 @@ export type Database = {
           default_end_location?: unknown
           default_start_location?: unknown
           default_start_time?: string
+          disabled_at?: string | null
           id?: string
           max_work_minutes?: number | null
           name?: string
@@ -2553,6 +2556,16 @@ export type Database = {
     }
     Functions: {
       cancel_time_off: { Args: { p_id: string }; Returns: undefined }
+      crew_history: {
+        Args: { p_crew_id: string }
+        Returns: Array<{
+          completed_visits: number
+          last_route_date: string | null
+          past_routes: number
+          upcoming_routes: number
+        }>
+      }
+      delete_crew: { Args: { p_crew_id: string }; Returns: number }
       clear_time_off: {
         Args: { p_end: string; p_member_id: string; p_start: string }
         Returns: number
