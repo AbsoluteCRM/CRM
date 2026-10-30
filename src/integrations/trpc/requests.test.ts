@@ -7,6 +7,9 @@ type State = {
   rpc: { data: unknown; error: null | { message: string } }
   rpcCalls: Array<[string, Record<string, unknown>]>
   calls: Array<[string, ...Array<unknown>]>
+  /** The organizations row the trusted portal code reads by slug. */
+  org: Record<string, unknown> | null
+  adminCalls: Array<[string, ...Array<unknown>]>
 }
 
 const state = vi.hoisted<State>(() => ({
@@ -16,17 +19,41 @@ const state = vi.hoisted<State>(() => ({
   rpc: { data: null, error: null },
   rpcCalls: [],
   calls: [],
+  org: null,
+  adminCalls: [],
 }))
 
-vi.mock('#/env', () => ({
-  env: { PORTAL_IP_HMAC_KEY: 'test-key-test-key-test-key' },
+const env = vi.hoisted<Record<string, string | undefined>>(() => ({
+  PORTAL_IP_HMAC_KEY: 'test-key-test-key-test-key',
 }))
+
+vi.mock('#/env', () => ({ env }))
 
 vi.mock('#/server/trusted/supabase-admin', () => ({
   createSupabaseAdminClient: () => ({
     rpc: (name: string, args: Record<string, unknown>) => {
       state.rpcCalls.push([name, args])
       return Promise.resolve(state.rpc)
+    },
+    from: (table: string) => {
+      const q: Record<string, unknown> = {}
+      for (const m of ['select', 'eq']) {
+        q[m] = (...a: Array<unknown>) => (
+          state.adminCalls.push([`${table}.${m}`, ...a]),
+          q
+        )
+      }
+      q.maybeSingle = () => Promise.resolve({ data: state.org, error: null })
+      return q
+    },
+    storage: {
+      from: () => ({
+        createSignedUrl: (path: string) =>
+          Promise.resolve({
+            data: { signedUrl: `https://files.test/${path}?token=t` },
+            error: null,
+          }),
+      }),
     },
   }),
 }))
@@ -97,7 +124,37 @@ const submitInput = {
   website: '',
 }
 
+const orgRow = (settings: Record<string, unknown> = {}) => ({
+  id: ORG,
+  name: 'Acme',
+  email: 'hello@acme.test',
+  phone: '403-555-0100',
+  address_line1: '1 Main St',
+  city: 'Calgary',
+  region: 'AB',
+  postal_code: 'T2P 1A1',
+  timezone: 'America/Edmonton',
+  logo_path: null,
+  settings,
+})
+
+const PRICED_SERVICE = {
+  id: SVC,
+  name: 'Mowing',
+  description: null,
+  unit: 'visit',
+  default_price_cents: 4500,
+  default_duration_minutes: 45,
+  color: '#7fb547',
+  frequencies: ['weekly'],
+  season_start_month: null,
+  season_end_month: null,
+}
+
 beforeEach(() => {
+  vi.unstubAllGlobals()
+  state.org = orgRow()
+  state.adminCalls = []
   state.user = { id: 'u1' }
   state.role = 'admin'
   state.result = { data: [{ id: REQ }], error: null }
@@ -107,20 +164,92 @@ beforeEach(() => {
 })
 
 describe('portal.get', () => {
-  it('returns the portal for a slug without a session', async () => {
+  it('returns the public profile and services for a slug without a session', async () => {
     state.user = null
     state.rpc = {
-      data: { organization_name: 'Acme', services: [] },
+      data: { organization_name: 'Acme', services: [PRICED_SERVICE] },
       error: null,
     }
-    await expect(
-      publicCaller().portal.get({ orgSlug: 'acme-lawn' }),
-    ).resolves.toEqual({ organization_name: 'Acme', services: [] })
+    const portal = await publicCaller().portal.get({ orgSlug: 'acme-lawn' })
+    expect(portal).toMatchObject({
+      organization_name: 'Acme',
+      accepting: true,
+      brand_color: '#2f7350',
+      logo_url: null,
+      contact: {
+        email: 'hello@acme.test',
+        phone: '403-555-0100',
+        address: '1 Main St · Calgary, AB · T2P 1A1',
+      },
+      service_areas: [],
+      services: [PRICED_SERVICE],
+    })
+    expect(portal.business_hours?.mon).toEqual({
+      closed: false,
+      open: '08:00',
+      close: '17:00',
+    })
+    expect(state.adminCalls).toContainEqual([
+      'organizations.eq',
+      'slug',
+      'acme-lawn',
+    ])
     expect(state.rpcCalls[0]).toEqual(['get_portal', { p_slug: 'acme-lawn' }])
   })
 
+  it('returns only allow-listed fields', async () => {
+    state.org = {
+      ...orgRow({ workers_see_prices: true, invoice_prefix: 'X-' }),
+      stripe_account_id: 'acct_secret',
+    }
+    state.rpc = { data: { services: [] }, error: null }
+    const portal = await publicCaller().portal.get({ orgSlug: 'acme-lawn' })
+    const json = JSON.stringify(portal)
+    expect(json).not.toContain(ORG)
+    expect(json).not.toContain('acct_secret')
+    expect(json).not.toContain('invoice_prefix')
+    expect(json).not.toContain('workers_see_prices')
+  })
+
+  it('applies the company’s visibility settings', async () => {
+    state.org = {
+      ...orgRow({
+        brand_color: '#245a7a',
+        service_areas: ['Calgary NW'],
+        online_requests: {
+          tagline: 'Lawns done right',
+          mission: 'Greener yards',
+          show_prices: false,
+          show_hours: false,
+          show_contact: false,
+        },
+      }),
+      logo_path: `${ORG}/branding/logo.png`,
+    }
+    state.rpc = { data: { services: [PRICED_SERVICE] }, error: null }
+    const portal = await publicCaller().portal.get({ orgSlug: 'acme-lawn' })
+    expect(portal).toMatchObject({
+      brand_color: '#245a7a',
+      tagline: 'Lawns done right',
+      mission: 'Greener yards',
+      contact: null,
+      business_hours: null,
+      service_areas: ['Calgary NW'],
+      logo_url: `https://files.test/${ORG}/branding/logo.png?token=t`,
+    })
+    expect(portal.services[0].default_price_cents).toBeNull()
+  })
+
+  it('hides services and stops accepting when requests are switched off', async () => {
+    state.org = orgRow({ online_requests: { enabled: false } })
+    const portal = await publicCaller().portal.get({ orgSlug: 'acme-lawn' })
+    expect(portal.accepting).toBe(false)
+    expect(portal.services).toEqual([])
+    expect(state.rpcCalls).toHaveLength(0)
+  })
+
   it('404s on an unknown slug and rejects malformed slugs', async () => {
-    state.rpc = { data: null, error: null }
+    state.org = null
     await expect(
       publicCaller().portal.get({ orgSlug: 'nope' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
@@ -154,6 +283,22 @@ describe('portal.submit', () => {
     expect(state.rpcCalls[0][1].p_ip_hash).not.toBe(
       state.rpcCalls[1][1].p_ip_hash,
     )
+  })
+
+  it('refuses submissions when online requests are switched off', async () => {
+    state.org = orgRow({ online_requests: { enabled: false } })
+    await expect(
+      publicCaller().portal.submit(submitInput),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    expect(state.rpcCalls).toHaveLength(0)
+  })
+
+  it('404s a submission for an unknown slug before writing', async () => {
+    state.org = null
+    await expect(
+      publicCaller().portal.submit(submitInput),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(state.rpcCalls).toHaveLength(0)
   })
 
   it('rejects a filled honeypot without calling the database', async () => {
