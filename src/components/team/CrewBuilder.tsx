@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Crown, GripVertical, Plus, Truck, Users } from 'lucide-react'
+import { Crown, GripVertical, Plus, Trash2, Truck, Users } from 'lucide-react'
 
-import { Avatar, Badge, Btn, ColorDot } from '#/components/crm/ui'
+import { Avatar, Badge, Btn, ColorDot, Modal } from '#/components/crm/ui'
+import { KIND_LABEL, monthDay } from './availability-utils'
+import type { Away } from './availability-utils'
 import type { OrgRole } from '#/components/crm/types'
 import type { Crew } from '#/integrations/crews/crews'
 import type { TeamMember } from '#/integrations/teams/teams'
@@ -40,6 +42,8 @@ export type CrewActions = {
   setVehicle: (crewId: string, vehicle: string | null) => void
   moveMember: (memberId: string, crewId: string | null) => void
   setLead: (crewId: string, memberId: string | null) => void
+  /** Resolves false when the delete failed (the error is already shown). */
+  deleteCrew: (crewId: string) => Promise<boolean>
 }
 
 const toLocalCrew = (c: Crew): LocalCrew => ({
@@ -55,22 +59,27 @@ function MemberCard({
   m,
   crewLead,
   editable,
+  away,
 }: {
   m: TeamMember
   crewLead?: boolean
   editable: boolean
+  away?: Away
 }) {
   return (
     <div
       draggable={editable}
       onDragStart={(e) => e.dataTransfer.setData('text/member-id', m.id)}
       className={cn(
-        'flex items-center gap-2.5 rounded-xl border border-(--line) bg-(--paper) p-2',
+        'flex items-center gap-2.5 rounded-xl border border-(--line) p-2',
+        away ? 'bg-(--cream) text-(--ink-3)' : 'bg-(--paper)',
         editable && 'cursor-grab active:cursor-grabbing',
       )}
     >
       {editable && <GripVertical className="size-4 shrink-0 text-(--ink-3)" />}
-      <Avatar name={m.display_name} color={m.color ?? undefined} size={30} />
+      <span className={cn('shrink-0', away && 'opacity-50 grayscale')}>
+        <Avatar name={m.display_name} color={m.color ?? undefined} size={30} />
+      </span>
       <p
         className="min-w-0 flex-1 truncate text-[13px] font-bold"
         title={m.display_name}
@@ -83,6 +92,14 @@ function MemberCard({
           />
         )}
       </p>
+      {away && (
+        <span
+          className="shrink-0 text-[11px] font-semibold whitespace-nowrap"
+          title={`${KIND_LABEL[away.kind]}${away.returns ? `, back ${monthDay(away.returns)}` : ''}`}
+        >
+          {away.returns ? `Returns ${monthDay(away.returns)}` : 'Away'}
+        </span>
+      )}
       {m.role !== 'worker' && (
         // Contractors are the norm here; only flag office staff placed in a crew.
         <Badge tone={m.role === 'owner' ? 'dark' : 'lime'}>
@@ -99,14 +116,19 @@ function CrewColumn({
   editable,
   actions,
   focusName,
+  away,
 }: {
   crew: LocalCrew | null
   members: Array<TeamMember>
   editable: boolean
   actions: CrewActions
   focusName?: boolean
+  away: Map<string, Away>
 }) {
   const [over, setOver] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const out = members.filter((m) => away.has(m.id)).length
 
   return (
     <div
@@ -161,6 +183,7 @@ function CrewColumn({
               <span className="flex items-center gap-1">
                 <Users className="size-3" /> {members.length}
               </span>
+              {out > 0 && <span>{out} out today</span>}
             </p>
           </>
         ) : (
@@ -179,6 +202,7 @@ function CrewColumn({
             m={m}
             crewLead={crew?.leadId === m.id}
             editable={editable}
+            away={away.get(m.id)}
           />
         ))}
         {members.length === 0 && (
@@ -219,7 +243,51 @@ function CrewColumn({
               className="flex-1 rounded-lg bg-(--cream) px-2 py-1.5 text-[13px] text-(--ink) outline-none"
             />
           </label>
+          <Btn
+            variant="ghost"
+            size="sm"
+            icon={Trash2}
+            className="w-full justify-center text-(--clay)"
+            onClick={() => setConfirming(true)}
+          >
+            Delete crew
+          </Btn>
         </div>
+      )}
+      {crew && confirming && (
+        <Modal
+          open
+          onClose={() => setConfirming(false)}
+          title={`Delete ${crew.name}?`}
+          footer={
+            <>
+              <Btn variant="ghost" onClick={() => setConfirming(false)}>
+                Cancel
+              </Btn>
+              <Btn
+                variant="danger"
+                icon={Trash2}
+                disabled={deleting}
+                onClick={() => {
+                  setDeleting(true)
+                  void actions.deleteCrew(crew.id).then((ok) => {
+                    setDeleting(false)
+                    if (ok) setConfirming(false)
+                  })
+                }}
+              >
+                {deleting ? 'Deleting…' : 'Delete crew'}
+              </Btn>
+            </>
+          }
+        >
+          <p className="text-sm text-(--ink-2)">
+            {members.length > 0
+              ? `${members.length === 1 ? 'Its 1 member moves' : `Its ${members.length} members move`} to Unassigned. `
+              : ''}
+            Past routes for this crew keep their history.
+          </p>
+        </Modal>
       )}
     </div>
   )
@@ -232,6 +300,7 @@ export default function CrewBuilder({
   crewsError,
   editable,
   actions,
+  away = new Map(),
 }: {
   members: Array<TeamMember>
   crews: Array<Crew> | undefined
@@ -239,6 +308,8 @@ export default function CrewBuilder({
   crewsError: { message: string } | null
   editable: boolean
   actions: CrewActions
+  /** Members on approved time off today, by member id. */
+  away?: Map<string, Away>
 }) {
   const [creating, setCreating] = useState(false)
   const [newCrewId, setNewCrewId] = useState<string | null>(null)
@@ -307,6 +378,7 @@ export default function CrewBuilder({
           members={unassigned}
           editable={editable}
           actions={actions}
+          away={away}
         />
         {localCrews.map((c) => (
           <CrewColumn
@@ -316,6 +388,7 @@ export default function CrewBuilder({
             members={crewMembers(c)}
             editable={editable}
             actions={actions}
+            away={away}
           />
         ))}
       </div>

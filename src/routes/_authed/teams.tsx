@@ -43,6 +43,8 @@ import {
 import { addDays, fmtDate, todayISO } from '#/components/crm/format'
 import InvitationDelivery from '#/components/team/InvitationDelivery'
 import CrewBuilder from '#/components/team/CrewBuilder'
+import { awayOn } from '#/components/team/availability-utils'
+import type { Away } from '#/components/team/availability-utils'
 import MembersTab from '#/components/team/MembersTab'
 import { useCrewMutations, useCrews } from '#/integrations/crews/crews'
 import {
@@ -133,6 +135,14 @@ function TeamsPage() {
     (x) => x.status === 'pending',
   ).length
   const realMembers = team.data ?? []
+  const awayToday = useMemo(() => {
+    const map = new Map<string, Away>()
+    for (const m of team.data ?? []) {
+      const a = awayOn(m, today, hours, timeOff.data ?? [])
+      if (a) map.set(m.id, a)
+    }
+    return map
+  }, [team.data, today, hours, timeOff.data])
   const realCrews = crews.data ?? []
   const realActive = realMembers.filter((m) => m.status === 'active')
   const outToday = new Set(
@@ -259,6 +269,7 @@ function TeamsPage() {
           crewsError={crews.error}
           editable={editable}
           actions={crewActions}
+          away={awayToday}
         />
       )}
       {tab === 'availability' && (

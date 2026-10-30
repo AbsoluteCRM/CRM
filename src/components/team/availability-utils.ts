@@ -1,4 +1,4 @@
-import { parseDate } from '#/components/crm/format'
+import { addDays, parseDate } from '#/components/crm/format'
 import { WEEKDAYS } from '#/integrations/settings/schema'
 import type { BusinessHours } from '#/integrations/settings/schema'
 import type { TimeOff } from '#/integrations/teams/availability'
@@ -84,3 +84,37 @@ export function dayState(
 }
 
 export const hhmm = (t: string) => t.slice(0, 5)
+
+export type Away = { kind: TimeOff['kind']; returns: string | null }
+
+/**
+ * Whether a member is out on approved time off on `date`, and the next day
+ * they're scheduled to work after it: back-to-back time off is followed
+ * through, and their days off and closed business days are skipped.
+ * `returns` is null when no work day comes up within 60 days.
+ */
+export function awayOn(
+  member: Pick<TeamMember, 'id' | 'work_days'>,
+  date: string,
+  hours: BusinessHours | undefined,
+  timeOff: Array<TimeOff>,
+): Away | null {
+  const approved = timeOff.filter(
+    (t) => t.member_id === member.id && t.status === 'approved',
+  )
+  const covering = (d: string) =>
+    approved.find((t) => t.start_date <= d && t.end_date >= d)
+  const now = covering(date)
+  if (!now) return null
+  for (let i = 1, d = addDays(date, 1); i <= 60; i++, d = addDays(d, 1)) {
+    if (covering(d)) continue
+    if (businessOpen(hours, d) && member.work_days.includes(isoWeekday(d))) {
+      return { kind: now.kind, returns: d }
+    }
+  }
+  return { kind: now.kind, returns: null }
+}
+
+/** "11/03" */
+export const monthDay = (iso: string) =>
+  `${iso.slice(5, 7)}/${iso.slice(8, 10)}`
