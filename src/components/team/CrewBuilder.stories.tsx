@@ -22,6 +22,11 @@ const member = (
   work_days: [1, 2, 3, 4, 5],
   work_start: '08:00:00',
   work_end: '17:00:00',
+  certifications: [],
+  jobs_completed: 0,
+  hours_worked: 0,
+  rating: null,
+  created_at: '2026-01-01T00:00:00Z',
 })
 
 const crew = (
@@ -42,6 +47,14 @@ const crew = (
   updated_at: '2026-01-01T00:00:00Z',
   crew_members,
 })
+
+// Chrome hides drag data from synthetic events, so the stories hand the drop
+// a DataTransfer whose getData returns the member being dragged.
+const carrying = (memberId: string) => {
+  const dataTransfer = new DataTransfer()
+  Object.defineProperty(dataTransfer, 'getData', { value: () => memberId })
+  return { dataTransfer }
+}
 
 const meta = {
   title: 'Team/CrewBuilder',
@@ -103,9 +116,9 @@ export const Populated: Story = {
     await expect(
       canvas.getByText('Wendy Worker', { selector: 'p' }),
     ).toBeInTheDocument()
-    // Every non-disabled member without a crew is unassigned, whatever their role.
+    // Only active contractors without a crew are unassigned; office staff stay off the board.
     await expect(canvas.getByText('Wade Worker')).toBeInTheDocument()
-    await expect(canvas.getByText('Ava Owner')).toBeInTheDocument()
+    await expect(canvas.queryByText('Ava Owner')).not.toBeInTheDocument()
     await expect(canvas.queryByText('Dee Disabled')).not.toBeInTheDocument()
     await expect(
       canvas.getByLabelText('Crew lead', { selector: 'svg' }),
@@ -171,13 +184,10 @@ export const CreateCrewPicksUniqueName: Story = {
 export const DragToCrew: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const card = canvas.getByText('Wade Worker', { selector: 'p' })
     const column = canvas
       .getByDisplayValue('Crew B')
       .closest('[class*="w-72"]')!
-    const dataTransfer = new DataTransfer()
-    await fireEvent.dragStart(card, { dataTransfer })
-    await fireEvent.drop(column, { dataTransfer })
+    await fireEvent.drop(column, carrying('wade'))
     await expect(args.actions.moveMember).toHaveBeenCalledWith('wade', 'c2')
   },
 }
@@ -185,11 +195,8 @@ export const DragToCrew: Story = {
 export const DragToUnassigned: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const card = canvas.getByText('Walt Worker', { selector: 'p' })
     const column = canvas.getByText('Unassigned').closest('[class*="w-72"]')!
-    const dataTransfer = new DataTransfer()
-    await fireEvent.dragStart(card, { dataTransfer })
-    await fireEvent.drop(column, { dataTransfer })
+    await fireEvent.drop(column, carrying('walt'))
     await expect(args.actions.moveMember).toHaveBeenCalledWith('walt', null)
   },
 }
@@ -198,7 +205,7 @@ export const SetLead: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.selectOptions(
-      canvas.getAllByLabelText('Crew lead')[0],
+      canvas.getAllByLabelText('Crew lead', { selector: 'select' })[0],
       'wendy',
     )
     await expect(args.actions.setLead).toHaveBeenCalledWith('c1', 'wendy')

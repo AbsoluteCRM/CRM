@@ -11,6 +11,49 @@ import {
 import type { TRPCRouterRecord } from '@trpc/server'
 
 export const teamsRouter = {
+  // Owners and managers keep each member's certifications up to date.
+  setCertifications: requireOrgPermission('manageTeam')
+    .input(
+      z.object({
+        memberId: z.uuid(),
+        certifications: z
+          .array(z.string().trim().min(1).max(80))
+          .max(30)
+          // Same certification twice (any capitalisation) is saved once.
+          .transform((list) =>
+            list.filter(
+              (c, i) =>
+                list.findIndex((x) => x.toLowerCase() === c.toLowerCase()) ===
+                i,
+            ),
+          ),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'teams.setCertifications' }, async () => {
+        const { data, error } = await ctx.supabase
+          .from('organization_members')
+          .update({ certifications: input.certifications })
+          .eq('organization_id', ctx.organizationId)
+          .eq('id', input.memberId)
+          .select('id')
+        if (error) {
+          throw new TRPCError({
+            code:
+              error.code === '42501' ? 'FORBIDDEN' : 'INTERNAL_SERVER_ERROR',
+            message: 'Could not save the certifications. Try again.',
+          })
+        }
+        if (data.length === 0) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Team member not found',
+          })
+        }
+        return { certifications: input.certifications }
+      }),
+    ),
+
   invite: requireOrgPermission('manageTeam')
     .input(
       z.object({

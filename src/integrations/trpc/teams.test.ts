@@ -284,3 +284,60 @@ describe('explicit acceptance', () => {
     ).rejects.not.toThrow('sensitive details')
   })
 })
+
+describe('teams.setCertifications', () => {
+  const MEMBER = '0198f0a0-0000-7000-8000-0000000000aa'
+  it('saves trimmed, de-duplicated certifications for a member of the verified org', async () => {
+    state.memberships = { [ORG]: 'admin' }
+    state.updateRows = [{ id: MEMBER }]
+    state.calls = []
+    await expect(
+      caller().setCertifications({
+        organizationId: ORG,
+        memberId: MEMBER,
+        certifications: [' First Aid / CPR ', 'first aid / cpr', 'Class 5'],
+      }),
+    ).resolves.toEqual({ certifications: ['First Aid / CPR', 'Class 5'] })
+    expect(state.calls).toContainEqual([
+      'organization_members.update',
+      { certifications: ['First Aid / CPR', 'Class 5'] },
+    ])
+    expect(state.calls).toContainEqual([
+      'organization_members.eq',
+      'organization_id',
+      ORG,
+    ])
+    expect(state.calls).toContainEqual([
+      'organization_members.eq',
+      'id',
+      MEMBER,
+    ])
+  })
+
+  it('returns NOT_FOUND for a member outside the org', async () => {
+    state.memberships = { [ORG]: 'owner' }
+    state.updateRows = []
+    await expect(
+      caller().setCertifications({
+        organizationId: ORG,
+        memberId: MEMBER,
+        certifications: [],
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it.each(['dispatcher', 'worker'])('stops a %s', async (role) => {
+    state.memberships = { [ORG]: role }
+    state.calls = []
+    await expect(
+      caller().setCertifications({
+        organizationId: ORG,
+        memberId: MEMBER,
+        certifications: ['Class 5'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    expect(
+      state.calls.some((c) => c[0] === 'organization_members.update'),
+    ).toBe(false)
+  })
+})

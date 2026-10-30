@@ -1,5 +1,6 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { toast } from '#/components/crm/ui'
 import { useAuth } from '#/integrations/auth/context'
 import { useTRPC } from '#/integrations/trpc/react'
 import { useOrganization } from '#/integrations/organization/context'
@@ -21,6 +22,11 @@ export type TeamMember = Pick<
   | 'work_days'
   | 'work_start'
   | 'work_end'
+  | 'certifications'
+  | 'jobs_completed'
+  | 'hours_worked'
+  | 'rating'
+  | 'created_at'
 >
 
 export const teamMembersKey = (organizationId: string | undefined) =>
@@ -38,7 +44,7 @@ export function useTeamMembers() {
       const { data, error } = await createSupabaseBrowserClient()
         .from('organization_members')
         .select(
-          'id, user_id, display_name, email, phone, role, status, color, work_days, work_start, work_end',
+          'id, user_id, display_name, email, phone, role, status, color, work_days, work_start, work_end, certifications, jobs_completed, hours_worked, rating, created_at',
         )
         .eq('organization_id', organizationId!)
         .order('display_name', { ascending: true })
@@ -56,6 +62,46 @@ export function useMyMember() {
     ? (members.data?.find((m) => m.user_id === user.id) ?? null)
     : null
   return { me, isLoading: members.isLoading }
+}
+
+/** Saves a member's certifications; resolves false when it failed (already toasted). */
+export function useSetCertifications() {
+  const { organization } = useOrganization()
+  const trpc = useTRPC()
+  const queryClient = useQueryClient()
+  const key = teamMembersKey(organization?.id)
+  const save = useMutation(
+    trpc.teams.setCertifications.mutationOptions({
+      onMutate: async (v) => {
+        await queryClient.cancelQueries({ queryKey: key })
+        queryClient.setQueryData<Array<TeamMember>>(key, (old) =>
+          old?.map((m) =>
+            m.id === v.memberId
+              ? { ...m, certifications: v.certifications }
+              : m,
+          ),
+        )
+      },
+      onError: (e) => toast(`Couldn't save: ${e.message}`, 'warning'),
+      onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    }),
+  )
+  return {
+    saving: save.isPending,
+    setCertifications: (memberId: string, certifications: Array<string>) =>
+      organization
+        ? save
+            .mutateAsync({
+              organizationId: organization.id,
+              memberId,
+              certifications,
+            })
+            .then(
+              () => true,
+              () => false,
+            )
+        : Promise.resolve(false),
+  }
 }
 
 export type InviteRole = Exclude<OrgRole, 'owner'>
