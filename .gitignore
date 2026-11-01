@@ -33,3 +33,24 @@ devenv.local.yaml
 # Supabase CLI scratch directory, and the types generator's temp file
 supabase/.temp/
 src/types/database.ts.tmp
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+*.local
+
+# Supabase local development
+supabase/.temp/
+supabase/.branches/
+supabase/.profiles/
+
+# Temporary database type generation
+src/types/*.tmp.ts
+src/types/database.ts.tmp
+
+# Local logs and debugging
+*.log
+npm-debug.log*
+pnpm-debug.log*

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 
 import PageShell from '#/components/crm/PageShell'
+import RegionMap from '#/components/regions/RegionMap'
 import {
   Alert,
   Avatar,
@@ -323,6 +324,9 @@ function HoursTab({ t }: { t: Tenant }) {
                 </button>
               </span>
             ))}
+          </div>
+          <div className="mb-5">
+            <RegionMap />
           </div>
           <form
             className="mt-4 flex gap-2"

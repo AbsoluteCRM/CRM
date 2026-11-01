@@ -2089,6 +2089,54 @@ export type Database = {
           },
         ]
       }
+
+      service_regions: {
+        Row: {
+          boundary: unknown
+          created_at: string
+          crew_id: string | null
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          boundary: unknown
+          created_at?: string
+          crew_id?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          boundary?: unknown
+          created_at?: string
+          crew_id?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'service_regions_organization_id_crew_id_fkey'
+            columns: ['organization_id', 'crew_id']
+            isOneToOne: false
+            referencedRelation: 'crews'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'service_regions_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+
       services: {
         Row: {
           archived_at: string | null
@@ -2484,6 +2532,15 @@ export type Database = {
       }
     }
     Functions: {
+      create_service_region: {
+        Args: {
+          p_organization_id: string
+          p_name: string
+          p_crew_id: string | null
+          p_boundary: Json
+        }
+        Returns: string
+      }
       accept_invitation: {
         Args: { p_token: string }
         Returns: {
