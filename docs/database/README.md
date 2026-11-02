@@ -162,7 +162,9 @@ assigned. Before running `pnpm db:types`, compare `list_migrations` with
 **Demo data**: `supabase/seed.sql` is idempotent and creates the
 `absolute-demo` org (Edmonton, GST only), owned by the first auth user, with
 a crew, 3 clients, recurring and one-off jobs, visits for the next 8 weeks,
-and a draft quote. Run it with `execute_sql` or psql. Run it after the migrations are applied.
+and a draft quote. A second block adds a Calgary region, a second crew, four
+service areas (one unowned, one overlapping pair), and Calgary properties
+inside and outside them. Run it with `execute_sql` or psql. Run it after the migrations are applied.
 
 ## Migration plan
 
