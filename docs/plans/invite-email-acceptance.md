@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `invite-email-acceptance` / `feat/invite-email-acceptance`
 - **Tier**: full; server email delivery, authentication, and UI.
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 96%; material product choices are user-confirmed, and existing invite and organization contracts were read. Provider configuration remains an operational verification, not a product assumption.
 - **Plan-mode file**: this file; this client has no native plan mode. Only this uncommitted plan changes before approval.
 

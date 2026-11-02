@@ -1,5 +1,4 @@
 import { TRPCError } from '@trpc/server'
-import { z } from 'zod'
 
 import { clientsRouter } from './clients'
 import { crewsRouter } from './crews'
@@ -7,34 +6,15 @@ import {
   createTRPCRouter,
   organizationProcedure,
   protectedProcedure,
-  publicProcedure,
-  requireOrgPermission,
 } from './init'
 import { portalRouter, requestsRouter } from './requests'
 import { quotesRouter } from './quotes'
 import { servicesRouter } from './services'
+import { settingsRouter } from './settings'
 import { teamsRouter } from './teams'
 import { weatherRouter } from './weather'
 
 import type { TRPCRouterRecord } from '@trpc/server'
-
-const todos = [
-  { id: 1, name: 'Get groceries' },
-  { id: 2, name: 'Buy a new phone' },
-  { id: 3, name: 'Finish the project' },
-]
-
-const todosRouter = {
-  list: publicProcedure.query(() => todos),
-
-  add: publicProcedure
-    .input(z.object({ name: z.string() }))
-    .mutation(({ input }) => {
-      const newTodo = { id: todos.length + 1, name: input.name }
-      todos.push(newTodo)
-      return newTodo
-    }),
-} satisfies TRPCRouterRecord
 
 const authRouter = {
   me: protectedProcedure.query(({ ctx }) => ({
@@ -64,29 +44,17 @@ const organizationRouter = {
     role: ctx.role,
     authorized: true,
   })),
-
-  testManageJobs: requireOrgPermission('manageJobs').query(({ ctx }) => ({
-    authorized: true,
-    role: ctx.role,
-    permission: 'manageJobs',
-  })),
-
-  testManageBilling: requireOrgPermission('manageBilling').query(({ ctx }) => ({
-    authorized: true,
-    role: ctx.role,
-    permission: 'manageBilling',
-  })),
 } satisfies TRPCRouterRecord
 
 export const trpcRouter = createTRPCRouter({
   weather: weatherRouter,
-  todos: todosRouter,
   teams: teamsRouter,
   auth: authRouter,
   organization: organizationRouter,
   clients: clientsRouter,
   crews: crewsRouter,
   services: servicesRouter,
+  settings: settingsRouter,
   portal: portalRouter,
   requests: requestsRouter,
   quotes: quotesRouter,
