@@ -63,9 +63,11 @@ The `Geocoder` interface lives server-only in `src/server/geo/`. It is a chain s
 | 1   | `feat/openlayers-maps`      | `ol`, map components, provider config and env, replaces the Google iframe and the fake SVG map, drops `VITE_GOOGLE_MAPS_API_KEY`, stories | —                                        |
 | 2   | `feat/property-geocoding`   | `Geocoder` chain, `geocode_cache`, geocoding on property save, backfill script, "needs location" state                                    | —                                        |
 | 3a  | `feat/service-areas-db`     | Migration, RLS, triggers, RPCs, pgTAP, docs/database + ADR 0012, `serviceAreas` tRPC router + tests, seed                                 | —                                        |
-| 3b  | `feat/service-areas-editor` | Settings editor UI: draw/modify/snap, cities, rotation, overlap warnings, coverage, property pin drag                                     | 1, 3a                                    |
+| 3b  | `feat/service-areas-editor` | Settings editor UI: draw/modify/snap, cities, rotation, overlap warnings, coverage                                                        | 1, 3a                                    |
 | 4   | `feat/auto-assign-routes`   | `generate_draft_routes`, Route Builder button and unassigned reasons, in-DB ordering                                                      | 3a, plus Route Builder reading live data |
 | 5   | `feat/route-optimizer`      | VROOM + OSRM worker, road polylines                                                                                                       | 4                                        |
+
+Property pin drag was listed under 3b and is deferred to a later phase (Eric, 2026-11-02); it is not yet scheduled.
 
 Every PR requests nick-sait and Eric (LeaderbotX400) as reviewers. Nothing uses a merge queue, and agents don't merge.
 

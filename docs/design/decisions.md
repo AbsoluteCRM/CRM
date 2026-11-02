@@ -64,8 +64,9 @@ are listed under the map instead of placed. See
 ## 2026-11-02 — Service area editor in Settings
 
 Eric approved the service area editor in the roadmap: owners and admins draw
-crew service areas on a map in Settings → "Hours & service areas", replacing
-the mock string list. Each save shows the impact first (properties that would
+crew service areas on a map in Settings → "Hours & service areas". The existing
+free-text list stays as a separate "Public request areas" card, because the
+public request page reads it. Each save shows the impact first (properties that would
 move, from and to) and warns on overlaps without blocking, because overlaps
 are allowed and priority decides. The area list is the keyboard equivalent of
 the map. Cities are added by typing or picking a centre, or by framing the

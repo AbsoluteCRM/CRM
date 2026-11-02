@@ -8,7 +8,11 @@ screen-spec conventions.
 ## Service area editor
 
 **Route**: `/settings`, "Hours & service areas" tab, below the Business hours
-card. It replaces the earlier "Service areas" chip list (a mock string list).
+card. The tab still has a second card, "Public request areas", below the editor.
+It is a free-text list of area names (`organizations.settings.service_areas`, live
+data) that the public request page shows to customers. It is separate from the
+drawn crew areas, which customers never see, and it is kept because the portal
+reads it. Folding the two together is not decided.
 
 **Roles**: The Settings page itself is limited to owners and admins today
 (`can.manageSettings`). The editor is built for every staff role, though:

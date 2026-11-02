@@ -25,8 +25,8 @@ the editor UI only.
 Owners and admins draw, edit, and archive crew service areas on a map in
 Settings → "Hours & service areas", see what a change would do to existing
 properties before saving, and see which properties no area covers. Other staff
-see the same map and list read-only. The editor replaces the mock string-list
-"Service areas" card on that tab.
+see the same map and list read-only. The editor sits above the free-text
+"Public request areas" card on that tab (see the Scope-change log).
 
 ## Decisions
 
@@ -38,7 +38,7 @@ see the same map and list read-only. The editor replaces the mock string-list
 | Q4  | Weekday rotation  | Optional, behind an "Add rotation" toggle, saved with `rotations.set` (roadmap Q4).                   |
 | Q5  | Who edits         | `can.manageServiceAreas` (owner/admin). Everyone else gets a read-only map and list (roadmap Q5, D4). |
 | D3  | Devices           | Drawing on desktop and tablet; phones are read-only with a note (roadmap D3).                         |
-| D5  | Where             | Settings → "Hours & service areas" replaces the mock string list (roadmap D5).                        |
+| D5  | Where             | Settings → "Hours & service areas", above the "Public request areas" list (see Scope-change log).     |
 
 Agent defaults (Eric may veto them):
 
@@ -67,12 +67,12 @@ Agent defaults (Eric may veto them):
 
 ## Assumptions
 
-| Assumption                                                                               | User-confirmed? |
-| ---------------------------------------------------------------------------------------- | --------------- |
-| The Settings page stays on the demo store for everything except this editor              | yes (roadmap)   |
-| The mock `serviceAreas` string list stays in the demo store/seed (other screens read it) | yes (task)      |
-| No seed, migration, geocoding, or route-generation changes belong in this phase          | yes (task)      |
-| Screenshots wait on Git LFS pushes working from the agent environment                    | no              |
+| Assumption                                                                               | User-confirmed?                       |
+| ---------------------------------------------------------------------------------------- | ------------------------------------- |
+| The Settings page stays on the demo store for everything except this editor              | no, superseded (see Scope-change log) |
+| The mock `serviceAreas` string list stays in the demo store/seed (other screens read it) | yes (task)                            |
+| No seed, migration, geocoding, or route-generation changes belong in this phase          | yes (task)                            |
+| Screenshots wait on Git LFS pushes working from the agent environment                    | no                                    |
 
 ## Design refs
 
@@ -167,8 +167,8 @@ invalidate `serviceAreas.list`, `serviceAreas.coverage` and
 
 ## Out of scope
 
-Migrations, seed data, geocoding, route generation, property pin drag,
-unarchiving, and screenshots when LFS uploads are refused.
+Migrations, seed data, geocoding, route generation, property pin drag (deferred
+by Eric, 2026-11-02, to a later phase), unarchiving, and screenshots when LFS uploads are refused.
 
 ## Dependencies not to add
 
@@ -192,6 +192,23 @@ passed; docs updated.
 Not audited by a `plan-auditor` agent in this run. Eric approved the roadmap
 and the implementation on 2026-11-02, and this phase follows its table.
 
+**Audit waived (user decision, 2026-11-02):** the plan was never audited. Eric
+waived the audit rather than run it after the code was built and reviewed.
+
+### Review
+
+- Security: pass at c68bad9 (high confidence, no findings).
+- Reviewer: needs-changes at c68bad9 for the documentation drift recorded in
+  the Scope-change log below; fixed in the following commit, then re-reviewed.
+
 ## Scope-change log
 
-_None._
+- **2026-11-02, "Public request areas" card kept.** The plan said the editor
+  replaces the string-list card and that Settings stays on the demo store.
+  Neither held after `main` was merged in: Settings now reads and saves
+  `organizations.settings.service_areas` as live data, and the public request
+  page serves it. The card stays, renamed "Public request areas", below the
+  editor. `docs/service-areas/ui.md` and `docs/design/decisions.md` now say so.
+  Folding the two lists into one is not decided.
+- **2026-11-02, property pin drag deferred.** The roadmap listed it for 3b; this
+  plan always excluded it. Eric deferred it to a later phase (user decision).
