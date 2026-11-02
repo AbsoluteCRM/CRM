@@ -143,6 +143,9 @@ export const DraftEditing: Story = {
       unitPriceCents: 12000,
       isOptional: true,
       taxRateIds: [GST],
+      frequency: 'one_time',
+      seasonStartMonth: null,
+      seasonEndMonth: null,
     })
 
     await userEvent.click(
