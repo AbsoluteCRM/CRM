@@ -59,6 +59,7 @@ export default function OlMap({
   route,
   depot,
   activeStopId,
+  frameBounds,
   onSelectStop,
   basemap: choice,
   onReady,
@@ -166,10 +167,12 @@ export default function OlMap({
   }, [depotKey])
 
   // Frame the data when the positions change or the box resizes, not on selection.
-  const points = [
-    ...(depot ? [depot.position] : []),
-    ...stops.map((s) => s.position),
-  ]
+  const points = frameBounds
+    ? [
+        { lon: frameBounds[0], lat: frameBounds[1] },
+        { lon: frameBounds[2], lat: frameBounds[3] },
+      ]
+    : [...(depot ? [depot.position] : []), ...stops.map((s) => s.position)]
   const frameKey = JSON.stringify(points)
   useEffect(() => {
     const layers = layersRef.current

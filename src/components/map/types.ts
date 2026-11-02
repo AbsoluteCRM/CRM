@@ -41,6 +41,11 @@ export interface MapViewProps {
   route?: MapRoute
   depot?: MapDepot
   activeStopId?: string | null
+  /**
+   * Frames this box, `[west, south, east, north]` in lon/lat, instead of the
+   * stops and depot. For maps whose content is drawn by an extension.
+   */
+  frameBounds?: [number, number, number, number]
   onSelectStop?: (id: string) => void
   /** Overrides the basemap from `MapBasemapProvider` or env. */
   basemap?: BasemapChoice

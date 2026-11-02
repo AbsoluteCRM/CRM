@@ -6,14 +6,12 @@ import {
   CreditCard,
   Database,
   Lock,
-  MapPin,
-  Plus,
   ShieldCheck,
   Upload,
-  X,
 } from 'lucide-react'
 
 import PageShell from '#/components/crm/PageShell'
+import { ServiceAreasSection } from '#/components/service-areas/ServiceAreasSection'
 import {
   Alert,
   Avatar,
@@ -241,7 +239,6 @@ const DAYS: Array<[Weekday, string]> = [
 
 function HoursTab({ t }: { t: Tenant }) {
   const org = t.org
-  const [area, setArea] = useState('')
   const setDay = (
     d: Weekday,
     patch: Partial<(typeof org.businessHours)[Weekday]>,
@@ -253,8 +250,8 @@ function HoursTab({ t }: { t: Tenant }) {
       },
     })
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Card>
+    <div className="grid gap-5">
+      <Card className="max-w-3xl">
         <CardHeader
           title="Business hours"
           subtitle="Shaded outside these hours on the calendar."
@@ -296,63 +293,7 @@ function HoursTab({ t }: { t: Tenant }) {
           })}
         </div>
       </Card>
-      <Card>
-        <CardHeader
-          title="Service areas"
-          subtitle="Requests outside these areas are flagged during review."
-        />
-        <div className="p-5">
-          <div className="flex flex-wrap gap-2">
-            {org.serviceAreas.map((a) => (
-              <span
-                key={a}
-                className="inline-flex items-center gap-1.5 rounded-full bg-(--lime-100) py-1.5 pr-1.5 pl-3 text-[13px] font-semibold text-(--leaf-900)"
-              >
-                <MapPin className="size-3.5" /> {a}
-                <button
-                  type="button"
-                  aria-label={`Remove ${a}`}
-                  className="cursor-pointer rounded-full p-0.5 hover:bg-white"
-                  onClick={() =>
-                    actions.updateOrganization(org.id, {
-                      serviceAreas: org.serviceAreas.filter((x) => x !== a),
-                    })
-                  }
-                >
-                  <X className="size-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-          <form
-            className="mt-4 flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault()
-              const v = area.trim()
-              if (v && !org.serviceAreas.includes(v))
-                actions.updateOrganization(org.id, {
-                  serviceAreas: [...org.serviceAreas, v],
-                })
-              setArea('')
-            }}
-          >
-            <TextInput
-              value={area}
-              onChange={(e) => setArea(e.target.value)}
-              placeholder="Neighbourhood, city, or postal prefix (e.g. T3H)"
-              aria-label="Add service area"
-            />
-            <Btn
-              type="submit"
-              variant="outline"
-              icon={Plus}
-              disabled={!area.trim()}
-            >
-              Add
-            </Btn>
-          </form>
-        </div>
-      </Card>
+      <ServiceAreasSection />
     </div>
   )
 }
