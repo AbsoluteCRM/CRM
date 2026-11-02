@@ -43,6 +43,7 @@ describe('permissionsFor', () => {
       'manageClients',
       'manageRequests',
       'manageCrews',
+      'viewServiceAreaCoverage',
       'viewTeam',
     ])
     expect(permissionsFor('worker')).toEqual([])

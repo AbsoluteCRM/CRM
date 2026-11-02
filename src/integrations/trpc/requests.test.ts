@@ -5,8 +5,9 @@ import { ORG, fake } from './test/fake-supabase'
 // The portal procedures use the trusted (service-role) client.
 const admin = vi.hoisted<{
   rpc: { data: unknown; error?: { message: string } | null }
+  org: { data: unknown; error?: { message: string } | null }
   calls: Array<[string, Record<string, unknown>]>
-}>(() => ({ rpc: { data: null }, calls: [] }))
+}>(() => ({ rpc: { data: null }, org: { data: null }, calls: [] }))
 
 vi.mock('#/env', () => ({
   env: { PORTAL_IP_HMAC_KEY: 'test-key-test-key-test-key' },
@@ -14,6 +15,15 @@ vi.mock('#/env', () => ({
 
 vi.mock('#/server/trusted/supabase-admin', () => ({
   createSupabaseAdminClient: () => ({
+    // loadPortalOrg: from('organizations').select().eq().maybeSingle()
+    from: () => {
+      const query = {
+        select: () => query,
+        eq: () => query,
+        maybeSingle: () => Promise.resolve({ error: null, ...admin.org }),
+      }
+      return query
+    },
     rpc: (name: string, args: Record<string, unknown>) => {
       admin.calls.push([name, args])
       return Promise.resolve({ error: null, ...admin.rpc })
@@ -48,7 +58,24 @@ const submitInput = {
   website: '',
 }
 
+// Empty settings parse to the defaults, which accept online requests.
+const portalOrg = (overrides: Record<string, unknown> = {}) => ({
+  id: 'org-1',
+  name: 'Acme',
+  email: null,
+  phone: null,
+  address_line1: null,
+  city: null,
+  region: null,
+  postal_code: null,
+  timezone: 'America/Edmonton',
+  logo_path: null,
+  settings: {},
+  ...overrides,
+})
+
 beforeEach(() => {
+  admin.org = { data: portalOrg() }
   fake.reset()
   fake.result = { data: [{ id: REQ }], error: null }
   admin.rpc = { data: REQ }
@@ -64,12 +91,17 @@ describe('portal.get', () => {
     }
     await expect(
       publicCaller().portal.get({ orgSlug: 'acme-lawn' }),
-    ).resolves.toEqual({ organization_name: 'Acme', services: [] })
+    ).resolves.toMatchObject({
+      organization_name: 'Acme',
+      accepting: true,
+      logo_url: null,
+      services: [],
+    })
     expect(admin.calls[0]).toEqual(['get_portal', { p_slug: 'acme-lawn' }])
   })
 
   it('404s on an unknown slug and rejects malformed slugs', async () => {
-    admin.rpc = { data: null, error: null }
+    admin.org = { data: null }
     await expect(
       publicCaller().portal.get({ orgSlug: 'nope' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
@@ -117,6 +149,16 @@ describe('portal.submit', () => {
     await expect(
       publicCaller().portal.submit({ ...submitInput, address: '  ' }),
     ).rejects.toThrow()
+    expect(admin.calls).toHaveLength(0)
+  })
+
+  it('refuses a submission when the company has online requests off', async () => {
+    admin.org = {
+      data: portalOrg({ settings: { online_requests: { enabled: false } } }),
+    }
+    await expect(
+      publicCaller().portal.submit(submitInput),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
     expect(admin.calls).toHaveLength(0)
   })
 
