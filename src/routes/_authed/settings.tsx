@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import PageShell from '#/components/crm/PageShell'
+import { ServiceAreasSection } from '#/components/service-areas/ServiceAreasSection'
 import {
   Alert,
   Avatar,
@@ -397,15 +398,14 @@ function HoursTab({ org }: { org: CompanyProfile }) {
   )
   const setDay = (d: Weekday, patch: Partial<DayHours>) =>
     setHours((h) => ({ ...h, [d]: { ...h[d], ...patch } }))
-
   const saveAreas = (next: Array<string>, message: string) =>
     void save
       .settings({ service_areas: next })
       .then((ok) => ok && toast(message, 'info'))
 
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Card>
+    <div className="grid gap-5">
+      <Card className="max-w-3xl">
         <CardHeader
           title="Business hours"
           subtitle="Shown on your public request page. Closed days are days off for the whole team."
@@ -474,9 +474,10 @@ function HoursTab({ org }: { org: CompanyProfile }) {
           </Btn>
         </div>
       </Card>
+      <ServiceAreasSection />
       <Card>
         <CardHeader
-          title="Service areas"
+          title="Public request areas"
           subtitle="Listed on your public request page so customers know you cover them."
         />
         <div className="p-5">
