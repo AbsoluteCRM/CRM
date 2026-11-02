@@ -1,7 +1,7 @@
 import { useId } from 'react'
 
 import { Field, SelectInput } from '#/components/crm/ui'
-import type { Service } from '#/components/crm/types'
+import type { Service } from '#/integrations/services/types'
 
 export type PrecipitationPreferences = Pick<
   Service,

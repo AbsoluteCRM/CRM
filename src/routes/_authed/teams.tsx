@@ -14,8 +14,7 @@ import {
   X,
 } from 'lucide-react'
 
-import { useOrganization } from '#/integrations/organization/context'
-import { can as orgCan } from '#/integrations/organization/permissions'
+import { useRole } from '#/integrations/organization/use-role'
 import PageShell from '#/components/crm/PageShell'
 import {
   Avatar,
@@ -34,17 +33,19 @@ import {
   StatusBadge,
   Tabs,
   TextInput,
-  toast,
 } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import {
   AVAILABILITY_LABEL,
-  ROLE_DESCRIPTION,
-  ROLE_LABEL,
   actions,
-  can,
   memberAvailability,
   useTenant,
-} from '#/components/crm/store'
+} from '#/mocks/crm-store'
+import { SampleDataBadge, SampleDataNote } from '#/mocks/SampleDataBadge'
+import {
+  ROLE_DESCRIPTION,
+  ROLE_LABEL,
+} from '#/integrations/organization/permissions'
 import {
   addDays,
   fmtDate,
@@ -59,8 +60,9 @@ import { useCrewMutations, useCrews } from '#/integrations/crews/crews'
 import { useInviteTeamMember, useTeamMembers } from '#/integrations/teams/teams'
 import type { InviteRole } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
-import type { Availability, Tenant } from '#/components/crm/store'
-import type { Member, OrgRole, TimeOff, Weekday } from '#/components/crm/types'
+import type { Availability, Tenant } from '#/mocks/crm-store'
+import type { Member, TimeOff, Weekday } from '#/mocks/crm-types'
+import type { OrgRole } from '#/integrations/organization/permissions'
 
 export const Route = createFileRoute('/_authed/teams')({
   component: TeamsPage,
@@ -109,9 +111,8 @@ function useMetrics(t: Tenant) {
 
 function TeamsPage() {
   const t = useTenant()
-  const { organization } = useOrganization()
-  const canInvite =
-    organization !== null && orgCan.manageTeam(organization.role)
+  const access = useRole()
+  const canInvite = access.can('manageTeam')
   const team = useTeamMembers()
   const crews = useCrews()
   const crewActions = useCrewMutations()
@@ -122,7 +123,7 @@ function TeamsPage() {
     memberId?: string
     date?: string
   } | null>(null)
-  const editable = can.manageTeam(t.role)
+  const editable = access.can('manageTeam')
   const realMembers = team.data ?? []
   const realCrews = crews.data ?? []
   const realActive = realMembers.filter((m) => m.status === 'active')
@@ -133,7 +134,7 @@ function TeamsPage() {
       kicker="Workforce"
       title="Team"
       subtitle="Manage employees, build crews, track availability, and see how everyone is performing."
-      allowed={can.viewTeam(t.role)}
+      allowed={access.can('viewTeam')}
       section="Team"
       actions={
         editable && (
@@ -175,6 +176,7 @@ function TeamsPage() {
                 ),
             ).length,
             sub: 'Vacation, sick, or time off',
+            sample: true,
           },
           {
             label: 'Avg. rating',
@@ -183,10 +185,14 @@ function TeamsPage() {
               Math.max(1, active.filter((m) => m.rating).length)
             ).toFixed(1),
             sub: 'Customer feedback',
+            sample: true,
           },
         ].map((k) => (
           <Card key={k.label} className="p-4">
-            <p className="text-xs font-semibold text-(--ink-3)">{k.label}</p>
+            <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-(--ink-3)">
+              {k.label}
+              {'sample' in k && <SampleDataBadge />}
+            </p>
             <p className="crm-display mt-1 text-2xl font-semibold">{k.value}</p>
             <p className="mt-0.5 text-xs text-(--ink-3)">{k.sub}</p>
           </Card>
@@ -221,6 +227,11 @@ function TeamsPage() {
           editable={editable}
           actions={crewActions}
         />
+      )}
+      {(tab === 'availability' || tab === 'performance') && (
+        <SampleDataNote>
+          Demo team members, time off and ratings. Changes here are not saved.
+        </SampleDataNote>
       )}
       {tab === 'availability' && (
         <AvailabilityTab t={t} editable={editable} onAdd={setTimeOffFor} />
@@ -449,6 +460,9 @@ function TimeOffModal({
         </>
       }
     >
+      <SampleDataNote>
+        Demo team members. Time off recorded here is not saved.
+      </SampleDataNote>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Team member" className="sm:col-span-2">
           <SelectInput

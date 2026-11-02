@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ArrowRight, ExternalLink, Mail, MapPin, Phone } from 'lucide-react'
 
 import { fmtDuration, fmtPhone, fmtTime, money } from '#/components/crm/format'
-import { inSeason } from '#/components/crm/store'
+import { inSeason } from '#/integrations/services/types'
 import { LogoMark } from '#/components/crm/Logo'
 import RequestModal, { UNIT_LABEL } from '#/components/portal/RequestModal'
 import { textOn } from '#/components/crm/colors'

@@ -2,9 +2,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { SearchX } from 'lucide-react'
 
-import { EmptyState, Toaster } from '#/components/crm/ui'
+import { EmptyState } from '#/components/crm/ui'
 import PortalView from '#/components/portal/PortalView'
 import PageLoading from '#/components/layout/PageLoading'
+import { Toaster } from '#/lib/toast'
 import { useTRPC } from '#/integrations/trpc/react'
 
 export const Route = createFileRoute('/portal/$orgSlug')({

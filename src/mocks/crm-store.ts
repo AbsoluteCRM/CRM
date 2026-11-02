@@ -1,4 +1,7 @@
 /**
+ * DEMO DATA ONLY. In-memory store behind the screens that have no live
+ * procedures yet; nothing here is saved. See src/mocks/README.md.
+ *
  * Client-side demo store for the CRM screens.
  *
  * A tiny external store (useSyncExternalStore) so every page shares the same
@@ -12,9 +15,17 @@
 import { useMemo, useSyncExternalStore } from 'react'
 
 import { useOrganization } from '#/integrations/organization/context'
+import { ROLE_LABEL } from '#/integrations/organization/permissions'
 
-import { DEFAULT_HOURS, DEFAULT_SERVICES, createSeed, inSeason } from './seed'
-import { addDays, endTime, parseDate, todayISO, toMinutes, uid } from './format'
+import {
+  addDays,
+  endTime,
+  parseDate,
+  todayISO,
+  toMinutes,
+  uid,
+} from '#/components/crm/format'
+import { DEFAULT_HOURS, DEFAULT_SERVICES, createSeed } from './crm-seed'
 import type {
   Activity,
   ActivityKind,
@@ -34,7 +45,7 @@ import type {
   ServiceRequest,
   TimeOff,
   Weekday,
-} from './types'
+} from './crm-types'
 
 // ---------------------------------------------------------------------------
 // Store plumbing
@@ -63,49 +74,12 @@ export function useCrmState() {
 }
 
 // ---------------------------------------------------------------------------
-// Roles & permissions
-// ---------------------------------------------------------------------------
-
-export const ROLE_LABEL: Record<OrgRole, string> = {
-  owner: 'Owner',
-  admin: 'Manager',
-  dispatcher: 'Dispatcher',
-  worker: 'Contractor',
-}
-
-export const ROLE_DESCRIPTION: Record<OrgRole, string> = {
-  owner: 'Full access, including billing and subscription.',
-  admin: 'Manages jobs, crews, clients, and services.',
-  dispatcher: 'Schedules and dispatches jobs and requests.',
-  worker: 'Sees and completes the jobs assigned to their crew.',
-}
-
-export { can } from '#/integrations/organization/permissions'
-
-export type Section =
-  | 'dashboard'
-  | 'calendar'
-  | 'requests'
-  | 'jobs'
-  | 'clients'
-  | 'teams'
-  | 'services'
-  | 'settings'
-  | 'route-builder'
-
-export function canSee(role: OrgRole, section: Section) {
-  if (role !== 'worker') return true
-  return section === 'dashboard' || section === 'calendar' || section === 'jobs'
-}
-
-// ---------------------------------------------------------------------------
 // Tenant-scoped reads
 // ---------------------------------------------------------------------------
 
 export function useTenant() {
   const s = useCrmState()
   const { organization } = useOrganization()
-
   // The signed-in member's role. The demo role only applies with no real company.
   const realRole = organization?.role
 
@@ -460,7 +434,7 @@ function activeOrgId() {
 function actorName() {
   const s = getState()
   const me = s.members.find(
-    (m) => m.organization_id === s.activeOrgId && m.role === s.role,
+    (m) => m.organization_id === s.activeOrgId && m.role === 'owner',
   )
   return me?.display_name ?? 'You'
 }
@@ -499,9 +473,6 @@ function nextNumber(
 export const actions = {
   setActiveOrg(id: string) {
     setState((s) => ({ ...s, activeOrgId: id }))
-  },
-  setRole(role: OrgRole) {
-    setState((s) => ({ ...s, role }))
   },
 
   // ---- Organization / onboarding ----
@@ -1130,4 +1101,4 @@ export const actions = {
   },
 }
 
-export { DEFAULT_HOURS, DEFAULT_SERVICES, inSeason }
+export { DEFAULT_HOURS, DEFAULT_SERVICES }

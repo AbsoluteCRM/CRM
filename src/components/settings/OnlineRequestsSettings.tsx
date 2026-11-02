@@ -23,8 +23,8 @@ import {
   TextInput,
   Toggle,
   btnClass,
-  toast,
 } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import { originSchema } from '#/integrations/settings/schema'
 import PortalPaletteCard from './PortalPaletteCard'
 import QrCode from './QrCode'

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Crown, GripVertical, Plus, Truck, Users } from 'lucide-react'
 
 import { Avatar, Badge, Btn, ColorDot, StatusBadge } from '#/components/crm/ui'
-import type { OrgRole } from '#/components/crm/types'
+import type { OrgRole } from '#/integrations/organization/permissions'
 import type { Crew } from '#/integrations/crews/crews'
 import type { TeamMember } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
