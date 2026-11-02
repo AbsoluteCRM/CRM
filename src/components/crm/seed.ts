@@ -7,6 +7,7 @@
  * which filters by the active organization.
  */
 import { addDays, fromMinutes, parseDate, toMinutes, todayISO } from './format'
+import { demoLonLat } from './route'
 import type {
   Activity,
   Client,
@@ -341,6 +342,11 @@ interface OrgSeedConfig {
   jobPrefixStart: number
 }
 
+/** Grid position plus real lon/lat in the org's city (ADR 0014 demo data). */
+function withLocation(city: string, p: { x: number; y: number }) {
+  return { ...p, location: demoLonLat(city, p) }
+}
+
 function seedOrg(cfg: OrgSeedConfig) {
   const r = rng(cfg.seed)
   const pick = <T>(arr: Array<T>) => arr[Math.floor(r() * arr.length)]
@@ -460,8 +466,10 @@ function seedOrg(cfg: OrgSeedConfig) {
         pets: c.kind === 'company' ? 'None' : pick(PET_NOTES),
         accessNotes: pick(ACCESS_NOTES),
         instructions: pick(INSTRUCTIONS),
-        x: Math.round(8 + r() * 84),
-        y: Math.round(10 + r() * 80),
+        ...withLocation(cfg.org.city, {
+          x: Math.round(8 + r() * 84),
+          y: Math.round(10 + r() * 80),
+        }),
       })
     }
   })

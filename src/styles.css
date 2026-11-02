@@ -508,3 +508,22 @@ a {
     animation: none;
   }
 }
+
+/* OpenLayers controls on CRM maps (src/components/map), in the brand tokens. */
+.crm-map .ol-zoom button {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 8px;
+}
+.crm-map .ol-zoom button:hover,
+.crm-map .ol-zoom button:focus {
+  background: var(--sage);
+  outline-color: var(--leaf-500);
+}
+.crm-map .ol-attribution {
+  font-size: 10px;
+  color: var(--ink-2);
+}
+.crm-map .ol-attribution a {
+  color: var(--leaf-700);
+}

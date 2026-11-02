@@ -18,3 +18,4 @@ rewrite history.
 | 0010 | [Rebaseline the migrations before launch](0010-pre-launch-rebaseline.md)                       | Accepted           |
 | 0011 | [Workers use RPCs, not table policies](0011-worker-rpcs.md)                                    | Accepted           |
 | 0012 | [Service areas: PostGIS polygons and a derived property area](0012-service-areas.md)           | Accepted           |
+| 0014 | [Map provider: OpenLayers on a swappable tile provider](0014-map-provider.md)                  | Accepted           |

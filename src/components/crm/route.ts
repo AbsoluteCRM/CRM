@@ -5,8 +5,37 @@
  */
 import { fromMinutes, toMinutes } from './format'
 import type { Job, Property } from './types'
+import type { LonLat } from '#/lib/map/geo'
 
 export const DEPOT = { x: 48, y: 56 }
+
+/** Demo-only bounding boxes that map the 0-100 grid onto each org's city. */
+const CITY_FRAMES: Record<
+  string,
+  { west: number; east: number; north: number; south: number } | undefined
+> = {
+  Calgary: { west: -114.25, east: -113.94, north: 51.16, south: 50.92 },
+  Edmonton: { west: -113.64, east: -113.36, north: 53.62, south: 53.45 },
+}
+
+/** Lon/lat for a demo grid position in `city`; null for cities without a frame. */
+export function demoLonLat(
+  city: string,
+  p: { x: number; y: number },
+): LonLat | null {
+  const f = CITY_FRAMES[city]
+  if (!f) return null
+  const round = (n: number) => Math.round(n * 1e5) / 1e5
+  return {
+    lon: round(f.west + (p.x / 100) * (f.east - f.west)),
+    lat: round(f.north - (p.y / 100) * (f.north - f.south)),
+  }
+}
+
+/** The demo yard for an org in `city`, at the grid's `DEPOT`. */
+export function depotLonLat(city: string): LonLat | null {
+  return demoLonLat(city, DEPOT)
+}
 
 export function driveMinutes(
   a: { x: number; y: number },
