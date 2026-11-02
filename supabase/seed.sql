@@ -1,7 +1,7 @@
 -- Demo data: two landscaping and snow-removal businesses in Edmonton.
 --
 --   absolute-demo   Absolute Landscaping (Demo): the full demo. Staff and
---                   crews, a seasonal service catalog, 32 clients, requests in
+--                   crews, a seasonal service catalog, 33 clients, requests in
 --                   every status, quotes in every status (with revisions),
 --                   recurring and one-off jobs with visits from three weeks
 --                   ago to eight weeks ahead, today's and tomorrow's routes,
