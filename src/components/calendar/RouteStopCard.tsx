@@ -4,11 +4,12 @@ import { cn } from '#/lib/utils'
 import { fmtTime } from '#/components/crm/format'
 import type { RouteStop, StopStatus } from './mock-routes'
 import { STATUS_LABEL } from './StopUpdateModal'
+import { FIXED_TONE } from '#/components/crm/ui'
 
 const STATUS_STYLES: Record<StopStatus, string> = {
   scheduled: 'bg-(--sky-100) text-(--sky)',
-  'in-progress': 'bg-(--sun-100) text-(--sun)',
-  completed: 'bg-(--sage) text-(--leaf-700)',
+  'in-progress': FIXED_TONE.warning,
+  completed: FIXED_TONE.success,
 }
 
 export function RouteStopCard({

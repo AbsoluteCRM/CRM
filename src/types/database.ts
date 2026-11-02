@@ -1121,6 +1121,9 @@ export type Database = {
           status: Database['public']['Enums']['member_status']
           updated_at: string
           user_id: string | null
+          work_days: number[]
+          work_end: string
+          work_start: string
         }
         Insert: {
           color?: string | null
@@ -1135,6 +1138,9 @@ export type Database = {
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
           user_id?: string | null
+          work_days?: number[]
+          work_end?: string
+          work_start?: string
         }
         Update: {
           color?: string | null
@@ -1149,6 +1155,9 @@ export type Database = {
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
           user_id?: string | null
+          work_days?: number[]
+          work_end?: string
+          work_start?: string
         }
         Relationships: [
           {
@@ -1649,7 +1658,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by_user_id: string | null
-          client_id: string
+          client_id: string | null
           conditions: string | null
           created_at: string
           created_by: string | null
@@ -1674,7 +1683,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by_user_id?: string | null
-          client_id: string
+          client_id?: string | null
           conditions?: string | null
           created_at?: string
           created_by?: string | null
@@ -1699,7 +1708,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by_user_id?: string | null
-          client_id?: string
+          client_id?: string | null
           conditions?: string | null
           created_at?: string
           created_by?: string | null
@@ -2298,6 +2307,65 @@ export type Database = {
           },
         ]
       }
+      time_off: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          kind: Database['public']['Enums']['time_off_kind']
+          member_id: string
+          note: string | null
+          organization_id: string
+          requested_by_member_id: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by_member_id: string | null
+          start_date: string
+          status: Database['public']['Enums']['time_off_status']
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          kind: Database['public']['Enums']['time_off_kind']
+          member_id: string
+          note?: string | null
+          organization_id: string
+          requested_by_member_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
+          start_date: string
+          status?: Database['public']['Enums']['time_off_status']
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          kind?: Database['public']['Enums']['time_off_kind']
+          member_id?: string
+          note?: string | null
+          organization_id?: string
+          requested_by_member_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
+          start_date?: string
+          status?: Database['public']['Enums']['time_off_status']
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'time_off_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       visit_time_entries: {
         Row: {
           created_at: string
@@ -2484,6 +2552,7 @@ export type Database = {
       }
     }
     Functions: {
+      cancel_time_off: { Args: { p_id: string }; Returns: undefined }
       accept_invitation: {
         Args: { p_token: string }
         Returns: {
@@ -2784,6 +2853,30 @@ export type Database = {
         Args: { p_from?: string; p_job_id: string }
         Returns: number
       }
+      record_time_off: {
+        Args: {
+          p_end: string
+          p_kind: Database['public']['Enums']['time_off_kind']
+          p_member_id: string
+          p_note?: string
+          p_start: string
+        }
+        Returns: string
+      }
+      request_time_off: {
+        Args: {
+          p_end: string
+          p_kind: Database['public']['Enums']['time_off_kind']
+          p_note?: string
+          p_org: string
+          p_start: string
+        }
+        Returns: string
+      }
+      review_time_off: {
+        Args: { p_approve: boolean; p_id: string; p_note?: string }
+        Returns: undefined
+      }
       rotate_quote_token: {
         Args: { p_new_token_hash: string; p_quote_id: string }
         Returns: string
@@ -2935,6 +3028,8 @@ export type Database = {
       service_precipitation_type: 'none' | 'rain' | 'snow' | 'any'
       service_unit:
         'monthly' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
+      time_off_kind: 'sick' | 'vacation' | 'personal'
+      time_off_status: 'pending' | 'approved' | 'declined' | 'cancelled'
       time_source: 'app' | 'manual' | 'auto'
       visit_status:
         | 'unscheduled'
@@ -3125,6 +3220,8 @@ export const Constants = {
         'yard',
         'bag',
       ],
+      time_off_kind: ['sick', 'vacation', 'personal'],
+      time_off_status: ['pending', 'approved', 'declined', 'cancelled'],
       time_source: ['app', 'manual', 'auto'],
       visit_status: [
         'unscheduled',

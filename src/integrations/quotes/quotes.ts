@@ -75,7 +75,21 @@ export function useQuoteBuilder(organizationId: string, quoteId: string) {
   const upsertLine = useMutation(trpc.quotes.upsertLine.mutationOptions())
   const deleteLine = useMutation(trpc.quotes.deleteLine.mutationOptions())
   const pullBack = useMutation(trpc.quotes.pullBack.mutationOptions())
-  const mutations = [update, upsertLine, deleteLine, pullBack]
+  const send = useMutation(trpc.quotes.send.mutationOptions())
+  const retryDelivery = useMutation(trpc.quotes.retryDelivery.mutationOptions())
+  const mutations = [
+    update,
+    upsertLine,
+    deleteLine,
+    pullBack,
+    send,
+    retryDelivery,
+  ]
+  // A send can succeed while the email fails; the delivery card shows that.
+  const delivered = (r: {
+    delivery: 'sent' | 'failed'
+    error: string | null
+  }) => refresh().then(() => r.delivery === 'sent')
 
   return {
     queries: { quote, taxRates, services },
@@ -117,5 +131,8 @@ export function useQuoteBuilder(organizationId: string, quoteId: string) {
         .mutateAsync({ ...org, quoteId })
         .then(refresh)
         .then(ok, failed),
+    send: () => send.mutateAsync({ ...org, quoteId }).then(delivered, failed),
+    retryDelivery: () =>
+      retryDelivery.mutateAsync({ ...org, quoteId }).then(delivered, failed),
   }
 }

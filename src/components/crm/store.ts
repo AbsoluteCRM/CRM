@@ -95,7 +95,13 @@ export type Section =
 
 export function canSee(role: OrgRole, section: Section) {
   if (role !== 'worker') return true
-  return section === 'dashboard' || section === 'calendar' || section === 'jobs'
+  return (
+    section === 'dashboard' ||
+    section === 'calendar' ||
+    section === 'jobs' ||
+    // Contractors see their own availability and request time off there.
+    section === 'teams'
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +112,11 @@ export function useTenant() {
   const s = useCrmState()
   const { organization } = useOrganization()
 
+  // The signed-in member's role. The demo role only applies with no real company.
+  const realRole = organization?.role
+
   return useMemo(() => {
+    const role: OrgRole = realRole ?? s.role
     // Prefer the real org from OrganizationProvider once it's wired; fall back to the demo tenant.
     const orgId =
       organization && s.organizations.some((o) => o.id === organization.id)
@@ -130,11 +140,11 @@ export function useTenant() {
     const roleMatch = (r: OrgRole) =>
       members.find((m) => m.role === r && m.status === 'active')
     const me =
-      s.role === 'worker'
+      role === 'worker'
         ? (members.find(
             (m) => m.role === 'worker' && crews.some((c) => c.leadId === m.id),
           ) ?? roleMatch('worker'))
-        : (roleMatch(s.role) ?? roleMatch('owner') ?? members[0])
+        : (roleMatch(role) ?? roleMatch('owner') ?? members[0])
     const myCrew = me
       ? (crews.find((c) => c.memberIds.includes(me.id)) ?? null)
       : null
@@ -152,7 +162,7 @@ export function useTenant() {
     const invoiceMap = byId(invoices)
 
     const visibleJobs =
-      s.role === 'worker'
+      role === 'worker'
         ? jobs.filter((j) => myCrew && j.crew_id === myCrew.id)
         : jobs
 
@@ -160,7 +170,7 @@ export function useTenant() {
       org,
       orgId: org.id,
       organizations: s.organizations,
-      role: s.role,
+      role,
       me,
       myCrew,
       members,
@@ -200,7 +210,7 @@ export function useTenant() {
             0,
           ),
     }
-  }, [s, organization])
+  }, [s, organization, realRole])
 }
 
 export type Tenant = ReturnType<typeof useTenant>
