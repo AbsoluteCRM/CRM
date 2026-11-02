@@ -22,6 +22,7 @@ import { cn } from '#/lib/utils'
 import { ROLE_LABEL } from '#/integrations/organization/permissions'
 import { useRole } from '#/integrations/organization/use-role'
 import { useTenant } from '#/mocks/crm-store'
+import { SampleDataBadge } from '#/mocks/SampleDataBadge'
 import { Toaster } from '#/lib/toast'
 import { fmtDate } from '#/components/crm/format'
 
@@ -165,6 +166,9 @@ function GlobalSearch() {
       />
       {open && q.trim().length >= 2 && (
         <div className="crm-pop absolute top-full right-0 left-0 z-50 mt-2 overflow-hidden rounded-2xl border border-(--line) bg-(--paper) p-1.5 shadow-xl">
+          <p className="flex justify-end px-3 pt-1.5">
+            <SampleDataBadge />
+          </p>
           {results.length === 0 ? (
             <p className="px-3 py-4 text-center text-sm text-(--ink-3)">
               No matches for “{q}”
@@ -329,8 +333,9 @@ export default function Header() {
       >
         {(close) => (
           <>
-            <p className="px-3 pt-2 pb-1 text-[11px] font-bold tracking-wider text-(--ink-3) uppercase">
+            <p className="flex items-center justify-between gap-2 px-3 pt-2 pb-1 text-[11px] font-bold tracking-wider text-(--ink-3) uppercase">
               Recent activity
+              <SampleDataBadge />
             </p>
             {t.activity.slice(0, 5).map((a) => (
               <div

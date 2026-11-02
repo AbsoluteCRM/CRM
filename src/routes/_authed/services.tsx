@@ -33,6 +33,7 @@ import {
 import { toast } from '#/lib/toast'
 import { inSeason } from '#/integrations/services/types'
 import { useTenant } from '#/mocks/crm-store'
+import { SampleDataBadge } from '#/mocks/SampleDataBadge'
 import {
   MONTHS,
   addDays,
@@ -321,11 +322,12 @@ function ServicesPage() {
                     <span className="flex items-center gap-1">
                       <CalendarRange className="size-3" /> {seasonText(s)}
                     </span>
-                    <span>
+                    <span className="flex items-center gap-1.5">
                       {u.count} jobs · 30d
                       {access.can('viewRevenue')
                         ? ` · ${money(Math.round(u.revenue / 100) * 100)}`
                         : ''}
+                      <SampleDataBadge />
                     </span>
                   </p>
                   <SeasonBar service={s} />

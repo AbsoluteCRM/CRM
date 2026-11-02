@@ -40,6 +40,7 @@ import {
   StatusBadge,
 } from '#/components/crm/ui'
 import { jobEnd, useTenant } from '#/mocks/crm-store'
+import { SampleDataNote } from '#/mocks/SampleDataBadge'
 import {
   addDays,
   compactMoney,
@@ -153,6 +154,10 @@ function DashboardPage() {
         </>
       }
     >
+      <SampleDataNote>
+        Jobs, revenue, requests, clients and crews below are demo data. The
+        weather is live.
+      </SampleDataNote>
       {crewView ? (
         <WorkerDay t={t} weather={weather} />
       ) : (

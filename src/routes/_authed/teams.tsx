@@ -41,6 +41,7 @@ import {
   memberAvailability,
   useTenant,
 } from '#/mocks/crm-store'
+import { SampleDataBadge, SampleDataNote } from '#/mocks/SampleDataBadge'
 import {
   ROLE_DESCRIPTION,
   ROLE_LABEL,
@@ -175,6 +176,7 @@ function TeamsPage() {
                 ),
             ).length,
             sub: 'Vacation, sick, or time off',
+            sample: true,
           },
           {
             label: 'Avg. rating',
@@ -183,10 +185,14 @@ function TeamsPage() {
               Math.max(1, active.filter((m) => m.rating).length)
             ).toFixed(1),
             sub: 'Customer feedback',
+            sample: true,
           },
         ].map((k) => (
           <Card key={k.label} className="p-4">
-            <p className="text-xs font-semibold text-(--ink-3)">{k.label}</p>
+            <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-(--ink-3)">
+              {k.label}
+              {'sample' in k && <SampleDataBadge />}
+            </p>
             <p className="crm-display mt-1 text-2xl font-semibold">{k.value}</p>
             <p className="mt-0.5 text-xs text-(--ink-3)">{k.sub}</p>
           </Card>
@@ -221,6 +227,11 @@ function TeamsPage() {
           editable={editable}
           actions={crewActions}
         />
+      )}
+      {(tab === 'availability' || tab === 'performance') && (
+        <SampleDataNote>
+          Demo team members, time off and ratings. Changes here are not saved.
+        </SampleDataNote>
       )}
       {tab === 'availability' && (
         <AvailabilityTab t={t} editable={editable} onAdd={setTimeOffFor} />
@@ -449,6 +460,9 @@ function TimeOffModal({
         </>
       }
     >
+      <SampleDataNote>
+        Demo team members. Time off recorded here is not saved.
+      </SampleDataNote>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Team member" className="sm:col-span-2">
           <SelectInput
