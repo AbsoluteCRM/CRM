@@ -358,6 +358,31 @@ describe('serviceAreas: GeoJSON validation', () => {
     await reject({ type: 'Polygon', coordinates: [ring] })
   })
 
+  it('maps a database too-large rejection (22023) to BAD_REQUEST', async () => {
+    state.result = {
+      data: null,
+      error: { message: 'boundary is larger than 5000 km²', code: '22023' },
+    }
+    await expect(
+      caller().serviceAreas.upsert({
+        organizationId: ORG,
+        name: 'World',
+        boundary: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [-180, -90],
+              [180, -90],
+              [180, 90],
+              [-180, 90],
+              [-180, -90],
+            ],
+          ],
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  })
+
   it('accepts a MultiPolygon', async () => {
     state.result = { data: AREA, error: null }
     await expect(

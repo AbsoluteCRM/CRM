@@ -194,6 +194,20 @@ insert into _tap (line) select throws_ok(
     pg_temp.sq(-115, 50, -113, 52))$$,
   '22023', null, 'an area over 5,000 km² is rejected');
 insert into _tap (line) select throws_ok(
+  $$select public.upsert_service_area(pg_temp.id('org-a'), null, 'World', null, null, null, 0,
+    pg_temp.sq(-180, -90, 180, 90))$$,
+  '22023', null, 'a whole-world box is rejected as too large (not a GEOS error)');
+insert into _tap (line) select throws_ok(
+  $$select public.upsert_service_area(pg_temp.id('org-a'), null, 'Antipodal', null, null, null, 0,
+    pg_temp.sq(-90, -10, 90, 10))$$,
+  '22023', null, 'a polygon with a 180-degree edge is rejected');
+insert into _tap (line) select throws_ok(
+  $$select public.upsert_service_region(pg_temp.id('org-a'), null, 'World', pg_temp.sq(-180, -90, 180, 90), null, null, null, null)$$,
+  '22023', null, 'a whole-world region boundary is rejected');
+insert into _tap (line) select throws_ok(
+  $$select public.preview_service_area(pg_temp.id('org-a'), null, 'World', null, null, null, 0, pg_temp.sq(-180, -90, 180, 90))$$,
+  '22023', null, 'preview rejects a whole-world box too');
+insert into _tap (line) select throws_ok(
   format($$select public.upsert_service_area(%L, null, 'Dense', null, null, null, 0, %L)$$,
     pg_temp.id('org-a'),
     jsonb_build_object('type', 'Polygon', 'coordinates', jsonb_build_array(

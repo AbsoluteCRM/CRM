@@ -64,9 +64,22 @@ begin
   if extensions.st_npoints(g) > p_max_vertices then
     raise exception 'boundary has more than % vertices', p_max_vertices using errcode = '22023';
   end if;
-  if extensions.st_area(g::extensions.geography) > p_max_area_m2 then
+  -- Geography area math fails (uncoded GEOS error) on near-antipodal edges,
+  -- so reject continent-sized shapes first, and turn any remaining geography
+  -- failure into the same "too large" rejection.
+  if extensions.st_xmax(g::extensions.box3d) - extensions.st_xmin(g::extensions.box3d) >= 90
+     or extensions.st_ymax(g::extensions.box3d) - extensions.st_ymin(g::extensions.box3d) >= 90 then
     raise exception 'boundary is larger than % km²', p_max_area_m2 / 1e6 using errcode = '22023';
   end if;
+  begin
+    if extensions.st_area(g::extensions.geography) > p_max_area_m2 then
+      raise exception 'boundary is larger than % km²', p_max_area_m2 / 1e6 using errcode = '22023';
+    end if;
+  exception
+    when sqlstate '22023' then raise;
+    when others then
+      raise exception 'boundary is too large or not a plausible service area' using errcode = '22023';
+  end;
 
   return g;
 end;
@@ -533,6 +546,8 @@ begin
     union all
     select p_id, coalesce(p_priority, 0), extensions.st_area(g::extensions.geography),
            coalesce(v_old.created_at, now()), g, true
+    -- An archived area stays archived through an upsert, so it wins nothing.
+    where v_old.archived_at is null
   ),
   moved as (
     select p.id as property_id, p.address_line1, p.service_area_id as from_area_id,
