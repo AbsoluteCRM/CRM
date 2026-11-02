@@ -203,6 +203,23 @@ pnpm install && pnpm lint && pnpm check && pnpm exec tsc --noEmit && pnpm exec v
   `apply_migration`, run the advisors, run the pgTAP files with `execute_sql`,
   and regenerate types with `pnpm db:types`.
 
+Results on the PR head (2026-11-02):
+
+- All 26 migrations apply in order on the local stack, including
+  `20261102180000_service_areas.sql`.
+- pgTAP: `service_areas_test.sql` 94/94; the seven existing files 158/158.
+- The seed runs twice cleanly (second run skips), and assigns Kensington and
+  Crescent Heights to Downtown core, Tuscany to NW, Saddle Ridge to NE, Lake
+  Bonavista to the unowned South area, and leaves Cochrane and the
+  ungeocoded property without an area.
+- `pnpm lint`, `pnpm check`, and `pnpm exec tsc --noEmit` pass.
+- `pnpm exec vitest run` (with dummy `VITE_SUPABASE_URL` /
+  `VITE_SUPABASE_PUBLISHABLE_KEY`, which every router test needs):
+  291 passed, 5 failed. The 5 are storybook interaction tests
+  (`CrewBuilder` ×3, `RequestsPanel`, `QuoteEditor`) that fail identically
+  on `origin/main`; this PR touches no components. `serviceAreas.test.ts`:
+  29/29.
+
 ## Audit log
 
 The roadmap was approved by Eric with implementation started; this phase plan
