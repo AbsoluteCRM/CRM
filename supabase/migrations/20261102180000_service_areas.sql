@@ -376,6 +376,9 @@ begin
   if not private.has_org_role(p_organization_id, '{owner,admin}') then
     raise exception 'only owners and admins can edit service areas' using errcode = '42501';
   end if;
+  if p_name is null or length(trim(p_name)) = 0 then
+    raise exception 'name is required' using errcode = '22023';
+  end if;
 
   if p_id is null then
     insert into public.service_areas (organization_id, crew_id, region_id, name, color, priority, boundary)
@@ -421,6 +424,9 @@ begin
   if not private.has_org_role(p_organization_id, '{owner,admin}') then
     raise exception 'only owners and admins can edit service regions' using errcode = '42501';
   end if;
+  if p_name is null or length(trim(p_name)) = 0 then
+    raise exception 'name is required' using errcode = '22023';
+  end if;
 
   if p_id is null then
     insert into public.service_regions (organization_id, name, boundary, center, bbox, source, source_ref)
@@ -457,15 +463,17 @@ to authenticated;
 ------------------------------------------------------------------------------
 
 -- Creates (p_id null) or replaces a service area from GeoJSON. Returns its id.
+-- Arguments after the org default to null (priority to 0) so API callers can
+-- omit them; p_name and p_geojson are still required.
 create function public.upsert_service_area(
   p_organization_id uuid,
-  p_id uuid,
-  p_name text,
-  p_crew_id uuid,
-  p_region_id uuid,
-  p_color text,
-  p_priority integer,
-  p_geojson jsonb
+  p_id uuid default null,
+  p_name text default null,
+  p_crew_id uuid default null,
+  p_region_id uuid default null,
+  p_color text default null,
+  p_priority integer default 0,
+  p_geojson jsonb default null
 )
 returns uuid
 language plpgsql
@@ -485,13 +493,13 @@ $$;
 -- RLS, so it reports only what the caller can see.
 create function public.preview_service_area(
   p_organization_id uuid,
-  p_id uuid,
-  p_name text,
-  p_crew_id uuid,
-  p_region_id uuid,
-  p_color text,
-  p_priority integer,
-  p_geojson jsonb
+  p_id uuid default null,
+  p_name text default null,
+  p_crew_id uuid default null,
+  p_region_id uuid default null,
+  p_color text default null,
+  p_priority integer default 0,
+  p_geojson jsonb default null
 )
 returns jsonb
 language plpgsql
@@ -715,13 +723,13 @@ $$;
 -- p_center is required.
 create function public.upsert_service_region(
   p_organization_id uuid,
-  p_id uuid,
-  p_name text,
-  p_boundary jsonb,
-  p_center jsonb,
-  p_bbox double precision[],
-  p_source text,
-  p_source_ref text
+  p_id uuid default null,
+  p_name text default null,
+  p_boundary jsonb default null,
+  p_center jsonb default null,
+  p_bbox double precision[] default null,
+  p_source text default null,
+  p_source_ref text default null
 )
 returns uuid
 language plpgsql

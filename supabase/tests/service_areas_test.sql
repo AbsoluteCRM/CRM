@@ -205,6 +205,14 @@ insert into _tap (line) select throws_ok(
   $$select public.upsert_service_area(pg_temp.id('org-a'), null, 'Bad colour', null, null, 'green', 0,
     pg_temp.sq(-113.4, 51.0, -113.3, 51.1))$$,
   '23514', null, 'a non-hex colour is rejected');
+insert into _tap (line) select lives_ok(
+  $$select public.upsert_service_area(p_organization_id => pg_temp.id('org-a'), p_name => 'Named args',
+    p_geojson => pg_temp.sq(-113.2, 51.0, -113.1, 51.1))$$,
+  'optional arguments can be omitted (API callers send only what they have)');
+insert into _tap (line) select throws_ok(
+  $$select public.upsert_service_area(p_organization_id => pg_temp.id('org-a'),
+    p_geojson => pg_temp.sq(-113.2, 51.2, -113.1, 51.3))$$,
+  '22023', 'name is required', 'a name is required');
 insert into _tap (line) select throws_ok(
   $$select public.upsert_service_area(pg_temp.id('org-a'), null, 'area a', null, null, null, 0,
     pg_temp.sq(-113.4, 51.0, -113.3, 51.1))$$,
@@ -309,7 +317,7 @@ do $$
 declare
   actor record;
 begin
-  for actor in select * from (values (3, 'dispatcher', 2), (4, 'worker', 2), (5, 'nonmember', 0)) a(n, label, visible)
+  for actor in select * from (values (3, 'dispatcher', 3), (4, 'worker', 3), (5, 'nonmember', 0)) a(n, label, visible)
   loop
     perform set_config('request.jwt.claims', json_build_object(
       'sub', '00000000-0000-0000-0000-00000000c00' || actor.n, 'role', 'authenticated')::text, true);

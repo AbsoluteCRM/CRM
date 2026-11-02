@@ -78,6 +78,10 @@ counts), ordered by `priority desc, area_m2 asc, created_at asc, id`.
 
 All are in `public`, `security invoker` (RLS applies), and executable by
 `authenticated` only. Geometry crosses the API only as GeoJSON (lon/lat).
+Arguments after `p_organization_id` default to null (`p_priority` to 0), so
+API callers can omit them, but `p_name` and the geometry are required. An
+upsert with `p_id` **replaces** every field, so an omitted `p_crew_id` clears
+the crew.
 
 | Function                                                                                                       | Returns                                                                                                                                                                                                             |
 | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
