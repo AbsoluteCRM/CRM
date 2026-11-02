@@ -19,6 +19,9 @@ const member = (
   color: null,
   role,
   status,
+  work_days: [1, 2, 3, 4, 5],
+  work_start: '08:00:00',
+  work_end: '17:00:00',
 })
 
 const crew = (

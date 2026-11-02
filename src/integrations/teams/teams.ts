@@ -18,6 +18,9 @@ export type TeamMember = Pick<
   | 'role'
   | 'status'
   | 'color'
+  | 'work_days'
+  | 'work_start'
+  | 'work_end'
 >
 
 export const teamMembersKey = (organizationId: string | undefined) =>
@@ -34,7 +37,9 @@ export function useTeamMembers() {
     queryFn: async (): Promise<Array<TeamMember>> => {
       const { data, error } = await createSupabaseBrowserClient()
         .from('organization_members')
-        .select('id, user_id, display_name, email, phone, role, status, color')
+        .select(
+          'id, user_id, display_name, email, phone, role, status, color, work_days, work_start, work_end',
+        )
         .eq('organization_id', organizationId!)
         .order('display_name', { ascending: true })
       if (error) throw error

@@ -430,7 +430,9 @@ export function Tabs<T extends string>({
     <div
       role="tablist"
       className={cn(
-        'flex gap-1 overflow-x-auto border-b border-(--line)',
+        // The bottom line is an inset shadow, not a border, so the active
+        // underline needs no negative margin and the bar never scrolls vertically.
+        'flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--line)]',
         className,
       )}
     >
@@ -444,7 +446,7 @@ export function Tabs<T extends string>({
             aria-selected={active}
             onClick={() => onChange(t.value)}
             className={cn(
-              'relative -mb-px cursor-pointer border-b-2 px-3 pt-1 pb-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors',
+              'relative cursor-pointer border-b-2 px-3 pt-1 pb-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors',
               active
                 ? 'border-(--leaf-700) text-(--ink)'
                 : 'border-transparent text-(--ink-3) hover:text-(--ink)',
@@ -831,7 +833,12 @@ export function toast(message: string, tone: ToastItem['tone'] = 'success') {
 
 const emptyToasts: Array<ToastItem> = []
 
-export function Toaster() {
+/** `belowHeader` sits just under the app header, top right. */
+export function Toaster({
+  placement = 'bottom',
+}: {
+  placement?: 'bottom' | 'belowHeader'
+}) {
   const items = useSyncExternalStore(
     (l) => {
       toastListeners.add(l)
@@ -843,7 +850,10 @@ export function Toaster() {
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed right-5 bottom-5 z-[80] flex flex-col items-end gap-2"
+      className={cn(
+        'pointer-events-none fixed right-5 z-[80] flex flex-col items-end gap-2',
+        placement === 'belowHeader' ? 'top-[76px]' : 'bottom-5',
+      )}
     >
       {items.map((t) => {
         const Icon =

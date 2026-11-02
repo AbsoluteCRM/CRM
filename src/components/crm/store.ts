@@ -94,7 +94,13 @@ export type Section =
 
 export function canSee(role: OrgRole, section: Section) {
   if (role !== 'worker') return true
-  return section === 'dashboard' || section === 'calendar' || section === 'jobs'
+  return (
+    section === 'dashboard' ||
+    section === 'calendar' ||
+    section === 'jobs' ||
+    // Contractors see their own availability and request time off there.
+    section === 'teams'
+  )
 }
 
 // ---------------------------------------------------------------------------

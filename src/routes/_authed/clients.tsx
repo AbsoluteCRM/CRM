@@ -7,8 +7,11 @@ import {
   DollarSign,
   Home,
   Mail,
+  MapPin,
   MessageSquareDiff,
+  Pencil,
   Phone,
+  Plus,
   Receipt,
   StickyNote,
   UserPlus,
@@ -16,6 +19,13 @@ import {
 
 import PageShell from '#/components/crm/PageShell'
 import JobFormModal from '#/components/crm/JobFormModal'
+import AddressFields from '#/components/address/AddressFields'
+import {
+  EMPTY_ADDRESS,
+  isBlank,
+  isComplete,
+} from '#/components/address/address'
+import ClientAddressModal from '#/components/clients/ClientAddressModal'
 import {
   Alert,
   Avatar,
@@ -44,7 +54,12 @@ import {
   useTenant,
 } from '#/components/crm/store'
 import { fmtDate, fmtTime, money, todayISO } from '#/components/crm/format'
-import { useClientMutations, useClients } from '#/integrations/clients/clients'
+import {
+  clientAddressLines,
+  toClientAddress,
+  useClientMutations,
+  useClients,
+} from '#/integrations/clients/clients'
 import { cn } from '#/lib/utils'
 import type { ClientRow } from '#/integrations/clients/clients'
 import type { Tenant } from '#/components/crm/store'
@@ -89,17 +104,19 @@ function ClientsPage() {
     return clientRows
       .map((c) => ({
         client: c,
-        property: t.propertiesOf(c.id).at(0),
+        address: clientAddressLines(c),
         ltv: t.clientLifetimeValue(c.id),
       }))
       .filter(({ client }) => {
         if (status !== 'all' && client.status !== status) return false
         if (kind !== 'all' && client.kind !== kind) return false
         if (!needle) return true
-        const addresses = t
-          .propertiesOf(client.id)
-          .map((p) => p.address_line1)
-          .join(' ')
+        const addresses = [
+          client.billing_address_line1,
+          client.billing_city,
+          client.billing_postal_code,
+          client.billing_postal_code?.replace(/\s/g, ''),
+        ].join(' ')
         return `${client.display_name} ${(client.phone ?? '').replace(/\D/g, '')} ${client.phone ?? ''} ${client.email ?? ''} ${addresses}`
           .toLowerCase()
           .includes(needle)
@@ -202,51 +219,55 @@ function ClientsPage() {
           </div>
 
           <Card>
-            <div className="flex flex-wrap items-center gap-3 border-b border-(--line) p-4">
-              <SearchInput
-                value={q}
-                onChange={setQ}
-                placeholder="Search by name, address, or phone"
-                className="w-full sm:w-80"
-              />
-              <div className="flex flex-wrap gap-2">
-                {(['all', 'active', 'inactive', 'lead'] as const).map((s) => (
-                  <FilterChip
-                    key={s}
-                    active={status === s}
-                    onClick={() => setStatus(s)}
-                  >
-                    {s === 'all'
-                      ? 'All'
-                      : s === 'lead'
-                        ? 'Leads'
-                        : s[0].toUpperCase() + s.slice(1)}{' '}
-                    <span className="opacity-60">{counts[s]}</span>
-                  </FilterChip>
-                ))}
+            <div className="flex flex-col gap-3 border-b border-(--line) p-4">
+              <div className="flex items-center gap-3">
+                <SearchInput
+                  value={q}
+                  onChange={setQ}
+                  placeholder="Search clients"
+                  className="min-w-0 flex-1 sm:max-w-64"
+                />
+                <SelectInput
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as Sort)}
+                  className="ml-auto w-36 shrink-0 sm:w-44"
+                  aria-label="Sort clients"
+                >
+                  <option value="name">Sort: Name</option>
+                  <option value="ltv">Sort: Lifetime value</option>
+                  <option value="recent">Sort: Newest</option>
+                </SelectInput>
               </div>
-              <span className="hidden h-6 w-px bg-(--line) md:block" />
-              <div className="flex flex-wrap gap-2">
-                {(['all', 'individual', 'company'] as const).map((k) => (
-                  <FilterChip
-                    key={k}
-                    active={kind === k}
-                    onClick={() => setKind(k)}
-                  >
-                    {k === 'all' ? 'All types' : KIND_LABEL[k]}
-                  </FilterChip>
-                ))}
+              <div className="crm-scroll -mx-4 -my-1 flex items-center gap-3 overflow-x-auto px-4 py-1 whitespace-nowrap">
+                <div className="flex shrink-0 gap-2">
+                  {(['all', 'active', 'inactive', 'lead'] as const).map((s) => (
+                    <FilterChip
+                      key={s}
+                      active={status === s}
+                      onClick={() => setStatus(s)}
+                    >
+                      {s === 'all'
+                        ? 'All'
+                        : s === 'lead'
+                          ? 'Leads'
+                          : s[0].toUpperCase() + s.slice(1)}{' '}
+                      <span className="opacity-60">{counts[s]}</span>
+                    </FilterChip>
+                  ))}
+                </div>
+                <span aria-hidden className="h-6 w-px shrink-0 bg-(--line)" />
+                <div className="flex shrink-0 gap-2">
+                  {(['all', 'individual', 'company'] as const).map((k) => (
+                    <FilterChip
+                      key={k}
+                      active={kind === k}
+                      onClick={() => setKind(k)}
+                    >
+                      {k === 'all' ? 'All types' : KIND_LABEL[k]}
+                    </FilterChip>
+                  ))}
+                </div>
               </div>
-              <SelectInput
-                value={sort}
-                onChange={(e) => setSort(e.target.value as Sort)}
-                className="ml-auto w-44"
-                aria-label="Sort clients"
-              >
-                <option value="name">Sort: Name</option>
-                <option value="ltv">Sort: Lifetime value</option>
-                <option value="recent">Sort: Newest</option>
-              </SelectInput>
             </div>
 
             <div className="crm-scroll overflow-x-auto">
@@ -256,13 +277,13 @@ function ClientsPage() {
                     <th className="px-5 py-3">Name</th>
                     <th className="px-3 py-3">Phone</th>
                     <th className="px-3 py-3">Email</th>
-                    <th className="px-3 py-3">Address</th>
+                    <th className="px-3 py-3">Type</th>
                     <th className="px-3 py-3">Status</th>
                     <th className="px-5 py-3 text-right">Lifetime value</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ client, property, ltv }) => (
+                  {rows.map(({ client, address, ltv }) => (
                     <tr
                       key={client.id}
                       onClick={() =>
@@ -285,13 +306,17 @@ function ClientsPage() {
                             <p className="truncate font-bold">
                               {client.display_name}
                             </p>
-                            <p className="flex items-center gap-1 text-xs text-(--ink-3)">
-                              {client.kind === 'company' ? (
-                                <Building2 className="size-3" />
+                            <p className="truncate text-xs text-(--ink-3)">
+                              {address ? (
+                                [
+                                  client.billing_address_line1,
+                                  client.billing_postal_code,
+                                ]
+                                  .filter(Boolean)
+                                  .join(', ')
                               ) : (
-                                <Home className="size-3" />
+                                <span className="italic">No address</span>
                               )}
-                              {KIND_LABEL[client.kind]}
                             </p>
                           </div>
                         </div>
@@ -302,13 +327,15 @@ function ClientsPage() {
                       <td className="max-w-[220px] truncate px-3 py-3 text-(--ink-2)">
                         {client.email ?? ''}
                       </td>
-                      <td className="max-w-[240px] truncate px-3 py-3 text-(--ink-2)">
-                        {property?.address_line1}
-                        {t.propertiesOf(client.id).length > 1 && (
-                          <Badge className="ml-2">
-                            +{t.propertiesOf(client.id).length - 1}
-                          </Badge>
-                        )}
+                      <td className="px-3 py-3 whitespace-nowrap text-(--ink-2)">
+                        <span className="flex items-center gap-1.5">
+                          {client.kind === 'company' ? (
+                            <Building2 className="size-3.5 text-(--ink-3)" />
+                          ) : (
+                            <Home className="size-3.5 text-(--ink-3)" />
+                          )}
+                          {KIND_LABEL[client.kind]}
+                        </span>
                       </td>
                       <td className="px-3 py-3">
                         <StatusBadge status={client.status} />
@@ -393,22 +420,33 @@ function AddClientModal({
       >,
     ) =>
       setForm((f) => ({ ...f, [k]: e.target.value }))
-  const valid = form.display_name.trim().length > 0
+  const [address, setAddress] = useState(EMPTY_ADDRESS)
+  const [touched, setTouched] = useState(false)
+  // The address is optional, but a started one needs a street and city.
+  const hasAddress = !isBlank(address)
+  const addressOk = !hasAddress || isComplete(address)
+  const valid = form.display_name.trim().length > 0 && addressOk
+  const busy = creating
 
   const submit = async () => {
+    setTouched(true)
+    if (!valid || busy) return
+    let client
     try {
-      const client = await createClient({
+      client = await createClient({
         display_name: form.display_name.trim(),
         kind: form.kind,
         email: form.email.trim() || undefined,
         phone: form.phone.trim() || undefined,
+        ...(hasAddress && { address: toClientAddress(address) }),
       })
-      toast(`${client.display_name} added`)
-      onClose()
-      onCreated(client.id)
     } catch {
       // The mutation's onError already toasted; keep the modal open to retry.
+      return
     }
+    toast(`${client.display_name} added`)
+    onClose()
+    onCreated(client.id)
   }
 
   return (
@@ -423,11 +461,7 @@ function AddClientModal({
           <Btn variant="ghost" onClick={onClose}>
             Cancel
           </Btn>
-          <Btn
-            icon={UserPlus}
-            disabled={!valid || creating}
-            onClick={() => void submit()}
-          >
+          <Btn icon={UserPlus} disabled={busy} onClick={() => void submit()}>
             Add client
           </Btn>
         </>
@@ -440,6 +474,8 @@ function AddClientModal({
             onChange={set('display_name')}
             placeholder="Jane Smith or Acme Property Group"
             autoFocus
+            {...(touched &&
+              form.display_name.trim() === '' && { 'aria-invalid': true })}
           />
         </Field>
         <Field label="Type">
@@ -464,6 +500,18 @@ function AddClientModal({
             placeholder="name@example.com"
           />
         </Field>
+        <fieldset className="sm:col-span-2">
+          <legend className="mb-3 text-sm font-bold">
+            Service address{' '}
+            <span className="font-normal text-(--ink-3)">(optional)</span>
+          </legend>
+          <AddressFields
+            idPrefix="new-client"
+            value={address}
+            onChange={setAddress}
+            touched={touched && hasAddress}
+          />
+        </fieldset>
       </div>
     </Modal>
   )
@@ -614,7 +662,7 @@ function ClientProfile({
       }
     >
       {tab === 'overview' && (
-        <OverviewTab t={t} client={client} updateClient={updateClient} />
+        <OverviewTab client={client} updateClient={updateClient} />
       )}
       {tab === 'history' && (
         <JobList
@@ -678,15 +726,12 @@ function InlineEdit({
 }
 
 function OverviewTab({
-  t,
   client,
   updateClient,
 }: {
-  t: Tenant
   client: ClientRow
   updateClient: ReturnType<typeof useClientMutations>['updateClient']
 }) {
-  const properties = t.propertiesOf(client.id)
   const saved = () => toast('Saved', 'info')
   return (
     <div className="space-y-4">
@@ -763,86 +808,83 @@ function OverviewTab({
         </div>
       </Card>
 
-      {properties.map((p) => (
-        <Card key={p.id} className="p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-xs font-bold tracking-wider text-(--ink-3) uppercase">
-              Property · {p.label}
-            </p>
-            <Badge tone="green">
-              <Home className="size-3" />{' '}
-              {p.lawnSqft
-                ? `${p.lawnSqft.toLocaleString()} sq ft`
-                : 'Size unknown'}
-            </Badge>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Address" className="sm:col-span-2">
-              <InlineEdit
-                label="Address"
-                value={p.address_line1}
-                onSave={(v) => {
-                  actions.updateProperty(p.id, { address_line1: v })
-                  saved()
-                }}
-              />
-            </Field>
-            <Field label="Front lawn size (sq ft)">
-              <InlineEdit
-                label="Lawn size"
-                type="number"
-                value={String(p.lawnSqft || '')}
-                onSave={(v) => {
-                  actions.updateProperty(p.id, { lawnSqft: Number(v) || 0 })
-                  saved()
-                }}
-              />
-            </Field>
-            <Field label="Gate code">
-              <InlineEdit
-                label="Gate code"
-                value={p.gateCode}
-                onSave={(v) => {
-                  actions.updateProperty(p.id, { gateCode: v })
-                  saved()
-                }}
-              />
-            </Field>
-            <Field label="Pets present">
-              <InlineEdit
-                label="Pets"
-                value={p.pets}
-                onSave={(v) => {
-                  actions.updateProperty(p.id, { pets: v })
-                  saved()
-                }}
-              />
-            </Field>
-            <Field label="Access">
-              <InlineEdit
-                label="Access notes"
-                value={p.accessNotes}
-                onSave={(v) => {
-                  actions.updateProperty(p.id, { accessNotes: v })
-                  saved()
-                }}
-              />
-            </Field>
-            <Field label="Special instructions" className="sm:col-span-2">
-              <InlineEdit
-                label="Special instructions"
-                multiline
-                value={p.instructions}
-                onSave={(v) => {
-                  actions.updateProperty(p.id, { instructions: v })
-                  saved()
-                }}
-              />
-            </Field>
-          </div>
-        </Card>
-      ))}
+      <AddressCard client={client} />
     </div>
+  )
+}
+
+/** The client's address, saved in the clients.billing_* columns. */
+function AddressCard({ client }: { client: ClientRow }) {
+  const { saveClient, saving } = useClientMutations()
+  const [editing, setEditing] = useState(false)
+  const lines = clientAddressLines(client)
+
+  return (
+    <Card className="p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-xs font-bold tracking-wider text-(--ink-3) uppercase">
+          Address
+        </p>
+        {lines && (
+          <Btn
+            variant="ghost"
+            size="sm"
+            icon={Pencil}
+            onClick={() => setEditing(true)}
+          >
+            Edit
+          </Btn>
+        )}
+      </div>
+      {lines ? (
+        <div className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-(--sage) text-(--leaf-700)">
+            <Home className="size-4" />
+          </span>
+          <div className="min-w-0 text-sm">
+            <p className="font-semibold text-(--ink)">{lines.street}</p>
+            <p className="text-(--ink-2)">
+              {lines.place}
+              {client.billing_country &&
+                client.billing_country !== 'CA' &&
+                ` · ${client.billing_country}`}
+            </p>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                `${lines.street}, ${lines.place}`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold"
+            >
+              <MapPin className="size-3" /> Open in Maps
+            </a>
+          </div>
+        </div>
+      ) : (
+        <EmptyState
+          icon={MapPin}
+          title="No address yet"
+          body="Add the client’s address so crews know where to go."
+          action={
+            <Btn icon={Plus} onClick={() => setEditing(true)}>
+              Add address
+            </Btn>
+          }
+        />
+      )}
+      {editing && (
+        <ClientAddressModal
+          client={client}
+          saving={saving}
+          onClose={() => setEditing(false)}
+          onSave={async (address) => {
+            await saveClient(client.id, { address })
+            toast(address ? 'Address saved' : 'Address removed', 'info')
+          }}
+        />
+      )}
+    </Card>
   )
 }
 
@@ -1103,7 +1145,7 @@ function TimelineTab({ t, client }: { t: Tenant; client: ClientRow }) {
           .map((s) => s.name)
           .join(', ')}`,
         sub: `${j.number} · ${t.crew(j.crew_id)?.name ?? 'Unassigned'}`,
-        tone: j.status === 'completed' ? 'var(--sage)' : 'var(--sky-100)',
+        tone: j.status === 'completed' ? '#dcf0e2' : 'var(--sky-100)',
       })),
     ...t.invoices
       .filter((i) => i.client_id === client.id)
