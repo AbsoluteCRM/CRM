@@ -12,6 +12,7 @@ import { useRole } from '#/integrations/organization/use-role'
 import { WeekCalendar } from '#/components/calendar/WeekCalendar'
 import { addDays, startOfWeek, toISODate } from '#/components/crm/format'
 import JobFormModal from '#/components/crm/JobFormModal'
+import { depotLonLat } from '#/components/crm/route'
 import PageShell from '#/components/crm/PageShell'
 import type { Tenant } from '#/mocks/crm-store'
 import { actions, useTenant } from '#/mocks/crm-store'
@@ -57,6 +58,7 @@ function weekRoutes(t: Tenant, anchor: Date): Array<DayRoute> {
           status: toStopStatus(j.status),
           durationMinutes: j.durationMinutes,
           notes: j.notes || undefined,
+          location: property?.location ?? null,
           crew: crew
             ? { id: crew.id, name: crew.name, color: crew.color }
             : UNASSIGNED,
@@ -121,6 +123,7 @@ function RouteComponent() {
       }
     >
       <WeekCalendar
+        depot={depotLonLat(t.org.city)}
         getWeekRoutes={getWeekRoutes}
         onUpdateStop={updateStop}
         canReschedule={manage}

@@ -1,4 +1,4 @@
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import type { Meta, StoryObj } from '@storybook/tanstack-react'
 
 import { WeekCalendar } from './WeekCalendar'
@@ -24,11 +24,19 @@ export const DaySelected: Story = {
 }
 
 export const RouteMapShown: Story = {
-  args: { mapApiKey: 'storybook-key' },
+  args: { depot: { lon: -114.0362, lat: 51.0108 } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /8 jobs/ }))
-    await expect(canvas.getByTitle('Route map')).toBeInTheDocument()
+    const map = canvas.getByRole('region', { name: 'Route map' })
+    await waitFor(
+      () => expect(map.querySelector('[data-map-ready]')).not.toBeNull(),
+      { timeout: 10_000 },
+    )
+    await expect(within(map).getByTestId('map-stops').textContent).toMatch(
+      /^Stops on the map: 1\. .*; 8\. /,
+    )
+    await expect(map.querySelector('canvas')).not.toBeNull()
   },
 }
 
