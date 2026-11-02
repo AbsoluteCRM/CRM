@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { inferRouterOutputs } from '@trpc/server'
 
 import { toast } from '#/lib/toast'
-import { useOrganization } from '#/integrations/organization/context'
+import { settleList, useOrgScope } from '#/integrations/organization/org-query'
 import { useTRPC } from '#/integrations/trpc/react'
 import type { TRPCRouter } from '#/integrations/trpc/router'
 
@@ -10,13 +10,9 @@ export type Crew = inferRouterOutputs<TRPCRouter>['crews']['list'][number]
 
 export function useCrews() {
   const trpc = useTRPC()
-  const { organization } = useOrganization()
-  const organizationId = organization?.id
+  const { input, enabled } = useOrgScope()
 
-  return useQuery({
-    ...trpc.crews.list.queryOptions({ organizationId: organizationId! }),
-    enabled: organizationId !== undefined,
-  })
+  return useQuery({ ...trpc.crews.list.queryOptions(input), enabled })
 }
 
 type CrewList = Array<Crew>
@@ -63,14 +59,14 @@ export const applyLead = (
 export function useCrewMutations() {
   const trpc = useTRPC()
   const queryClient = useQueryClient()
-  const { organization } = useOrganization()
-  const organizationId = organization?.id
-  const listKey = trpc.crews.list.queryKey({ organizationId: organizationId! })
+  const { input: base } = useOrgScope()
+  const listKey = trpc.crews.list.queryKey(base)
+  const settle = settleList(queryClient, listKey, 'crews')
 
   const optimistic = <TVars>(
     patch: (crews: CrewList, vars: TVars) => CrewList,
   ) => ({
-    scope: { id: 'crews' },
+    ...settle,
     onMutate: async (vars: TVars) => {
       await queryClient.cancelQueries({ queryKey: listKey })
       queryClient.setQueryData<CrewList>(listKey, (old) =>
@@ -78,18 +74,16 @@ export function useCrewMutations() {
       )
     },
     onError: (e: { message: string }) => toast(`Couldn't save: ${e.message}`),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: listKey }),
   })
 
   const create = useMutation(
     trpc.crews.create.mutationOptions({
-      scope: { id: 'crews' },
+      ...settle,
       onSuccess: (crew) =>
         queryClient.setQueryData<CrewList>(listKey, (old) =>
           old ? [...old, crew] : [crew],
         ),
       onError: (e) => toast(`Couldn't create the crew: ${e.message}`),
-      onSettled: () => queryClient.invalidateQueries({ queryKey: listKey }),
     }),
   )
 
@@ -121,7 +115,6 @@ export function useCrewMutations() {
     ),
   )
 
-  const base = { organizationId: organizationId! }
   return {
     createCrew: (name: string, color: string) =>
       create.mutateAsync({ ...base, name, color }),

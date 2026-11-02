@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { useTRPC } from '#/integrations/trpc/react'
-import { useOrganization } from '#/integrations/organization/context'
+import { useActiveOrgId } from '#/integrations/organization/use-role'
 import type { OrgRole } from '#/integrations/organization/permissions'
 import { createSupabaseBrowserClient } from '#/lib/supabase/client'
 
@@ -24,8 +24,7 @@ export const teamMembersKey = (organizationId: string | undefined) =>
 
 // RLS limits rows to orgs the caller belongs to; the explicit org filter picks the active one.
 export function useTeamMembers() {
-  const { organization } = useOrganization()
-  const organizationId = organization?.id
+  const organizationId = useActiveOrgId()
 
   return useQuery({
     queryKey: teamMembersKey(organizationId),
@@ -45,15 +44,15 @@ export function useTeamMembers() {
 export type InviteRole = Exclude<OrgRole, 'owner'>
 
 export function useInviteTeamMember() {
-  const { organization } = useOrganization()
+  const organizationId = useActiveOrgId()
   const trpc = useTRPC()
   const invite = useMutation(trpc.teams.invite.mutationOptions())
   return {
     ...invite,
     mutateAsync: (input: { email: string; role: InviteRole }) => {
-      if (!organization)
+      if (!organizationId)
         return Promise.reject(new Error('No active organization.'))
-      return invite.mutateAsync({ ...input, organizationId: organization.id })
+      return invite.mutateAsync({ ...input, organizationId })
     },
   }
 }

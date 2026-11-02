@@ -3,7 +3,7 @@ import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
 
 import { toast } from '#/lib/toast'
 import type { Service } from '#/integrations/services/types'
-import { useOrganization } from '#/integrations/organization/context'
+import { settleList, useOrgScope } from '#/integrations/organization/org-query'
 import { useTRPC } from '#/integrations/trpc/react'
 import type { TRPCRouter } from '#/integrations/trpc/router'
 
@@ -40,12 +40,11 @@ export const toSeasonColumns = (season: Service['season']) => ({
 
 export function useServices() {
   const trpc = useTRPC()
-  const { organization } = useOrganization()
-  const organizationId = organization?.id
+  const { input, enabled } = useOrgScope()
 
   return useQuery({
-    ...trpc.services.list.queryOptions({ organizationId: organizationId! }),
-    enabled: organizationId !== undefined,
+    ...trpc.services.list.queryOptions(input),
+    enabled,
     select: (rows) => rows.map(toService),
   })
 }
@@ -53,15 +52,12 @@ export function useServices() {
 export function useServiceMutations() {
   const trpc = useTRPC()
   const queryClient = useQueryClient()
-  const { organization } = useOrganization()
-  const organizationId = organization?.id
-  const listKey = trpc.services.list.queryKey({
-    organizationId: organizationId!,
-  })
-  const settle = {
-    scope: { id: 'services' },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: listKey }),
-  }
+  const { input: base } = useOrgScope()
+  const settle = settleList(
+    queryClient,
+    trpc.services.list.queryKey(base),
+    'services',
+  )
 
   const create = useMutation(
     trpc.services.create.mutationOptions({
@@ -82,7 +78,6 @@ export function useServiceMutations() {
     }),
   )
 
-  const base = { organizationId: organizationId! }
   return {
     createService: (input: ServiceInput) =>
       create.mutateAsync({ ...base, ...input }),
