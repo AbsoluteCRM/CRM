@@ -21,7 +21,10 @@ export const env = createEnv({
     VITE_APP_TITLE: z.string().min(1).optional(),
     VITE_SUPABASE_URL: z.string().url(),
     VITE_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
-    VITE_GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+    /** Basemap tiles: 'maptiler' | 'stadia' | 'osm' (dev only). See src/lib/map/providers.ts. */
+    VITE_MAP_PROVIDER: z.enum(['maptiler', 'stadia', 'osm']).optional(),
+    /** Public tile key, shipped to the browser. Restrict it by HTTP origin. */
+    VITE_MAP_API_KEY: z.string().min(1).optional(),
   },
 
   /**
