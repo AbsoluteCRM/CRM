@@ -24,6 +24,7 @@ describe('membershipOrganization', () => {
         'manageClients',
         'manageRequests',
         'manageCrews',
+        'viewServiceAreaCoverage',
         'viewTeam',
       ],
     })
