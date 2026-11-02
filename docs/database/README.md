@@ -26,6 +26,7 @@ This folder is the design record for the schema:
 | 7   | Invoicing & payments | invoices, invoice_line_items, invoice_visits, invoice_line_item_taxes, payments, stripe_events                | [billing.md](tables/billing.md)             |
 | 8   | Time tracking        | shifts, visit_time_entries                                                                                    | [time.md](tables/time.md)                   |
 | 9   | Requests             | requests, request_submission_log                                                                              | [requests.md](tables/requests.md)           |
+| 10  | Service areas        | service_regions, service_areas, service_area_rotations (and the derived `properties.service_area_id`)         | [service-areas.md](tables/service-areas.md) |
 
 The core business flow is:
 
@@ -87,10 +88,12 @@ These rules apply to every table unless its reference doc says otherwise.
 - **Document numbers**: quotes, jobs, and invoices get a per-organization,
   gap-free, human-facing `number` (`Q-1001`, `J-1001`, `INV-1001`) from
   `private.next_document_number(org, kind)`.
-- **Geo**: `location geography(Point, 4326)` with a GiST index. Stored
-  generated `latitude` / `longitude` columns exist so clients that can't read
-  PostGIS types, such as the generated TypeScript types, still see usable
-  fields.
+- **Geo**: points are `location geography(Point, 4326)` with a GiST index.
+  Stored generated `latitude` / `longitude` columns exist so clients that
+  can't read PostGIS types, such as the generated TypeScript types, still see
+  usable fields. Service area and region polygons are
+  `geometry(MultiPolygon, 4326)`, read and written only as GeoJSON through
+  RPCs ([ADR 0012](decisions/0012-service-areas.md)).
 - **Extensions** (installed in schema `extensions`, except `pg_cron`): `postgis`,
   `btree_gist`, `btree_gin`, `moddatetime`, `pg_trgm`, `pgcrypto`, `pgtap`,
   `pg_cron`. There is no `citext`: emails are `text` with a

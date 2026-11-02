@@ -17,3 +17,4 @@ rewrite history.
 | 0009 | [App data access goes through supabase-js, under RLS](0009-supabase-js-data-access.md)         | Accepted           |
 | 0010 | [Rebaseline the migrations before launch](0010-pre-launch-rebaseline.md)                       | Accepted           |
 | 0011 | [Workers use RPCs, not table policies](0011-worker-rpcs.md)                                    | Accepted           |
+| 0012 | [Service areas: PostGIS polygons and a derived property area](0012-service-areas.md)           | Accepted           |
