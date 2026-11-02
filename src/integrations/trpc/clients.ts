@@ -338,10 +338,17 @@ export const clientsRouter = {
           const retry =
             before.latitude === null && before.geocode_source !== 'manual'
           let location = {}
+          let retryLocation: ReturnType<typeof locationColumns> | null = null
           if (addressChanged || retry) {
             const geocoded = await geocodeForSave(after)
-            // On a retry that fails again, leave the columns as they are.
-            if (geocoded || addressChanged) location = locationColumns(geocoded)
+            if (addressChanged) {
+              // The address text changed, so the old point (even a pin) is stale.
+              location = locationColumns(geocoded)
+            } else if (geocoded) {
+              // Retry only: written separately below with a guard, so a pin
+              // dropped since the read can't be overwritten.
+              retryLocation = locationColumns(geocoded)
+            }
           }
           const { data, error } = await ctx.supabase
             .from('properties')
@@ -355,6 +362,30 @@ export const clientsRouter = {
               code: 'NOT_FOUND',
               message: 'Property not found',
             })
+          }
+          if (retryLocation) {
+            // A manual pin always has a location, so `location is null`
+            // rejects the write if one was set meanwhile.
+            const guarded = await ctx.supabase
+              .from('properties')
+              .update(retryLocation)
+              .eq('organization_id', ctx.organizationId)
+              .eq('id', input.propertyId)
+              .is('location', null)
+              .select(PROPERTY_COLUMNS)
+            if (guarded.error) throw toTRPCError(guarded.error)
+            if (guarded.data.length > 0) {
+              return withLocationStatus(guarded.data[0])
+            }
+            const reread = await ctx.supabase
+              .from('properties')
+              .select(PROPERTY_COLUMNS)
+              .eq('organization_id', ctx.organizationId)
+              .eq('id', input.propertyId)
+            if (reread.error) throw toTRPCError(reread.error)
+            if (reread.data.length > 0) {
+              return withLocationStatus(reread.data[0])
+            }
           }
           return withLocationStatus(data[0])
         }),

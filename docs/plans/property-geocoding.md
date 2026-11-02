@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `property-geocoding` / `feat/property-geocoding`
 - **Tier**: full (schema, tRPC procedures, trusted server code)
-- **Status**: approved (phase 2 of the approved
+- **Status**: implemented (phase 2 of the approved
   [maps-service-areas roadmap](https://github.com/AbsoluteCRM/CRM/pull/89))
 - **Confidence**: 95%. The behaviour (chain, cache, manual-pin rule, no
   blocking on failure) comes from Eric's approved roadmap and the phase brief.
@@ -285,13 +285,22 @@ pnpm install && pnpm lint && pnpm check && pnpm exec tsc --noEmit && pnpm exec v
 
 ## Audit log
 
-### Round 1 (`plan-auditor`): not run
+### Round 1 (`plan-auditor`): not run (the approved roadmap covered this phase)
 
 The brief came with the approved roadmap and asked for direct implementation;
 the implementing session has no sub-agents. The reviewer and security agents
 run on the PR before merge.
 
-### Review (`reviewer`, and `security`): pending
+### Review (`reviewer`, and `security`): pass
+
+| Agent      | Verdict | Blocking findings |
+| ---------- | ------- | ----------------- |
+| `reviewer` | pass    | none              |
+| `security` | pass    | none              |
+
+Follow-up from review: a retry geocode (address unchanged, row had no point)
+now writes the point in a separate update guarded by `location is null`, so a
+manual pin set meanwhile can't be overwritten.
 
 ## Scope-change log
 

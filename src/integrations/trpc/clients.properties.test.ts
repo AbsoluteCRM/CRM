@@ -341,7 +341,19 @@ describe('clients.properties.update', () => {
       propertyId: PROPERTY,
       name: 'Main house',
     })
-    expect(writes('update')[0]).toMatchObject({ geocode_source: 'maptiler' })
+    // The point is written in a second update guarded by `location is null`,
+    // so a pin dropped since the read can't be overwritten by the retry.
+    const [fields, point] = writes('update')
+    expect(fields).toEqual({ name: 'Main house' })
+    expect(point).toMatchObject({ geocode_source: 'maptiler' })
+    const pointAt = state.calls.findIndex(
+      ([k, v]) => k === 'properties.update' && v === point,
+    )
+    expect(state.calls.slice(pointAt)).toContainEqual([
+      'properties.is',
+      'location',
+      null,
+    ])
 
     state.calls = []
     state.geocode = null
