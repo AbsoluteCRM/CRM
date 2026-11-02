@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 
+import { useRole } from '#/integrations/organization/use-role'
 import PageShell from '#/components/crm/PageShell'
 import {
   Badge,
@@ -28,9 +29,11 @@ import {
   TextArea,
   TextInput,
   Toggle,
-  toast,
 } from '#/components/crm/ui'
-import { inSeason, useTenant } from '#/components/crm/store'
+import { toast } from '#/lib/toast'
+import { inSeason } from '#/integrations/services/types'
+import { useTenant } from '#/mocks/crm-store'
+import { SampleDataBadge } from '#/mocks/SampleDataBadge'
 import {
   MONTHS,
   addDays,
@@ -39,8 +42,6 @@ import {
   parseDate,
   todayISO,
 } from '#/components/crm/format'
-import { useOrganization } from '#/integrations/organization/context'
-import { can } from '#/integrations/organization/permissions'
 import {
   toSeasonColumns,
   useServiceMutations,
@@ -49,7 +50,11 @@ import {
 import PrecipitationFields from '#/components/services/PrecipitationFields'
 import SeasonBar, { seasonText } from '#/components/services/SeasonBar'
 import { cn } from '#/lib/utils'
-import type { Frequency, Service, ServiceUnit } from '#/components/crm/types'
+import type {
+  Frequency,
+  Service,
+  ServiceUnit,
+} from '#/integrations/services/types'
 
 export const Route = createFileRoute('/_authed/services')({
   component: ServicesPage,
@@ -91,16 +96,15 @@ type Filter = 'all' | 'recurring' | 'one_time' | 'in_season' | 'inactive'
 
 function ServicesPage() {
   const t = useTenant()
-  const { organization } = useOrganization()
+  const access = useRole()
   const services = useServices()
   const mutations = useServiceMutations()
   const catalog = services.data ?? []
-  const role = organization?.role ?? 'worker'
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Service | 'new' | null>(null)
   const month = parseDate(todayISO()).getMonth() + 1
-  const editable = can.manageServices(role)
+  const editable = access.can('manageServices')
 
   const since = addDays(todayISO(), -30)
   const usage = (id: string) => {
@@ -147,7 +151,7 @@ function ServicesPage() {
       kicker="Service catalog"
       title="Services"
       subtitle="Standardize pricing, duration, equipment, and when each service is offered."
-      allowed={can.manageClients(role)}
+      allowed={access.can('manageClients')}
       section="Services"
       actions={
         editable && (
@@ -318,11 +322,12 @@ function ServicesPage() {
                     <span className="flex items-center gap-1">
                       <CalendarRange className="size-3" /> {seasonText(s)}
                     </span>
-                    <span>
+                    <span className="flex items-center gap-1.5">
                       {u.count} jobs · 30d
-                      {can.viewRevenue(t.role)
+                      {access.can('viewRevenue')
                         ? ` · ${money(Math.round(u.revenue / 100) * 100)}`
                         : ''}
+                      <SampleDataBadge />
                     </span>
                   </p>
                   <SeasonBar service={s} />

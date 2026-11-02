@@ -9,8 +9,8 @@ import {
   CardHeader,
   EmptyState,
   SelectInput,
-  toast,
 } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import type { BasemapChoice } from '#/components/map/MapView'
 import type {
   ServiceAreaCoverage,

@@ -1,4 +1,4 @@
-import { toast } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import { useCrews } from '#/integrations/crews/crews'
 import { useOrganization } from '#/integrations/organization/context'
 import { can } from '#/integrations/organization/permissions'

@@ -58,25 +58,26 @@ Indexes:
 
 A service location. Its geocoded point is what routing works from.
 
-| Column            | Type                    | Null | Default | Notes                                                                                                                                                                                   |
-| ----------------- | ----------------------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `client_id`       | `uuid`                  | no   |         | Composite FK → `clients`, on delete restrict                                                                                                                                            |
-| `name`            | `text`                  | yes  |         | "Main house", "Lot 4"                                                                                                                                                                   |
-| `address_line1`   | `text`                  | no   |         |                                                                                                                                                                                         |
-| `address_line2`   | `text`                  | yes  |         |                                                                                                                                                                                         |
-| `city`            | `text`                  | no   |         |                                                                                                                                                                                         |
-| `region`          | `text`                  | yes  |         | Province or state                                                                                                                                                                       |
-| `postal_code`     | `text`                  | yes  |         |                                                                                                                                                                                         |
-| `country`         | `text`                  | no   | `'CA'`  |                                                                                                                                                                                         |
-| `location`        | `geography(Point,4326)` | yes  |         | Null until geocoded. Visits can't be routed without it                                                                                                                                  |
-| `latitude`        | `double precision`      | —    |         | `generated always as (st_y(location::geometry)) stored`                                                                                                                                 |
-| `longitude`       | `double precision`      | —    |         | `generated always as (st_x(location::geometry)) stored`                                                                                                                                 |
-| `geocoded_at`     | `timestamptz`           | yes  |         |                                                                                                                                                                                         |
-| `geocode_source`  | `text`                  | yes  |         | `google`, `mapbox`, `manual` (a dragged pin)                                                                                                                                            |
-| `access_notes`    | `text`                  | yes  |         | Gate codes, dogs, parking. Returned to rostered workers by `worker_route_stops`                                                                                                         |
-| `lot_size_sqft`   | `integer`               | yes  |         | Check `> 0`. Useful for quoting                                                                                                                                                         |
-| `service_area_id` | `uuid`                  | yes  |         | Derived: the winning live service area covering `location` (composite FK → `service_areas`, on delete set null). Not writable through the API; see [service-areas.md](service-areas.md) |
-| `archived_at`     | `timestamptz`           | yes  |         |                                                                                                                                                                                         |
+| Column             | Type                    | Null | Default | Notes                                                                                                                                                                                   |
+| ------------------ | ----------------------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `client_id`        | `uuid`                  | no   |         | Composite FK → `clients`, on delete restrict                                                                                                                                            |
+| `name`             | `text`                  | yes  |         | "Main house", "Lot 4"                                                                                                                                                                   |
+| `address_line1`    | `text`                  | no   |         |                                                                                                                                                                                         |
+| `address_line2`    | `text`                  | yes  |         |                                                                                                                                                                                         |
+| `city`             | `text`                  | no   |         |                                                                                                                                                                                         |
+| `region`           | `text`                  | yes  |         | Province or state                                                                                                                                                                       |
+| `postal_code`      | `text`                  | yes  |         |                                                                                                                                                                                         |
+| `country`          | `text`                  | no   | `'CA'`  |                                                                                                                                                                                         |
+| `location`         | `geography(Point,4326)` | yes  |         | Null until geocoded. Visits can't be routed without it                                                                                                                                  |
+| `latitude`         | `double precision`      | —    |         | `generated always as (st_y(location::geometry)) stored`                                                                                                                                 |
+| `longitude`        | `double precision`      | —    |         | `generated always as (st_x(location::geometry)) stored`                                                                                                                                 |
+| `geocoded_at`      | `timestamptz`           | yes  |         |                                                                                                                                                                                         |
+| `geocode_source`   | `text`                  | yes  |         | `maptiler`, `nominatim`, `manual` (a dropped pin). Older rows may say `google` or `mapbox`                                                                                              |
+| `geocode_accuracy` | `text`                  | yes  |         | Check: `rooftop`, `street`, `postal`, `locality`, `unknown`. `locality`/`unknown` are low confidence. Null when not geocoded                                                            |
+| `access_notes`     | `text`                  | yes  |         | Gate codes, dogs, parking. Returned to rostered workers by `worker_route_stops`                                                                                                         |
+| `lot_size_sqft`    | `integer`               | yes  |         | Check `> 0`. Useful for quoting                                                                                                                                                         |
+| `service_area_id`  | `uuid`                  | yes  |         | Derived: the winning live service area covering `location` (composite FK → `service_areas`, on delete set null). Not writable through the API; see [service-areas.md](service-areas.md) |
+| `archived_at`      | `timestamptz`           | yes  |         |                                                                                                                                                                                         |
 
 Indexes:
 
@@ -85,6 +86,50 @@ Indexes:
 - GiST `(organization_id, location)` (needs `btree_gist`)
 - GiST `(organization_id, (location::geometry))`, for planar `ST_Covers` against service area polygons
 - `(organization_id, service_area_id)`
+
+### Geocoding
+
+The app geocodes on the server when a property is saved
+(`clients.properties.create` / `update`), and the point is stored, so
+nothing calls a provider at query time ([ADR 0013](../decisions/0013-geocoding-chain-and-cache.md)).
+
+- **When**: on create, when the address fields that move the point change
+  (`address_line1`, `city`, `region`, `postal_code`, `country`; not
+  `address_line2`), and on any save of a row that has no point yet and
+  isn't a manual pin.
+- **Never blocks a save**: if every provider fails, the property saves with
+  `location`, `geocoded_at`, `geocode_source`, and `geocode_accuracy` null.
+  When the address changed, a stale point is cleared.
+- **Manual pin** (`clients.properties.setLocation`): `geocode_source =
+'manual'`, `geocode_accuracy = 'rooftop'`. It is never overwritten
+  unless the address changes. The backfill script never touches it.
+- **Low confidence**: `locality` and `unknown` results are stored but the
+  procedures report `location_status = 'low_confidence'` (`missing` when
+  there's no point, else `ok`).
+- **Backfill**: `pnpm geocode:backfill` (dry run by default; `--apply`,
+  `--org`, `--limit`, `--chain`, `--interval-ms`,
+  `--include-low-confidence`).
+
+## `geocode_cache`
+
+Shared geocoder results, so the same address is looked up once across all
+orgs. It holds **no tenant id and no address text**: the key is the SHA-256
+of the normalized address. RLS is enabled with **no policies**, and
+`authenticated`/`anon` have no grants, so it's service role only (read and
+written by `src/server/trusted/geocode-cache.ts`). Only trusted accuracies
+(`rooftop`, `street`, `postal`) are cached.
+
+| Column                    | Type               | Null | Default | Notes                                       |
+| ------------------------- | ------------------ | ---- | ------- | ------------------------------------------- |
+| `normalized_address_hash` | `text`             | no   |         | PK. Check: 64 lowercase hex chars           |
+| `provider`                | `text`             | no   |         | `maptiler`, `nominatim`                     |
+| `lon`                     | `double precision` | no   |         | Check −180..180                             |
+| `lat`                     | `double precision` | no   |         | Check −90..90                               |
+| `accuracy`                | `text`             | no   |         | Same check as `properties.geocode_accuracy` |
+| `fetched_at`              | `timestamptz`      | no   | `now()` |                                             |
+
+No standard columns (`id`, `organization_id`, timestamps): it's a global
+lookup table.
 
 ## `client_portal_users`
 

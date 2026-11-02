@@ -418,6 +418,33 @@ export type Database = {
           },
         ]
       }
+      geocode_cache: {
+        Row: {
+          accuracy: string
+          fetched_at: string
+          lat: number
+          lon: number
+          normalized_address_hash: string
+          provider: string
+        }
+        Insert: {
+          accuracy: string
+          fetched_at?: string
+          lat: number
+          lon: number
+          normalized_address_hash: string
+          provider: string
+        }
+        Update: {
+          accuracy?: string
+          fetched_at?: string
+          lat?: number
+          lon?: number
+          normalized_address_hash?: string
+          provider?: string
+        }
+        Relationships: []
+      }
       invoice_line_item_taxes: {
         Row: {
           amount_cents: number
@@ -1335,6 +1362,7 @@ export type Database = {
           client_id: string
           country: string
           created_at: string
+          geocode_accuracy: string | null
           geocode_source: string | null
           geocoded_at: string | null
           id: string
@@ -1358,6 +1386,7 @@ export type Database = {
           client_id: string
           country?: string
           created_at?: string
+          geocode_accuracy?: string | null
           geocode_source?: string | null
           geocoded_at?: string | null
           id?: string
@@ -1381,6 +1410,7 @@ export type Database = {
           client_id?: string
           country?: string
           created_at?: string
+          geocode_accuracy?: string | null
           geocode_source?: string | null
           geocoded_at?: string | null
           id?: string

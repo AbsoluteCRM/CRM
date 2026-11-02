@@ -28,14 +28,10 @@ import {
   TextInput,
   Toggle,
 } from '#/components/crm/ui'
-import {
-  DEFAULT_HOURS,
-  DEFAULT_SERVICES,
-  actions,
-} from '#/components/crm/store'
+import { DEFAULT_HOURS, DEFAULT_SERVICES, actions } from '#/mocks/crm-store'
 import { fmtDuration, money } from '#/components/crm/format'
 import { cn } from '#/lib/utils'
-import type { DayHours, Weekday } from '#/components/crm/types'
+import type { DayHours, Weekday } from '#/mocks/crm-types'
 import type { LucideIcon } from 'lucide-react'
 
 export const Route = createFileRoute('/_authed/onboarding')({

@@ -14,6 +14,7 @@ import {
   UserPlus,
 } from 'lucide-react'
 
+import { useRole } from '#/integrations/organization/use-role'
 import PageShell from '#/components/crm/PageShell'
 import JobFormModal from '#/components/crm/JobFormModal'
 import {
@@ -34,26 +35,26 @@ import {
   Tabs,
   TextArea,
   TextInput,
-  toast,
 } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import {
   actions,
-  can,
   invoiceBalance,
   isOverdue,
   useTenant,
-} from '#/components/crm/store'
+} from '#/mocks/crm-store'
+import { SampleDataBadge, SampleDataNote } from '#/mocks/SampleDataBadge'
 import { fmtDate, fmtTime, money, todayISO } from '#/components/crm/format'
 import { useClientMutations, useClients } from '#/integrations/clients/clients'
 import { cn } from '#/lib/utils'
 import type { ClientRow } from '#/integrations/clients/clients'
-import type { Tenant } from '#/components/crm/store'
+import type { Tenant } from '#/mocks/crm-store'
 import type {
   ClientKind,
   ClientStatus,
   Invoice,
   Payment,
-} from '#/components/crm/types'
+} from '#/mocks/crm-types'
 
 export const Route = createFileRoute('/_authed/clients')({
   validateSearch: (search: Record<string, unknown>): { id?: string } => ({
@@ -73,6 +74,7 @@ const KIND_LABEL: Record<ClientKind, string> = {
 
 function ClientsPage() {
   const t = useTenant()
+  const access = useRole()
   const { id } = Route.useSearch()
   const navigate = useNavigate()
   const clients = useClients()
@@ -140,7 +142,7 @@ function ClientsPage() {
       kicker="Customer management"
       title="Clients"
       subtitle="Homeowners and commercial properties, with service history, invoices, and notes in one place."
-      allowed={can.manageClients(t.role)}
+      allowed={access.can('manageClients')}
       section="Clients"
       actions={
         <Btn icon={UserPlus} onClick={() => setAdding(true)}>
@@ -180,18 +182,21 @@ function ClientsPage() {
               },
               {
                 label: 'Lifetime value',
-                value: can.viewRevenue(t.role) ? money(totalLtv) : '—',
+                value: access.can('viewRevenue') ? money(totalLtv) : '—',
                 sub: 'Collected payments, all clients',
+                sample: true,
               },
               {
                 label: 'Outstanding',
-                value: can.viewRevenue(t.role) ? money(outstanding) : '—',
+                value: access.can('viewRevenue') ? money(outstanding) : '—',
                 sub: `${t.invoices.filter(isOverdue).length} invoices overdue`,
+                sample: true,
               },
             ].map((k) => (
               <Card key={k.label} className="p-4">
-                <p className="text-xs font-semibold text-(--ink-3)">
+                <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-(--ink-3)">
                   {k.label}
+                  {'sample' in k && <SampleDataBadge />}
                 </p>
                 <p className="crm-display mt-1 text-2xl font-semibold">
                   {k.value}
@@ -256,9 +261,13 @@ function ClientsPage() {
                     <th className="px-5 py-3">Name</th>
                     <th className="px-3 py-3">Phone</th>
                     <th className="px-3 py-3">Email</th>
-                    <th className="px-3 py-3">Address</th>
+                    <th className="px-3 py-3">
+                      Address <SampleDataBadge className="ml-1" />
+                    </th>
                     <th className="px-3 py-3">Status</th>
-                    <th className="px-5 py-3 text-right">Lifetime value</th>
+                    <th className="px-5 py-3 text-right">
+                      Lifetime value <SampleDataBadge className="ml-1" />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -314,7 +323,7 @@ function ClientsPage() {
                         <StatusBadge status={client.status} />
                       </td>
                       <td className="px-5 py-3 text-right font-semibold">
-                        {can.viewRevenue(t.role) ? money(ltv) : '—'}
+                        {access.can('viewRevenue') ? money(ltv) : '—'}
                       </td>
                     </tr>
                   ))}
@@ -487,6 +496,7 @@ function ClientProfile({
   updateClient: ReturnType<typeof useClientMutations>['updateClient']
   onClose: () => void
 }) {
+  const access = useRole()
   const [tab, setTab] = useState<ProfileTab>('overview')
   const [scheduling, setScheduling] = useState(false)
   const today = todayISO()
@@ -537,16 +547,16 @@ function ClientProfile({
         <>
           <div className="mt-4 grid grid-cols-3 gap-3">
             <div className="rounded-2xl bg-(--lime-100) px-4 py-3">
-              <p className="text-xs font-semibold text-(--ink-3)">
-                Lifetime value
+              <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-(--ink-3)">
+                Lifetime value <SampleDataBadge />
               </p>
               <p className="crm-display text-xl font-semibold">
-                {can.viewRevenue(t.role) ? money(ltv) : '—'}
+                {access.can('viewRevenue') ? money(ltv) : '—'}
               </p>
             </div>
             <div className="rounded-2xl bg-(--cream) px-4 py-3">
-              <p className="text-xs font-semibold text-(--ink-3)">
-                Balance due
+              <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-(--ink-3)">
+                Balance due <SampleDataBadge />
               </p>
               <p
                 className={cn(
@@ -554,12 +564,12 @@ function ClientProfile({
                   balance > 0 && 'text-(--clay)',
                 )}
               >
-                {can.viewRevenue(t.role) ? money(balance) : '—'}
+                {access.can('viewRevenue') ? money(balance) : '—'}
               </p>
             </div>
             <div className="rounded-2xl bg-(--cream) px-4 py-3">
-              <p className="text-xs font-semibold text-(--ink-3)">
-                Jobs completed
+              <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-(--ink-3)">
+                Jobs completed <SampleDataBadge />
               </p>
               <p className="crm-display text-xl font-semibold">
                 {history.length}
@@ -616,6 +626,13 @@ function ClientProfile({
       {tab === 'overview' && (
         <OverviewTab t={t} client={client} updateClient={updateClient} />
       )}
+      {tab !== 'overview' && tab !== 'notes' && (
+        <SampleDataNote>
+          {tab === 'timeline'
+            ? 'Only “Became a client” is from your account; the rest is demo data.'
+            : undefined}
+        </SampleDataNote>
+      )}
       {tab === 'history' && (
         <JobList
           t={t}
@@ -627,7 +644,7 @@ function ClientProfile({
       {tab === 'scheduled' && (
         <JobList t={t} jobs={upcoming} empty="Nothing scheduled." />
       )}
-      {tab === 'invoices' && <InvoicesTab t={t} invoices={invoices} />}
+      {tab === 'invoices' && <InvoicesTab invoices={invoices} />}
       {tab === 'notes' && (
         <NotesTab client={client} updateClient={updateClient} />
       )}
@@ -763,6 +780,11 @@ function OverviewTab({
         </div>
       </Card>
 
+      {properties.length > 0 && (
+        <SampleDataNote>
+          Demo properties. Edits stay in this browser tab and are not saved.
+        </SampleDataNote>
+      )}
       {properties.map((p) => (
         <Card key={p.id} className="p-5">
           <div className="mb-4 flex items-center justify-between">
@@ -857,6 +879,7 @@ function JobList({
   empty: string
   showNotes?: boolean
 }) {
+  const access = useRole()
   const navigate = useNavigate()
   if (!jobs.length) return <EmptyState title={empty} />
   return (
@@ -895,7 +918,7 @@ function JobList({
             </div>
             <div className="text-right">
               <StatusBadge status={j.status} />
-              {can.viewRevenue(t.role) && (
+              {access.can('viewRevenue') && (
                 <p className="mt-1 text-xs font-semibold text-(--ink-2)">
                   {money(j.price_cents)}
                 </p>
@@ -908,7 +931,8 @@ function JobList({
   )
 }
 
-function InvoicesTab({ t, invoices }: { t: Tenant; invoices: Array<Invoice> }) {
+function InvoicesTab({ invoices }: { invoices: Array<Invoice> }) {
+  const access = useRole()
   const [paying, setPaying] = useState<Invoice | null>(null)
   if (!invoices.length)
     return (
@@ -953,7 +977,7 @@ function InvoicesTab({ t, invoices }: { t: Tenant; invoices: Array<Invoice> }) {
                     {money(inv.total_cents)}
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    {bal > 0 && can.viewRevenue(t.role) ? (
+                    {bal > 0 && access.can('viewRevenue') ? (
                       <Btn
                         size="sm"
                         variant="subtle"
