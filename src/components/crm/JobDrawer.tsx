@@ -37,8 +37,8 @@ import {
   Tabs,
   TextArea,
   TextInput,
-  toast,
 } from './ui'
+import { toast } from '#/lib/toast'
 import RouteMap from './RouteMap'
 import { buildRoute, optimizeOrder, totalDrive } from './route'
 import { fmtDate, fmtDuration, fmtTime, money, uid } from './format'

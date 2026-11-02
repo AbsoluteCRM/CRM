@@ -20,7 +20,7 @@ import { useAuth } from '#/integrations/auth/context'
 import { useOrganization } from '#/integrations/organization/context'
 import { cn } from '#/lib/utils'
 import { ROLE_LABEL, actions, can, useTenant } from '#/components/crm/store'
-import { Toaster } from '#/components/crm/ui'
+import { Toaster } from '#/lib/toast'
 import { fmtDate } from '#/components/crm/format'
 import type { OrgRole } from '#/components/crm/types'
 

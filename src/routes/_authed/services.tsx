@@ -28,8 +28,8 @@ import {
   TextArea,
   TextInput,
   Toggle,
-  toast,
 } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import { inSeason, useTenant } from '#/components/crm/store'
 import {
   MONTHS,

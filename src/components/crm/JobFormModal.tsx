@@ -10,8 +10,8 @@ import {
   SelectInput,
   TextArea,
   TextInput,
-  toast,
 } from './ui'
+import { toast } from '#/lib/toast'
 import { addDays, fmtDate, money, parseDate, todayISO } from './format'
 import type { Frequency } from './types'
 

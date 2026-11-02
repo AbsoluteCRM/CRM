@@ -28,8 +28,8 @@ import {
   Tabs,
   TextInput,
   Toggle,
-  toast,
 } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import { PLANS } from '#/components/crm/plans'
 import {
   ROLE_DESCRIPTION,

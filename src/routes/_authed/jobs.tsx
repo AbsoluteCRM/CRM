@@ -34,8 +34,8 @@ import {
   StatusBadge,
   Tabs,
   TextInput,
-  toast,
 } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import {
   actions,
   can,
