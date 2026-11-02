@@ -1,5 +1,5 @@
 /**
- * Swappable basemap providers (ADR 0012). The app only ever asks for "the
+ * Swappable basemap providers (ADR 0014). The app only ever asks for "the
  * basemap"; which hosted service draws it is config, set by
  * `VITE_MAP_PROVIDER` and `VITE_MAP_API_KEY`. Only the client-side map chunk
  * imports this file, because it imports OpenLayers.

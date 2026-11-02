@@ -1,8 +1,8 @@
-# 0012. Map provider: OpenLayers on a swappable tile provider
+# 0014. Map provider: OpenLayers on a swappable tile provider
 
 - **Status**: Accepted (phase 1 of
-  [maps-service-areas](https://github.com/AbsoluteCRM/CRM/pull/89)). Phase 3a
-  extends this record with service areas.
+  [maps-service-areas](https://github.com/AbsoluteCRM/CRM/pull/89)). Service
+  areas are recorded separately in ADR 0012.
 - **Date**: 2026-11-02
 - **Decided by**: Eric (roadmap Q7), implemented in `feat/openlayers-maps`
 

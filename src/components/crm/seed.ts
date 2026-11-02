@@ -342,7 +342,7 @@ interface OrgSeedConfig {
   jobPrefixStart: number
 }
 
-/** Grid position plus real lon/lat in the org's city (ADR 0012 demo data). */
+/** Grid position plus real lon/lat in the org's city (ADR 0014 demo data). */
 function withLocation(city: string, p: { x: number; y: number }) {
   return { ...p, location: demoLonLat(city, p) }
 }

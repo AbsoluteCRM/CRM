@@ -73,9 +73,9 @@ Agent defaults (minor; Eric may veto them):
   basemap to none, and one story uses OpenLayers' local tile-grid source.
 - **D7**: Wheel zoom and drag pan stay on (OpenLayers defaults); rotation is
   turned off.
-- **D8**: The decision is recorded as ADR 0012, `0012-map-provider.md`. Phase
-  3a extends it with service areas, as the roadmap's "ADR 0012 Service areas
-  and map provider".
+- **D8**: The decision is recorded as ADR 0014, `0014-map-provider.md`
+  (0012 is the service areas ADR and 0013 the geocoding ADR, from the parallel
+  phases). It is separate from the service areas ADR, and cross-links to it.
 
 ## Open questions
 
@@ -102,7 +102,7 @@ Agent defaults (minor; Eric may veto them):
 
 - [ ] Migration: none
 - [ ] RLS policies / pgTAP tests: none
-- [x] `docs/database`: ADR 0012 only (no tables)
+- [x] `docs/database`: ADR 0014 only (no tables)
 - [ ] Types (`pnpm db:types`): none
 - [ ] Middleware: none
 - [ ] tRPC procedures: none
@@ -198,7 +198,7 @@ Security-gated paths touched: `src/env.ts`, `.env.example`,
 3. `Add the client-only OpenLayers MapView`: `src/components/map/*` and stories.
 4. `Show route maps on OpenLayers`: demo coordinates, both `RouteMap`s,
    `WeekCalendar`, the routes, and their stories.
-5. `Record the OpenLayers maps design`: ADR 0012, `docs/calendar/ui.md`,
+5. `Record the OpenLayers maps design`: ADR 0014, `docs/calendar/ui.md`,
    `docs/jobs/ui.md`, design decision, shots.
 
 All commits are made by the implementing agent; there are no remote-database

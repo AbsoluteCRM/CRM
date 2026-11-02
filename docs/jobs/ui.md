@@ -17,7 +17,7 @@ reorder; everyone sees the map.
 **Layout**: A card with the crew switcher and the date field, then the route
 map (16:10), then the Stops, Drive time, On-site work, and Est. finish tiles.
 The stop list sits in the right column. The map is the shared OpenLayers
-`MapView` ([ADR 0012](../database/decisions/0012-map-provider.md)): numbered
+`MapView` ([ADR 0014](../database/decisions/0014-map-provider.md)): numbered
 pins in the crew colour at each property's location, completed stops faded,
 the yard as a dark tile with a lime warehouse glyph, and straight legs from the
 yard through each stop and back, labelled with estimated drive minutes (the
