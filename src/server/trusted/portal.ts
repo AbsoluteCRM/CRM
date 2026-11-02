@@ -94,6 +94,7 @@ export async function submitRequest(args: {
       p_service_id: args.serviceId,
       p_name: args.name,
       p_email: args.email,
+      // The generated Args omit nullability; the SQL function accepts null phone and notes.
       p_phone: args.phone as string,
       p_address: args.address,
       p_notes: args.notes as string,
