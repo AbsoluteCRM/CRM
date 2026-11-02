@@ -12,6 +12,7 @@ import {
 } from './init'
 import { portalRouter, requestsRouter } from './requests'
 import { quotesRouter } from './quotes'
+import { serviceAreasRouter } from './serviceAreas'
 import { servicesRouter } from './services'
 import { teamsRouter } from './teams'
 import { weatherRouter } from './weather'
@@ -87,6 +88,7 @@ export const trpcRouter = createTRPCRouter({
   clients: clientsRouter,
   crews: crewsRouter,
   services: servicesRouter,
+  serviceAreas: serviceAreasRouter,
   portal: portalRouter,
   requests: requestsRouter,
   quotes: quotesRouter,
