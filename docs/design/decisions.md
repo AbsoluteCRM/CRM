@@ -47,3 +47,16 @@ The user requested a Route Builder template matching the existing CRM styling, u
 ## 2026-10-29 — Route templates and a drag-and-drop board
 
 The user revised Route Builder to three explicit sections: Existing routes, Create route and Available jobs, using Teams CrewBuilder as the reference. Create a genuinely empty template before assigning a crew or adding jobs. Selectable route cards show crew/date/status/count/duration; a dropdown includes No crew. Native drag moves visits from the pool to any route, between routes and back to the pool, with equivalent keyboard/touch controls. Keep all edits local until refresh. Unassigned templates use a separate UI model because database routes require a crew; assigned crews remain unique per date. See [Route Builder UI](../route-builder/ui.md).
+
+## 2026-11-02 — Route maps on OpenLayers
+
+Eric chose OpenLayers instead of Google Maps, with a hosted free-tier basemap
+(MapTiler or Stadia; OpenStreetMap tiles in development only) and attribution
+always visible. The Calendar's Google Maps iframe and the Jobs page's
+schematic SVG map both become the shared OpenLayers map, keeping the earlier
+look of the stops: numbered pins in the crew colour, a lime ring on the active
+job, faded completed stops, and the dark yard tile with the lime warehouse
+glyph. Legs stay straight until road routing lands. Stops without a location
+are listed under the map instead of placed. See
+[ADR 0012](../database/decisions/0012-map-provider.md),
+[Calendar UI](../calendar/ui.md), and [Jobs UI](../jobs/ui.md).

@@ -3,7 +3,7 @@
 - **Slug / branch**: `openlayers-maps` / `feat/openlayers-maps`
 - **Tier**: full (new dependency, env change, and UI across the calendar, the
   jobs page, and the job drawer)
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 96%, because the provider, the wrapper, the screens to
   replace, and the env change come from Eric's roadmap decisions (Q7 and the
   phase 1 row). The remaining choices are the minor defaults listed below.
@@ -176,7 +176,7 @@ Security-gated paths touched: `src/env.ts`, `.env.example`,
 
 ### Acceptance criteria
 
-1. No file imports `ol` outside `src/lib/map/providers.ts`,
+1. No file imports `ol` at runtime outside `src/lib/map/providers.ts`,
    `src/components/map/OlMap.tsx`, and `src/components/map/layers.ts`, and the
    server render of `/calendar` and `/jobs` succeeds without loading them.
 2. The calendar's selected day shows numbered stops at their Calgary

@@ -27,12 +27,13 @@ Tailwind v4. Its tokens are in `src/styles.css`.
 
 ## Feature specs
 
-| Spec                                    | Covers                                  | Screens                     |
-| --------------------------------------- | --------------------------------------- | --------------------------- |
-| [Route Builder](../route-builder/ui.md) | Local route planning prototype          | Route Builder               |
-| [Calendar](../calendar/ui.md)           | Weekly schedule and selected-day route  | Calendar                    |
-| [Services](../services/ui.md)           | Service catalog and weather preferences | Services and Add/Edit modal |
-| [Requests](../requests/ui.md)           | Public request portal                   | Request portal              |
+| Spec                                    | Covers                                  | Screens                                 |
+| --------------------------------------- | --------------------------------------- | --------------------------------------- |
+| [Route Builder](../route-builder/ui.md) | Local route planning prototype          | Route Builder                           |
+| [Calendar](../calendar/ui.md)           | Weekly schedule and selected-day route  | Calendar                                |
+| [Services](../services/ui.md)           | Service catalog and weather preferences | Services and Add/Edit modal             |
+| [Requests](../requests/ui.md)           | Public request portal                   | Request portal                          |
+| [Jobs](../jobs/ui.md)                   | Jobs route maps                         | Routes & dispatch, Job drawer Route tab |
 
 Other existing `_authed/*` pages predate this record. Each one gets its
 `ui.md` the next time a feature changes it.
