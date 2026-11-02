@@ -250,16 +250,28 @@ pnpm lint && pnpm check && pnpm exec tsc --noEmit && pnpm exec vitest run
 
 ## Audit log
 
-### Round 1 (`plan-auditor`): covered by roadmap approval
+### Plan audit (`plan-auditor`): not run
 
-The roadmap was approved by Eric on 2026-11-02 together with the start of
-implementation; this phase plan restates its phase 1 scope.
+The approved roadmap covered it. Eric approved the roadmap on 2026-11-02
+together with the start of implementation, and this phase plan restates its
+phase 1 scope.
 
-### Review (`reviewer`, and `security` if gated): pending
+### Review (`reviewer`): pass
+
+No blocking findings. Non-blocking: `pnpm-lock.yaml` carried about 560 lines of
+churn beyond the `ol` tree (peer suffixes and `libc` fields from a different
+pnpm version). Resolved by rebuilding the lockfile as the `main` lockfile plus
+only the `ol` importer entry and its 22 new packages and snapshots (146
+insertions, no deletions); `pnpm install --frozen-lockfile` passes.
+
+### Security (`security`): pass
+
+Gated paths touched: `src/env.ts`, `.env.example`, and
+`src/routes/_authed/calendar.tsx`. No blocking findings.
 
 | #   | Blocking finding (recurring?) | Resolution |
 | --- | ----------------------------- | ---------- |
-|     |                               |            |
+| -   | None                          | -          |
 
 ## Scope-change log
 
