@@ -5,6 +5,7 @@ type State = {
   role: string | null
   result: { data: unknown; error: null | Record<string, string> }
   calls: Array<[string, ...Array<unknown>]>
+  crewFound: boolean
 }
 
 const state = vi.hoisted<State>(() => ({
@@ -12,13 +13,23 @@ const state = vi.hoisted<State>(() => ({
   role: 'dispatcher',
   result: { data: null, error: null },
   calls: [],
+  crewFound: true,
 }))
 
 vi.mock('#/lib/supabase/server', () => {
   const chain = (table: string) => {
     const q: Record<string, unknown> = {}
     const done = () => Promise.resolve(state.result)
-    for (const m of ['select', 'eq', 'insert', 'update']) {
+    for (const m of [
+      'select',
+      'eq',
+      'is',
+      'not',
+      'order',
+      'insert',
+      'update',
+      'delete',
+    ]) {
       q[m] = (...a: Array<unknown>) => (
         state.calls.push([`${table}.${m}`, ...a]),
         q
@@ -26,14 +37,19 @@ vi.mock('#/lib/supabase/server', () => {
     }
     q.maybeSingle = () =>
       Promise.resolve({
-        data: state.role
-          ? {
-              id: 'm1',
-              organization_id: ORG,
-              role: state.role,
-              status: 'active',
-            }
-          : null,
+        data:
+          table === 'crews'
+            ? state.crewFound
+              ? { id: CREW }
+              : null
+            : state.role
+              ? {
+                  id: 'm1',
+                  organization_id: ORG,
+                  role: state.role,
+                  status: 'active',
+                }
+              : null,
         error: null,
       })
     q.single = done
@@ -72,6 +88,7 @@ beforeEach(() => {
   state.role = 'dispatcher'
   state.result = { data: null, error: null }
   state.calls = []
+  state.crewFound = true
 })
 
 describe('crews mutations: access', () => {
@@ -228,5 +245,168 @@ describe('crews.update', () => {
     await expect(
       caller().crews.update({ organizationId: ORG, crewId: CREW }),
     ).rejects.toThrow()
+  })
+})
+
+describe('crews.archive', () => {
+  it('unassigns the members, then archives the crew in the verified org', async () => {
+    state.result = { data: [{ id: CREW }], error: null }
+    await caller().crews.archive({ organizationId: ORG, crewId: CREW })
+    const names = state.calls.map((c) => c[0])
+    expect(names.indexOf('crew_members.delete')).toBeLessThan(
+      names.indexOf('crews.update'),
+    )
+    expect(state.calls).toContainEqual([
+      'crew_members.eq',
+      'organization_id',
+      ORG,
+    ])
+    expect(state.calls).toContainEqual(['crew_members.eq', 'crew_id', CREW])
+    const patch = state.calls.find((c) => c[0] === 'crews.update')?.[1]
+    expect(Object.keys(patch as object)).toEqual(['archived_at'])
+    expect(state.calls).toContainEqual(['crews.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['crews.is', 'archived_at', null])
+  })
+
+  it('returns NOT_FOUND for a crew outside the org or already deleted', async () => {
+    state.result = { data: [], error: null }
+    await expect(
+      caller().crews.archive({ organizationId: ORG, crewId: CREW }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('rejects workers', async () => {
+    state.role = 'worker'
+    await expect(
+      caller().crews.archive({ organizationId: ORG, crewId: CREW }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    expect(state.calls.some((c) => c[0] === 'crews.update')).toBe(false)
+  })
+})
+
+describe('crews: disable, restore and archived list', () => {
+  it('disables and reactivates a crew in the verified org', async () => {
+    state.result = { data: [{ id: CREW }], error: null }
+    await caller().crews.setActive({
+      organizationId: ORG,
+      crewId: CREW,
+      active: false,
+    })
+    const off = state.calls.find((c) => c[0] === 'crews.update')?.[1] as {
+      disabled_at: string | null
+    }
+    expect(off.disabled_at).toEqual(expect.any(String))
+    expect(state.calls).toContainEqual(['crews.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['crews.is', 'archived_at', null])
+
+    state.calls = []
+    await caller().crews.setActive({
+      organizationId: ORG,
+      crewId: CREW,
+      active: true,
+    })
+    expect(state.calls).toContainEqual(['crews.update', { disabled_at: null }])
+  })
+
+  it('restores an archived crew as active', async () => {
+    state.result = { data: [{ id: CREW }], error: null }
+    await caller().crews.restore({ organizationId: ORG, crewId: CREW })
+    expect(state.calls).toContainEqual([
+      'crews.update',
+      { archived_at: null, disabled_at: null },
+    ])
+    expect(state.calls).toContainEqual(['crews.not', 'archived_at', 'is', null])
+  })
+
+  it('explains a name clash when restoring', async () => {
+    state.result = { data: null, error: { message: 'dup', code: '23505' } }
+    await expect(
+      caller().crews.restore({ organizationId: ORG, crewId: CREW }),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: expect.stringContaining('Rename'),
+    })
+  })
+
+  it('lists archived crews for the org, newest first', async () => {
+    state.result = { data: [], error: null }
+    await caller().crews.archived({ organizationId: ORG })
+    expect(state.calls).toContainEqual(['crews.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['crews.not', 'archived_at', 'is', null])
+    expect(state.calls).toContainEqual([
+      'crews.order',
+      'archived_at',
+      { ascending: false },
+    ])
+  })
+
+  it('keeps workers out', async () => {
+    state.role = 'worker'
+    await expect(
+      caller().crews.archived({ organizationId: ORG }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+})
+
+describe('crews: history and permanent delete', () => {
+  it('reports a crew history', async () => {
+    state.result = {
+      data: [
+        {
+          past_routes: 4,
+          upcoming_routes: 1,
+          completed_visits: 9,
+          last_route_date: '2026-10-20',
+        },
+      ],
+      error: null,
+    }
+    await expect(
+      caller().crews.history({ organizationId: ORG, crewId: CREW }),
+    ).resolves.toEqual({
+      pastRoutes: 4,
+      upcomingRoutes: 1,
+      completedVisits: 9,
+      lastRouteDate: '2026-10-20',
+    })
+    expect(state.calls).toContainEqual([
+      'rpc',
+      'crew_history',
+      { p_crew_id: CREW },
+    ])
+  })
+
+  it.each(['owner', 'admin'])('lets %s delete a crew', async (role) => {
+    state.role = role
+    state.result = { data: 2, error: null }
+    await expect(
+      caller().crews.delete({ organizationId: ORG, crewId: CREW }),
+    ).resolves.toEqual({ routesRemoved: 2 })
+    expect(state.calls).toContainEqual(['crews.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual([
+      'rpc',
+      'delete_crew',
+      { p_crew_id: CREW },
+    ])
+  })
+
+  it.each(['dispatcher', 'worker'])(
+    'stops a %s deleting a crew',
+    async (role) => {
+      state.role = role
+      await expect(
+        caller().crews.delete({ organizationId: ORG, crewId: CREW }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+      expect(state.calls.some((c) => c[0] === 'rpc')).toBe(false)
+    },
+  )
+
+  it('refuses a crew outside the verified org', async () => {
+    state.role = 'owner'
+    state.crewFound = false
+    await expect(
+      caller().crews.delete({ organizationId: ORG, crewId: CREW }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(state.calls.some((c) => c[0] === 'rpc')).toBe(false)
   })
 })

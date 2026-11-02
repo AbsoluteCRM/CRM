@@ -52,6 +52,9 @@ export function useAvailabilityMutations() {
   const record = useMutation(
     trpc.availability.record.mutationOptions(opts('Couldn’t save time off')),
   )
+  const clear = useMutation(
+    trpc.availability.clear.mutationOptions(opts('Couldn’t update the days')),
+  )
   const review = useMutation(
     trpc.availability.review.mutationOptions(opts('Couldn’t save the review')),
   )
@@ -72,6 +75,8 @@ export function useAvailabilityMutations() {
       request.mutateAsync({ ...base, ...input }).then(ok, failed),
     record: (input: TimeOffInput & { memberId: string }) =>
       record.mutateAsync({ ...base, ...input }).then(ok, failed),
+    clear: (input: { memberId: string; start: string; end: string }) =>
+      clear.mutateAsync({ ...base, ...input }).then(ok, failed),
     review: (id: string, approve: boolean, note: string | null = null) =>
       review.mutateAsync({ ...base, id, approve, note }).then(ok, failed),
     cancel: (id: string) =>
@@ -85,6 +90,7 @@ export function useAvailabilityMutations() {
     busy:
       request.isPending ||
       record.isPending ||
+      clear.isPending ||
       review.isPending ||
       cancel.isPending ||
       schedule.isPending,

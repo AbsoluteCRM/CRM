@@ -19,6 +19,20 @@ export function useCrews() {
   })
 }
 
+export type ArchivedCrew =
+  inferRouterOutputs<TRPCRouter>['crews']['archived'][number]
+export type CrewHistory = inferRouterOutputs<TRPCRouter>['crews']['history']
+
+export function useArchivedCrews(enabled = true) {
+  const trpc = useTRPC()
+  const { organization } = useOrganization()
+  const organizationId = organization?.id
+  return useQuery({
+    ...trpc.crews.archived.queryOptions({ organizationId: organizationId! }),
+    enabled: enabled && organizationId !== undefined,
+  })
+}
+
 type CrewList = Array<Crew>
 
 // Mirrors move_crew_member: a member is in at most one crew, and leaving a crew drops their lead flag.
@@ -66,6 +80,14 @@ export function useCrewMutations() {
   const { organization } = useOrganization()
   const organizationId = organization?.id
   const listKey = trpc.crews.list.queryKey({ organizationId: organizationId! })
+  const archivedKey = trpc.crews.archived.queryKey({
+    organizationId: organizationId!,
+  })
+  const refreshBoth = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: listKey }),
+      queryClient.invalidateQueries({ queryKey: archivedKey }),
+    ])
 
   const optimistic = <TVars>(
     patch: (crews: CrewList, vars: TVars) => CrewList,
@@ -109,6 +131,51 @@ export function useCrewMutations() {
     ),
   )
 
+  const archive = useMutation(
+    trpc.crews.archive.mutationOptions({
+      ...optimistic<{ crewId: string }>((crews, v) =>
+        crews.filter((c) => c.id !== v.crewId),
+      ),
+      onError: (e) => toast(`Couldn't archive the crew: ${e.message}`),
+      onSettled: refreshBoth,
+    }),
+  )
+
+  const setActive = useMutation(
+    trpc.crews.setActive.mutationOptions(
+      optimistic((crews, v) =>
+        crews.map((c) =>
+          c.id === v.crewId
+            ? {
+                ...c,
+                disabled_at: v.active ? null : new Date().toISOString(),
+              }
+            : c,
+        ),
+      ),
+    ),
+  )
+
+  const restore = useMutation(
+    trpc.crews.restore.mutationOptions({
+      scope: { id: 'crews' },
+      onError: (e) => toast(`Couldn't restore the crew: ${e.message}`),
+      onSettled: refreshBoth,
+    }),
+  )
+
+  const remove = useMutation(
+    trpc.crews.delete.mutationOptions({
+      scope: { id: 'crews' },
+      onSuccess: (_, v) =>
+        queryClient.setQueryData<CrewList>(listKey, (old) =>
+          old?.filter((c) => c.id !== v.crewId),
+        ),
+      onError: (e) => toast(`Couldn't delete the crew: ${e.message}`),
+      onSettled: refreshBoth,
+    }),
+  )
+
   const moveMember = useMutation(
     trpc.crews.moveMember.mutationOptions(
       optimistic((crews, v) => applyMove(crews, v.memberId, v.crewId)),
@@ -122,6 +189,12 @@ export function useCrewMutations() {
   )
 
   const base = { organizationId: organizationId! }
+  // Errors are already toasted; callers only need to know whether it worked.
+  const ok = (p: Promise<unknown>) =>
+    p.then(
+      () => true,
+      () => false,
+    )
   return {
     createCrew: (name: string, color: string) =>
       create.mutateAsync({ ...base, name, color }),
@@ -129,6 +202,18 @@ export function useCrewMutations() {
       update.mutate({ ...base, crewId, name }),
     setVehicle: (crewId: string, vehicle: string | null) =>
       update.mutate({ ...base, crewId, vehicle }),
+    setCrewActive: (crewId: string, active: boolean) =>
+      setActive.mutate({ ...base, crewId, active }),
+    archiveCrew: (crewId: string) =>
+      ok(archive.mutateAsync({ ...base, crewId })),
+    restoreCrew: (crewId: string) =>
+      ok(restore.mutateAsync({ ...base, crewId })),
+    deleteCrew: (crewId: string) => ok(remove.mutateAsync({ ...base, crewId })),
+    crewHistory: (crewId: string) =>
+      queryClient.fetchQuery({
+        ...trpc.crews.history.queryOptions({ ...base, crewId }),
+        staleTime: 0,
+      }),
     moveMember: (memberId: string, crewId: string | null) =>
       moveMember.mutate({ ...base, memberId, crewId }),
     setLead: (crewId: string, memberId: string | null) =>

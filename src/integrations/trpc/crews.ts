@@ -7,9 +7,11 @@ import { protectedProcedure, requireOrgPermission } from './init'
 import type { TRPCRouterRecord } from '@trpc/server'
 
 export const CREW_COLUMNS =
-  'id, organization_id, name, color, vehicle, default_start_time, max_work_minutes, archived_at, created_at, updated_at'
+  'id, organization_id, name, color, vehicle, default_start_time, max_work_minutes, disabled_at, archived_at, created_at, updated_at'
 
 const manageCrews = requireOrgPermission('manageCrews')
+// Permanent deletes are for owners and managers; delete_crew checks the same.
+const deleteCrews = requireOrgPermission('manageTeam')
 
 function toTRPCError(error: { message: string; code?: string }) {
   const code =
@@ -102,6 +104,145 @@ export const crewsRouter = {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Crew not found' })
         }
         return { id: input.crewId }
+      }),
+    ),
+
+  // Hidden from the board but kept, with its routes. Its members go back to
+  // Unassigned, and the name can be reused while it's archived.
+  archive: manageCrews
+    .input(z.object({ crewId: z.uuid() }))
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'crews.archive' }, async () => {
+        const members = await ctx.supabase
+          .from('crew_members')
+          .delete()
+          .eq('organization_id', ctx.organizationId)
+          .eq('crew_id', input.crewId)
+        if (members.error) throw toTRPCError(members.error)
+        const { data, error } = await ctx.supabase
+          .from('crews')
+          .update({ archived_at: new Date().toISOString() })
+          .eq('organization_id', ctx.organizationId)
+          .eq('id', input.crewId)
+          .is('archived_at', null)
+          .select('id')
+        if (error) throw toTRPCError(error)
+        if (data.length === 0) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Crew not found' })
+        }
+        return { id: input.crewId }
+      }),
+    ),
+
+  archived: manageCrews.query(({ ctx }) =>
+    Sentry.startSpan({ name: 'crews.archived' }, async () => {
+      const { data, error } = await ctx.supabase
+        .from('crews')
+        .select(CREW_COLUMNS)
+        .eq('organization_id', ctx.organizationId)
+        .not('archived_at', 'is', null)
+        .order('archived_at', { ascending: false })
+      if (error) throw toTRPCError(error)
+      return data
+    }),
+  ),
+
+  // Inactive crews stay on the board with their roster but take no new routes.
+  setActive: manageCrews
+    .input(z.object({ crewId: z.uuid(), active: z.boolean() }))
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'crews.setActive' }, async () => {
+        const { data, error } = await ctx.supabase
+          .from('crews')
+          .update({
+            disabled_at: input.active ? null : new Date().toISOString(),
+          })
+          .eq('organization_id', ctx.organizationId)
+          .eq('id', input.crewId)
+          .is('archived_at', null)
+          .select('id')
+        if (error) throw toTRPCError(error)
+        if (data.length === 0) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Crew not found' })
+        }
+        return { id: input.crewId }
+      }),
+    ),
+
+  // Brings an archived crew back, active and empty.
+  restore: manageCrews
+    .input(z.object({ crewId: z.uuid() }))
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'crews.restore' }, async () => {
+        const { data, error } = await ctx.supabase
+          .from('crews')
+          .update({ archived_at: null, disabled_at: null })
+          .eq('organization_id', ctx.organizationId)
+          .eq('id', input.crewId)
+          .not('archived_at', 'is', null)
+          .select('id')
+        if (error?.code === '23505') {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'Another crew already has this name. Rename it first.',
+            cause: error,
+          })
+        }
+        if (error) throw toTRPCError(error)
+        if (data.length === 0) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Crew not found' })
+        }
+        return { id: input.crewId }
+      }),
+    ),
+
+  history: manageCrews
+    .input(z.object({ crewId: z.uuid() }))
+    .query(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'crews.history' }, async () => {
+        const { data, error } = await ctx.supabase.rpc('crew_history', {
+          p_crew_id: input.crewId,
+        })
+        if (error) throw toTRPCError(error)
+        const h = data[0] ?? {
+          past_routes: 0,
+          upcoming_routes: 0,
+          completed_visits: 0,
+          last_route_date: null,
+        }
+        return {
+          pastRoutes: h.past_routes,
+          upcomingRoutes: h.upcoming_routes,
+          completedVisits: h.completed_visits,
+          lastRouteDate: h.last_route_date,
+        }
+      }),
+    ),
+
+  // Removes the crew and its routes for good. Each worker's time entries,
+  // shifts and completed visits are kept.
+  delete: deleteCrews
+    .input(z.object({ crewId: z.uuid() }))
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'crews.delete' }, async () => {
+        const crew = await ctx.supabase
+          .from('crews')
+          .select('id')
+          .eq('organization_id', ctx.organizationId)
+          .eq('id', input.crewId)
+          .maybeSingle()
+        if (crew.error) throw toTRPCError(crew.error)
+        if (!crew.data) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Crew not found' })
+        }
+        const { data, error } = await ctx.supabase.rpc('delete_crew', {
+          p_crew_id: input.crewId,
+        })
+        if (error?.code === 'P0002') {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Crew not found' })
+        }
+        if (error) throw toTRPCError(error)
+        return { routesRemoved: data }
       }),
     ),
 

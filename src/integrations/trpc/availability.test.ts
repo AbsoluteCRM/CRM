@@ -302,3 +302,68 @@ describe('availability procedures', () => {
     ).rejects.toThrow()
   })
 })
+
+describe('availability: day off and clearing', () => {
+  it('records a one-off day off', async () => {
+    await caller().availability.record({
+      ...base,
+      memberId: MEMBER,
+      kind: 'day_off',
+      start: '2026-11-04',
+      end: '2026-11-04',
+      note: null,
+    })
+    expect(state.rpcCalls[0]).toEqual([
+      'record_time_off',
+      expect.objectContaining({ p_kind: 'day_off', p_member_id: MEMBER }),
+    ])
+  })
+
+  it('clears time off for a member of the verified company', async () => {
+    state.rpc = { data: 1, error: null }
+    await expect(
+      caller().availability.clear({
+        ...base,
+        memberId: MEMBER,
+        start: '2026-11-04',
+        end: '2026-11-05',
+      }),
+    ).resolves.toEqual({ cleared: 1 })
+    expect(state.calls).toContainEqual([
+      'organization_members.eq',
+      'organization_id',
+      ORG,
+    ])
+    expect(state.rpcCalls).toEqual([
+      [
+        'clear_time_off',
+        { p_member_id: MEMBER, p_start: '2026-11-04', p_end: '2026-11-05' },
+      ],
+    ])
+  })
+
+  it('refuses to clear for a member outside the company', async () => {
+    state.result = { data: [], error: null }
+    await expect(
+      caller().availability.clear({
+        ...base,
+        memberId: MEMBER,
+        start: '2026-11-04',
+        end: '2026-11-04',
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(state.rpcCalls).toHaveLength(0)
+  })
+
+  it('lets only managers clear', async () => {
+    state.role = 'worker'
+    await expect(
+      caller().availability.clear({
+        ...base,
+        memberId: MEMBER,
+        start: '2026-11-04',
+        end: '2026-11-04',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+})

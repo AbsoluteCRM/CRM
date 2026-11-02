@@ -347,6 +347,7 @@ export type Database = {
           default_end_location: unknown
           default_start_location: unknown
           default_start_time: string
+          disabled_at: string | null
           id: string
           max_work_minutes: number | null
           name: string
@@ -361,6 +362,7 @@ export type Database = {
           default_end_location?: unknown
           default_start_location?: unknown
           default_start_time?: string
+          disabled_at?: string | null
           id?: string
           max_work_minutes?: number | null
           name: string
@@ -375,6 +377,7 @@ export type Database = {
           default_end_location?: unknown
           default_start_location?: unknown
           default_start_time?: string
+          disabled_at?: string | null
           id?: string
           max_work_minutes?: number | null
           name?: string
@@ -1109,14 +1112,18 @@ export type Database = {
       }
       organization_members: {
         Row: {
+          certifications: string[]
           color: string | null
           created_at: string
           display_name: string
           email: string | null
           home_location: unknown
+          hours_worked: number
           id: string
+          jobs_completed: number
           organization_id: string
           phone: string | null
+          rating: number | null
           role: Database['public']['Enums']['org_role']
           status: Database['public']['Enums']['member_status']
           updated_at: string
@@ -1126,14 +1133,18 @@ export type Database = {
           work_start: string
         }
         Insert: {
+          certifications?: string[]
           color?: string | null
           created_at?: string
           display_name: string
           email?: string | null
           home_location?: unknown
+          hours_worked?: number
           id?: string
+          jobs_completed?: number
           organization_id: string
           phone?: string | null
+          rating?: number | null
           role?: Database['public']['Enums']['org_role']
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
@@ -1143,14 +1154,18 @@ export type Database = {
           work_start?: string
         }
         Update: {
+          certifications?: string[]
           color?: string | null
           created_at?: string
           display_name?: string
           email?: string | null
           home_location?: unknown
+          hours_worked?: number
           id?: string
+          jobs_completed?: number
           organization_id?: string
           phone?: string | null
+          rating?: number | null
           role?: Database['public']['Enums']['org_role']
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
@@ -2553,6 +2568,20 @@ export type Database = {
     }
     Functions: {
       cancel_time_off: { Args: { p_id: string }; Returns: undefined }
+      crew_history: {
+        Args: { p_crew_id: string }
+        Returns: Array<{
+          completed_visits: number
+          last_route_date: string | null
+          past_routes: number
+          upcoming_routes: number
+        }>
+      }
+      delete_crew: { Args: { p_crew_id: string }; Returns: number }
+      clear_time_off: {
+        Args: { p_end: string; p_member_id: string; p_start: string }
+        Returns: number
+      }
       accept_invitation: {
         Args: { p_token: string }
         Returns: {
@@ -3028,7 +3057,7 @@ export type Database = {
       service_precipitation_type: 'none' | 'rain' | 'snow' | 'any'
       service_unit:
         'monthly' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
-      time_off_kind: 'sick' | 'vacation' | 'personal'
+      time_off_kind: 'sick' | 'vacation' | 'personal' | 'day_off'
       time_off_status: 'pending' | 'approved' | 'declined' | 'cancelled'
       time_source: 'app' | 'manual' | 'auto'
       visit_status:
@@ -3220,7 +3249,7 @@ export const Constants = {
         'yard',
         'bag',
       ],
-      time_off_kind: ['sick', 'vacation', 'personal'],
+      time_off_kind: ['sick', 'vacation', 'personal', 'day_off'],
       time_off_status: ['pending', 'approved', 'declined', 'cancelled'],
       time_source: ['app', 'manual', 'auto'],
       visit_status: [

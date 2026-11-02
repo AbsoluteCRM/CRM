@@ -12,7 +12,7 @@ export const TIME_OFF_COLUMNS =
 
 const manageTeam = requireOrgPermission('manageTeam')
 const date = z.iso.date()
-const kind = z.enum(['sick', 'vacation', 'personal'])
+const kind = z.enum(['sick', 'vacation', 'personal', 'day_off'])
 const note = z.string().trim().max(500).nullable()
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:00)?$/)
 
@@ -89,6 +89,37 @@ export const availabilityRouter = {
         })
         if (error) throw dbError(error)
         return { id: data }
+      }),
+    ),
+
+  /**
+   * Owners and admins mark a member available again: approved time off in the
+   * range is cleared, and days of it outside the range are kept.
+   */
+  clear: manageTeam
+    .input(range.and(z.object({ memberId: z.uuid() })))
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'availability.clear' }, async () => {
+        const member = await ctx.supabase
+          .from('organization_members')
+          .select('id')
+          .eq('organization_id', ctx.organizationId)
+          .eq('id', input.memberId)
+          .maybeSingle()
+        if (member.error) throw dbError(member.error)
+        if (!member.data) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Team member not found',
+          })
+        }
+        const { data, error } = await ctx.supabase.rpc('clear_time_off', {
+          p_member_id: input.memberId,
+          p_start: input.start,
+          p_end: input.end,
+        })
+        if (error) throw dbError(error)
+        return { cleared: data }
       }),
     ),
 

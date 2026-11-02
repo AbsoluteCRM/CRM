@@ -12,6 +12,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 
 import { useOrganization } from '#/integrations/organization/context'
+import { can } from '#/integrations/organization/permissions'
 
 import { DEFAULT_HOURS, DEFAULT_SERVICES, createSeed, inSeason } from './seed'
 import { addDays, endTime, parseDate, todayISO, toMinutes, uid } from './format'
@@ -80,7 +81,7 @@ export const ROLE_DESCRIPTION: Record<OrgRole, string> = {
   worker: 'Sees and completes the jobs assigned to their crew.',
 }
 
-export { can } from '#/integrations/organization/permissions'
+export { can }
 
 export type Section =
   | 'dashboard'
@@ -93,6 +94,8 @@ export type Section =
   | 'settings'
 
 export function canSee(role: OrgRole, section: Section) {
+  // Only people who can change settings see them.
+  if (section === 'settings') return can.manageSettings(role)
   if (role !== 'worker') return true
   return (
     section === 'dashboard' ||

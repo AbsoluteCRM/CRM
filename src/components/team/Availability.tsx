@@ -22,6 +22,7 @@ import {
   Btn,
   Card,
   CardHeader,
+  ColorDot,
   CheckPill,
   EmptyState,
   Field,
@@ -37,6 +38,7 @@ import {
   DAY_STATE_STYLE,
   KIND_LABEL,
   WEEKDAY_SHORT,
+  compactSchedule,
   dayState,
   hhmm,
   openWeekdays,
@@ -57,6 +59,12 @@ export type AvailabilityActions = {
     note?: string | null,
   ) => Promise<boolean>
   cancel: (id: string) => Promise<boolean>
+  /** Clears approved time off in a range (marks the member available). */
+  clear: (input: {
+    memberId: string
+    start: string
+    end: string
+  }) => Promise<boolean>
   setSchedule: (input: {
     memberId: string
     workDays: Array<number>
@@ -95,6 +103,25 @@ function Legend() {
   )
 }
 
+export type BoardCrew = {
+  name: string
+  color: string | null
+  crew_members: Array<{ member_id: string }>
+}
+
+function CrewTag({ crew }: { crew?: BoardCrew }) {
+  if (!crew) return null
+  return (
+    <span
+      className="flex min-w-0 shrink items-center gap-1 text-[11px] font-medium text-(--ink-3)"
+      title={crew.name}
+    >
+      <ColorDot color={crew.color ?? '#8a8f6a'} className="size-2" />
+      <span className="truncate">{crew.name}</span>
+    </span>
+  )
+}
+
 const cellText: Record<DayState, string> = {
   available: '',
   off_day: '–',
@@ -117,6 +144,7 @@ export function AvailabilityBoard({
   myMemberId,
   canManage,
   actions,
+  crews = [],
   today = todayISO(),
 }: {
   members: Array<TeamMember>
@@ -125,15 +153,22 @@ export function AvailabilityBoard({
   myMemberId: string | null
   canManage: boolean
   actions: AvailabilityActions
+  crews?: Array<BoardCrew>
   today?: string
 }) {
   const days = Array.from({ length: DAYS_SHOWN }, (_, i) => addDays(today, i))
+  const crewOf = (id: string) =>
+    crews.find((c) => c.crew_members.some((cm) => cm.member_id === id))
+  // By crew, then name; people without a crew (and office staff) go last.
   const people = members
     .filter((m) => m.status === 'active')
+    .map((m) => ({ m, crew: crewOf(m.id) }))
     .sort(
       (a, b) =>
-        Number(a.role !== 'worker') - Number(b.role !== 'worker') ||
-        a.display_name.localeCompare(b.display_name),
+        Number(!a.crew) - Number(!b.crew) ||
+        Number(a.m.role !== 'worker') - Number(b.m.role !== 'worker') ||
+        (a.crew?.name ?? '').localeCompare(b.crew?.name ?? '') ||
+        a.m.display_name.localeCompare(b.m.display_name),
     )
   const name = (id: string) =>
     members.find((m) => m.id === id)?.display_name ?? 'Former member'
@@ -185,10 +220,16 @@ export function AvailabilityBoard({
               body="Invite people from the Team list."
             />
           ) : (
-            <table className="w-full min-w-[900px] border-separate border-spacing-1 text-xs">
+            <table className="w-full min-w-[900px] table-fixed border-separate border-spacing-1 text-xs">
+              <colgroup>
+                <col className="w-52" />
+                {days.map((d) => (
+                  <col key={d} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
-                  <th className="w-52" />
+                  <th />
                   {days.map((d) => (
                     <th
                       key={d}
@@ -208,7 +249,7 @@ export function AvailabilityBoard({
                 </tr>
               </thead>
               <tbody>
-                {people.map((m) => (
+                {people.map(({ m, crew }) => (
                   <tr key={m.id}>
                     <td className="pr-2">
                       {canManage ? (
@@ -218,21 +259,29 @@ export function AvailabilityBoard({
                           className="group flex w-full cursor-pointer flex-col items-start rounded-lg px-1.5 py-1 text-left hover:bg-(--sage)"
                           aria-label={`Edit ${m.display_name}'s schedule`}
                         >
-                          <span className="flex w-full items-center gap-1 truncate text-[13px] font-semibold text-(--ink)">
-                            {m.display_name}
-                            <Pencil className="size-3 opacity-0 group-hover:opacity-60" />
+                          <span className="flex w-full min-w-0 items-center gap-1.5 text-[13px] font-semibold text-(--ink)">
+                            <span className="truncate">{m.display_name}</span>
+                            <CrewTag crew={crew} />
+                            <Pencil className="size-3 shrink-0 opacity-0 group-hover:opacity-60" />
                           </span>
-                          <span className="truncate text-[11px] text-(--ink-3)">
-                            {scheduleText(m)}
+                          <span
+                            className="truncate text-[11px] text-(--ink-3)"
+                            title={scheduleText(m)}
+                          >
+                            {compactSchedule(m)}
                           </span>
                         </button>
                       ) : (
                         <div className="px-1.5 py-1">
-                          <p className="truncate text-[13px] font-semibold">
-                            {m.display_name}
+                          <p className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold">
+                            <span className="truncate">{m.display_name}</span>
+                            <CrewTag crew={crew} />
                           </p>
-                          <p className="truncate text-[11px] text-(--ink-3)">
-                            {scheduleText(m)}
+                          <p
+                            className="truncate text-[11px] text-(--ink-3)"
+                            title={scheduleText(m)}
+                          >
+                            {compactSchedule(m)}
                           </p>
                         </div>
                       )}
@@ -374,7 +423,7 @@ export function AvailabilityBoard({
                 <span
                   className={cn(
                     'rounded-full px-2 py-0.5 text-[11px] font-bold',
-                    DAY_STATE_STYLE[t.kind],
+                    DAY_STATE_STYLE[t.kind === 'day_off' ? 'off_day' : t.kind],
                   )}
                 >
                   {KIND_LABEL[t.kind]}
@@ -408,7 +457,7 @@ export function AvailabilityBoard({
       {recordFor && (
         <TimeOffModal
           mode="record"
-          members={people}
+          members={people.map((p) => p.m)}
           defaults={recordFor}
           busy={actions.busy}
           onClose={() => setRecordFor(null)}
@@ -419,6 +468,11 @@ export function AvailabilityBoard({
               memberId: input.memberId,
             })
             if (ok) toast(`Time off saved for ${name(input.memberId)}`)
+            return ok
+          }}
+          onClear={async (input) => {
+            const ok = await actions.clear(input)
+            if (ok) toast(`${name(input.memberId)} is available`)
             return ok
           }}
         />
@@ -466,15 +520,14 @@ export function MyAvailability({
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Card className="min-w-0">
-        <CardHeader
-          title="My schedule"
-          subtitle={scheduleText(me)}
-          action={
-            <Btn icon={Thermometer} onClick={() => setRequesting(true)}>
-              Request time off
-            </Btn>
-          }
-        />
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
+          <p className="text-base font-semibold text-(--ink)">
+            {scheduleText(me)}
+          </p>
+          <Btn icon={Thermometer} onClick={() => setRequesting(true)}>
+            Request time off
+          </Btn>
+        </div>
         <div className="grid grid-cols-7 gap-2 p-5">
           {days.map((d) => {
             const s = dayState(me, d, hours, timeOff)
@@ -570,6 +623,12 @@ export function MyAvailability({
   )
 }
 
+type Choice = TimeOff['kind'] | 'available'
+const CHOICE_LABEL: Record<Choice, string> = {
+  available: 'Available',
+  ...KIND_LABEL,
+}
+
 export function TimeOffModal({
   mode,
   members = [],
@@ -577,6 +636,7 @@ export function TimeOffModal({
   busy,
   onClose,
   onSubmit,
+  onClear,
 }: {
   mode: 'request' | 'record'
   members?: Array<TeamMember>
@@ -584,18 +644,28 @@ export function TimeOffModal({
   busy: boolean
   onClose: () => void
   onSubmit: (input: TimeOffInput & { memberId?: string }) => Promise<boolean>
+  /** Record mode: clears time off so the member is available again. */
+  onClear?: (input: {
+    memberId: string
+    start: string
+    end: string
+  }) => Promise<boolean>
 }) {
   const today = todayISO()
   const [memberId, setMemberId] = useState(
     defaults.memberId ?? members.at(0)?.id ?? '',
   )
-  const [kind, setKind] = useState<TimeOff['kind']>(
-    mode === 'request' ? 'sick' : 'vacation',
-  )
+  // Nothing is picked until the person chooses; picking it again unselects it.
+  const [kind, setKind] = useState<Choice | null>(null)
+  const choices: Array<Choice> =
+    mode === 'record' && onClear
+      ? ['available', 'day_off', 'sick', 'vacation', 'personal']
+      : ['sick', 'vacation', 'personal', 'day_off']
   const [start, setStart] = useState(defaults.date ?? today)
   const [end, setEnd] = useState(defaults.date ?? today)
   const [note, setNote] = useState('')
   const invalid =
+    kind === null ||
     end < start ||
     (mode === 'request' && end < today) ||
     (mode === 'record' && !memberId)
@@ -609,7 +679,7 @@ export function TimeOffModal({
       subtitle={
         mode === 'request'
           ? 'Your manager is asked to approve it.'
-          : 'Saved as approved.'
+          : 'Saved as approved. Pick Available to undo time off.'
       }
       footer={
         <>
@@ -619,13 +689,17 @@ export function TimeOffModal({
           <Btn
             disabled={invalid || busy}
             onClick={async () => {
-              const ok = await onSubmit({
-                memberId: mode === 'record' ? memberId : undefined,
-                kind,
-                start,
-                end,
-                note: note.trim() || null,
-              })
+              if (kind === null) return
+              const ok =
+                kind === 'available'
+                  ? await (onClear?.({ memberId, start, end }) ?? false)
+                  : await onSubmit({
+                      memberId: mode === 'record' ? memberId : undefined,
+                      kind,
+                      start,
+                      end,
+                      note: note.trim() || null,
+                    })
               if (ok) onClose()
             }}
           >
@@ -656,16 +730,22 @@ export function TimeOffModal({
         )}
         <Field label="Type" className="sm:col-span-2">
           <div className="flex flex-wrap gap-2">
-            {(['sick', 'vacation', 'personal'] as const).map((k) => (
+            {choices.map((k) => (
               <CheckPill
                 key={k}
                 checked={kind === k}
-                onChange={() => setKind(k)}
+                onChange={() => setKind(kind === k ? null : k)}
               >
-                {KIND_LABEL[k]}
+                {CHOICE_LABEL[k]}
               </CheckPill>
             ))}
           </div>
+          {kind === 'available' && (
+            <p className="mt-2 text-xs text-(--ink-3)">
+              Removes approved time off on these days. Days outside them stay
+              off. To change their regular days, edit their schedule instead.
+            </p>
+          )}
         </Field>
         <Field label="From" htmlFor="to-start">
           <TextInput
@@ -688,23 +768,25 @@ export function TimeOffModal({
             onChange={(e) => setEnd(e.target.value)}
           />
         </Field>
-        <Field
-          label="Note (optional)"
-          htmlFor="to-note"
-          className="sm:col-span-2"
-        >
-          <TextInput
-            id="to-note"
-            maxLength={500}
-            value={note}
-            placeholder={
-              mode === 'request'
-                ? 'For example: fever, doctor’s note to follow'
-                : ''
-            }
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </Field>
+        {kind !== 'available' && (
+          <Field
+            label="Note (optional)"
+            htmlFor="to-note"
+            className="sm:col-span-2"
+          >
+            <TextInput
+              id="to-note"
+              maxLength={500}
+              value={note}
+              placeholder={
+                mode === 'request'
+                  ? 'For example: fever, doctor’s note to follow'
+                  : ''
+              }
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </Field>
+        )}
       </div>
     </Modal>
   )
