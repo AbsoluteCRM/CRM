@@ -6,7 +6,14 @@
  * carries `organization_id`, and every screen reads through `useTenant()`,
  * which filters by the active organization.
  */
-import { addDays, fromMinutes, parseDate, toMinutes, todayISO } from './format'
+import { inSeason } from '#/integrations/services/types'
+import {
+  addDays,
+  fromMinutes,
+  parseDate,
+  toMinutes,
+  todayISO,
+} from '#/components/crm/format'
 import type {
   Activity,
   Client,
@@ -26,7 +33,7 @@ import type {
   ServiceRequest,
   TimeOff,
   Weekday,
-} from './types'
+} from './crm-types'
 
 function rng(seed: number) {
   let a = seed
@@ -255,14 +262,6 @@ const EXTRA_SERVICES: Array<Omit<Service, 'id' | 'organization_id'>> = [
     season: { start: 5, end: 6 },
   },
 ]
-
-export function inSeason(service: Pick<Service, 'season'>, month: number) {
-  if (!service.season) return true
-  const { start, end } = service.season
-  return start <= end
-    ? month >= start && month <= end
-    : month >= start || month <= end
-}
 
 interface ClientSeed {
   name: string
@@ -1573,7 +1572,6 @@ export function createSeed(): CrmState {
   return {
     organizations: [greenleaf, northline],
     activeOrgId: greenleaf.id,
-    role: 'owner',
     members: [...a.members, ...b.members],
     crews: [...a.crews, ...b.crews],
     clients: [...a.clients, ...b.clients],

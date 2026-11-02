@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { CalendarPlus } from 'lucide-react'
 
-import { actions, inSeason, useTenant } from './store'
+import { actions, useTenant } from '#/mocks/crm-store'
+import { inSeason } from '#/integrations/services/types'
 import {
   Btn,
   CheckPill,
@@ -13,7 +14,7 @@ import {
 } from './ui'
 import { toast } from '#/lib/toast'
 import { addDays, fmtDate, money, parseDate, todayISO } from './format'
-import type { Frequency } from './types'
+import type { Frequency } from '#/integrations/services/types'
 
 const OCCURRENCES: Record<Frequency, { count: number; step: number }> = {
   one_time: { count: 1, step: 0 },

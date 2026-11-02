@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 
 import { fmtDuration, money } from '#/components/crm/format'
-import { inSeason } from '#/components/crm/store'
+import { inSeason } from '#/integrations/services/types'
 import { Logo } from '#/components/crm/Logo'
 import { Badge, Btn, Card, EmptyState } from '#/components/crm/ui'
 import { Toaster } from '#/lib/toast'

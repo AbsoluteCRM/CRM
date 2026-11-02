@@ -14,8 +14,7 @@ import {
   X,
 } from 'lucide-react'
 
-import { useOrganization } from '#/integrations/organization/context'
-import { can as orgCan } from '#/integrations/organization/permissions'
+import { useRole } from '#/integrations/organization/use-role'
 import PageShell from '#/components/crm/PageShell'
 import {
   Avatar,
@@ -38,13 +37,14 @@ import {
 import { toast } from '#/lib/toast'
 import {
   AVAILABILITY_LABEL,
-  ROLE_DESCRIPTION,
-  ROLE_LABEL,
   actions,
-  can,
   memberAvailability,
   useTenant,
-} from '#/components/crm/store'
+} from '#/mocks/crm-store'
+import {
+  ROLE_DESCRIPTION,
+  ROLE_LABEL,
+} from '#/integrations/organization/permissions'
 import {
   addDays,
   fmtDate,
@@ -59,8 +59,9 @@ import { useCrewMutations, useCrews } from '#/integrations/crews/crews'
 import { useInviteTeamMember, useTeamMembers } from '#/integrations/teams/teams'
 import type { InviteRole } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
-import type { Availability, Tenant } from '#/components/crm/store'
-import type { Member, OrgRole, TimeOff, Weekday } from '#/components/crm/types'
+import type { Availability, Tenant } from '#/mocks/crm-store'
+import type { Member, TimeOff, Weekday } from '#/mocks/crm-types'
+import type { OrgRole } from '#/integrations/organization/permissions'
 
 export const Route = createFileRoute('/_authed/teams')({
   component: TeamsPage,
@@ -109,9 +110,8 @@ function useMetrics(t: Tenant) {
 
 function TeamsPage() {
   const t = useTenant()
-  const { organization } = useOrganization()
-  const canInvite =
-    organization !== null && orgCan.manageTeam(organization.role)
+  const access = useRole()
+  const canInvite = access.can('manageTeam')
   const team = useTeamMembers()
   const crews = useCrews()
   const crewActions = useCrewMutations()
@@ -122,7 +122,7 @@ function TeamsPage() {
     memberId?: string
     date?: string
   } | null>(null)
-  const editable = can.manageTeam(t.role)
+  const editable = access.can('manageTeam')
   const realMembers = team.data ?? []
   const realCrews = crews.data ?? []
   const realActive = realMembers.filter((m) => m.status === 'active')
@@ -133,7 +133,7 @@ function TeamsPage() {
       kicker="Workforce"
       title="Team"
       subtitle="Manage employees, build crews, track availability, and see how everyone is performing."
-      allowed={can.viewTeam(t.role)}
+      allowed={access.can('viewTeam')}
       section="Team"
       actions={
         editable && (

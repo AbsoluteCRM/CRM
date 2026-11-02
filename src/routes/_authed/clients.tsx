@@ -14,6 +14,7 @@ import {
   UserPlus,
 } from 'lucide-react'
 
+import { useRole } from '#/integrations/organization/use-role'
 import PageShell from '#/components/crm/PageShell'
 import JobFormModal from '#/components/crm/JobFormModal'
 import {
@@ -38,22 +39,21 @@ import {
 import { toast } from '#/lib/toast'
 import {
   actions,
-  can,
   invoiceBalance,
   isOverdue,
   useTenant,
-} from '#/components/crm/store'
+} from '#/mocks/crm-store'
 import { fmtDate, fmtTime, money, todayISO } from '#/components/crm/format'
 import { useClientMutations, useClients } from '#/integrations/clients/clients'
 import { cn } from '#/lib/utils'
 import type { ClientRow } from '#/integrations/clients/clients'
-import type { Tenant } from '#/components/crm/store'
+import type { Tenant } from '#/mocks/crm-store'
 import type {
   ClientKind,
   ClientStatus,
   Invoice,
   Payment,
-} from '#/components/crm/types'
+} from '#/mocks/crm-types'
 
 export const Route = createFileRoute('/_authed/clients')({
   validateSearch: (search: Record<string, unknown>): { id?: string } => ({
@@ -73,6 +73,7 @@ const KIND_LABEL: Record<ClientKind, string> = {
 
 function ClientsPage() {
   const t = useTenant()
+  const access = useRole()
   const { id } = Route.useSearch()
   const navigate = useNavigate()
   const clients = useClients()
@@ -140,7 +141,7 @@ function ClientsPage() {
       kicker="Customer management"
       title="Clients"
       subtitle="Homeowners and commercial properties, with service history, invoices, and notes in one place."
-      allowed={can.manageClients(t.role)}
+      allowed={access.can('manageClients')}
       section="Clients"
       actions={
         <Btn icon={UserPlus} onClick={() => setAdding(true)}>
@@ -180,12 +181,12 @@ function ClientsPage() {
               },
               {
                 label: 'Lifetime value',
-                value: can.viewRevenue(t.role) ? money(totalLtv) : '—',
+                value: access.can('viewRevenue') ? money(totalLtv) : '—',
                 sub: 'Collected payments, all clients',
               },
               {
                 label: 'Outstanding',
-                value: can.viewRevenue(t.role) ? money(outstanding) : '—',
+                value: access.can('viewRevenue') ? money(outstanding) : '—',
                 sub: `${t.invoices.filter(isOverdue).length} invoices overdue`,
               },
             ].map((k) => (
@@ -314,7 +315,7 @@ function ClientsPage() {
                         <StatusBadge status={client.status} />
                       </td>
                       <td className="px-5 py-3 text-right font-semibold">
-                        {can.viewRevenue(t.role) ? money(ltv) : '—'}
+                        {access.can('viewRevenue') ? money(ltv) : '—'}
                       </td>
                     </tr>
                   ))}
@@ -487,6 +488,7 @@ function ClientProfile({
   updateClient: ReturnType<typeof useClientMutations>['updateClient']
   onClose: () => void
 }) {
+  const access = useRole()
   const [tab, setTab] = useState<ProfileTab>('overview')
   const [scheduling, setScheduling] = useState(false)
   const today = todayISO()
@@ -541,7 +543,7 @@ function ClientProfile({
                 Lifetime value
               </p>
               <p className="crm-display text-xl font-semibold">
-                {can.viewRevenue(t.role) ? money(ltv) : '—'}
+                {access.can('viewRevenue') ? money(ltv) : '—'}
               </p>
             </div>
             <div className="rounded-2xl bg-(--cream) px-4 py-3">
@@ -554,7 +556,7 @@ function ClientProfile({
                   balance > 0 && 'text-(--clay)',
                 )}
               >
-                {can.viewRevenue(t.role) ? money(balance) : '—'}
+                {access.can('viewRevenue') ? money(balance) : '—'}
               </p>
             </div>
             <div className="rounded-2xl bg-(--cream) px-4 py-3">
@@ -627,7 +629,7 @@ function ClientProfile({
       {tab === 'scheduled' && (
         <JobList t={t} jobs={upcoming} empty="Nothing scheduled." />
       )}
-      {tab === 'invoices' && <InvoicesTab t={t} invoices={invoices} />}
+      {tab === 'invoices' && <InvoicesTab invoices={invoices} />}
       {tab === 'notes' && (
         <NotesTab client={client} updateClient={updateClient} />
       )}
@@ -857,6 +859,7 @@ function JobList({
   empty: string
   showNotes?: boolean
 }) {
+  const access = useRole()
   const navigate = useNavigate()
   if (!jobs.length) return <EmptyState title={empty} />
   return (
@@ -895,7 +898,7 @@ function JobList({
             </div>
             <div className="text-right">
               <StatusBadge status={j.status} />
-              {can.viewRevenue(t.role) && (
+              {access.can('viewRevenue') && (
                 <p className="mt-1 text-xs font-semibold text-(--ink-2)">
                   {money(j.price_cents)}
                 </p>
@@ -908,7 +911,8 @@ function JobList({
   )
 }
 
-function InvoicesTab({ t, invoices }: { t: Tenant; invoices: Array<Invoice> }) {
+function InvoicesTab({ invoices }: { invoices: Array<Invoice> }) {
+  const access = useRole()
   const [paying, setPaying] = useState<Invoice | null>(null)
   if (!invoices.length)
     return (
@@ -953,7 +957,7 @@ function InvoicesTab({ t, invoices }: { t: Tenant; invoices: Array<Invoice> }) {
                     {money(inv.total_cents)}
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    {bal > 0 && can.viewRevenue(t.role) ? (
+                    {bal > 0 && access.can('viewRevenue') ? (
                       <Btn
                         size="sm"
                         variant="subtle"

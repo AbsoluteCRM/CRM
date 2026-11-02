@@ -10,6 +10,7 @@ import {
   Timer,
 } from 'lucide-react'
 
+import { useRole } from '#/integrations/organization/use-role'
 import PageShell from '#/components/crm/PageShell'
 import JobDrawer from '#/components/crm/JobDrawer'
 import JobFormModal from '#/components/crm/JobFormModal'
@@ -36,13 +37,7 @@ import {
   TextInput,
 } from '#/components/crm/ui'
 import { toast } from '#/lib/toast'
-import {
-  actions,
-  can,
-  detectConflicts,
-  jobEnd,
-  useTenant,
-} from '#/components/crm/store'
+import { actions, detectConflicts, jobEnd, useTenant } from '#/mocks/crm-store'
 import {
   addDays,
   fmtDate,
@@ -52,8 +47,8 @@ import {
   startOfWeek,
   todayISO,
 } from '#/components/crm/format'
-import type { Tenant } from '#/components/crm/store'
-import type { JobStatus } from '#/components/crm/types'
+import type { Tenant } from '#/mocks/crm-store'
+import type { JobStatus } from '#/mocks/crm-types'
 
 export const Route = createFileRoute('/_authed/jobs')({
   validateSearch: (search: Record<string, unknown>): { id?: string } => ({
@@ -67,6 +62,7 @@ type RangeFilter = 'today' | 'week' | 'upcoming' | 'past30' | 'all'
 
 function JobsPage() {
   const t = useTenant()
+  const access = useRole()
   const { id } = Route.useSearch()
   const navigate = useNavigate()
   const [view, setView] = useState<'list' | 'routes'>('list')
@@ -77,12 +73,12 @@ function JobsPage() {
       kicker="Operations"
       title="Jobs"
       subtitle={
-        can.manageJobs(t.role)
+        access.can('manageJobs')
           ? 'Track every job from assignment through completion, and plan each crew’s route.'
           : `Jobs assigned to ${t.myCrew?.name ?? 'your crew'}.`
       }
       actions={
-        can.manageJobs(t.role) && (
+        access.can('manageJobs') && (
           <Btn icon={CalendarPlus} onClick={() => setCreating(true)}>
             New job
           </Btn>
@@ -121,6 +117,7 @@ function JobsPage() {
 }
 
 function JobsList({ t, onOpen }: { t: Tenant; onOpen: (id: string) => void }) {
+  const access = useRole()
   const today = todayISO()
   const [status, setStatus] = useState<StatusFilter>('all')
   const [range, setRange] = useState<RangeFilter>('week')
@@ -182,7 +179,7 @@ function JobsList({ t, onOpen }: { t: Tenant; onOpen: (id: string) => void }) {
           <option value="past30">Last 30 days</option>
           <option value="all">All dates</option>
         </SelectInput>
-        {t.role !== 'worker' && (
+        {access.can('manageJobs') && (
           <SelectInput
             value={crew}
             onChange={(e) => setCrew(e.target.value)}
@@ -240,7 +237,7 @@ function JobsList({ t, onOpen }: { t: Tenant; onOpen: (id: string) => void }) {
               <th className="px-3 py-3">Date</th>
               <th className="px-3 py-3">Service</th>
               <th className="px-3 py-3">Status</th>
-              {can.viewRevenue(t.role) && (
+              {access.can('viewRevenue') && (
                 <th className="px-5 py-3 text-right">Price</th>
               )}
             </tr>
@@ -304,7 +301,7 @@ function JobsList({ t, onOpen }: { t: Tenant; onOpen: (id: string) => void }) {
                   <td className="px-3 py-3">
                     <StatusBadge status={j.status} />
                   </td>
-                  {can.viewRevenue(t.role) && (
+                  {access.can('viewRevenue') && (
                     <td className="px-5 py-3 text-right font-semibold">
                       {money(j.price_cents)}
                     </td>
@@ -338,9 +335,11 @@ function JobsList({ t, onOpen }: { t: Tenant; onOpen: (id: string) => void }) {
 }
 
 function Routes({ t, onOpen }: { t: Tenant; onOpen: (id: string) => void }) {
+  const access = useRole()
   const crews = t.crews.filter(
     (c) =>
-      c.memberIds.length > 0 && (t.role !== 'worker' || c.id === t.myCrew?.id),
+      c.memberIds.length > 0 &&
+      (access.can('manageJobs') || c.id === t.myCrew?.id),
   )
   const [crewId, setCrewId] = useState(crews.at(0)?.id ?? '')
   const [date, setDate] = useState(todayISO())
@@ -354,7 +353,7 @@ function Routes({ t, onOpen }: { t: Tenant; onOpen: (id: string) => void }) {
   const lastStop = stops.at(-1)
   const finish = lastStop ? jobEnd(lastStop.job) : null
   const canOptimize =
-    can.manageJobs(t.role) &&
+    access.can('manageJobs') &&
     dayJobs.length > 1 &&
     dayJobs.every((j) => j.status === 'assigned' || j.status === 'scheduled')
 

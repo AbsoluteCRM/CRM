@@ -19,10 +19,11 @@ import {
 import { useAuth } from '#/integrations/auth/context'
 import { useOrganization } from '#/integrations/organization/context'
 import { cn } from '#/lib/utils'
-import { ROLE_LABEL, actions, can, useTenant } from '#/components/crm/store'
+import { ROLE_LABEL } from '#/integrations/organization/permissions'
+import { useRole } from '#/integrations/organization/use-role'
+import { useTenant } from '#/mocks/crm-store'
 import { Toaster } from '#/lib/toast'
 import { fmtDate } from '#/components/crm/format'
-import type { OrgRole } from '#/components/crm/types'
 
 function useClickOutside(onOutside: () => void) {
   const ref = useRef<HTMLDivElement>(null)
@@ -72,6 +73,7 @@ const menuItem =
 
 function GlobalSearch() {
   const t = useTenant()
+  const searchAll = useRole().can('manageClients')
   const navigate = useNavigate()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
@@ -129,8 +131,8 @@ function GlobalSearch() {
           r.prospect?.name ?? t.client(r.client_id)?.display_name ?? 'Request',
         sub: t.service(r.service_id)?.name ?? '',
       }))
-    return can.manageClients(t.role) ? [...clients, ...jobs, ...requests] : jobs
-  }, [q, t])
+    return searchAll ? [...clients, ...jobs, ...requests] : jobs
+  }, [q, t, searchAll])
 
   const go = (r: (typeof results)[number]) => {
     setOpen(false)
@@ -200,6 +202,7 @@ const ORG_AVATAR = 'bg-(--leaf-700)'
 
 export default function Header() {
   const t = useTenant()
+  const access = useRole()
   const {
     organizations,
     organization,
@@ -211,7 +214,7 @@ export default function Header() {
   const navigate = useNavigate()
   const newRequests = t.requests.filter((r) => r.status === 'submitted')
   const displayName =
-    t.role === 'owner' && user?.email
+    access.role === 'owner' && user?.email
       ? user.email
       : (t.me?.display_name ?? 'You')
 
@@ -304,26 +307,6 @@ export default function Header() {
         <GlobalSearch />
       </div>
 
-      {/* Role preview (demo). Real role comes from organization_members.role. */}
-      <label className="hidden items-center gap-2 lg:flex">
-        <span className="text-xs font-semibold text-(--ink-3)">Viewing as</span>
-        <select
-          value={t.role}
-          onChange={(e) => {
-            actions.setRole(e.target.value as OrgRole)
-            navigate({ to: '/dashboard' })
-          }}
-          className="h-9 cursor-pointer rounded-full border border-(--line-2) bg-(--paper) px-3 text-[13px] font-semibold text-(--ink) outline-none focus:ring-[3px] focus:ring-(--lime-200)"
-          aria-label="Preview the app as a role"
-        >
-          {(Object.keys(ROLE_LABEL) as Array<OrgRole>).map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABEL[r]}
-            </option>
-          ))}
-        </select>
-      </label>
-
       {/* Notifications */}
       <Menu
         width={320}
@@ -336,7 +319,7 @@ export default function Header() {
             className="relative flex size-10 cursor-pointer items-center justify-center rounded-full text-(--ink-2) hover:bg-(--sage)"
           >
             <Bell className="size-5" />
-            {newRequests.length > 0 && can.manageRequests(t.role) && (
+            {newRequests.length > 0 && access.can('manageRequests') && (
               <span className="absolute top-1.5 right-1.5 flex size-4 items-center justify-center rounded-full bg-(--clay) text-[10px] font-bold text-white">
                 {newRequests.length}
               </span>
@@ -360,7 +343,7 @@ export default function Header() {
                 </span>
               </div>
             ))}
-            {can.manageRequests(t.role) && (
+            {access.can('manageRequests') && (
               <Link
                 to="/requests"
                 onClick={close}
@@ -398,11 +381,12 @@ export default function Header() {
                 {displayName}
               </p>
               <p className="text-xs text-(--ink-3)">
-                {ROLE_LABEL[t.role]} · {t.org.name}
+                {access.role ? `${ROLE_LABEL[access.role]} · ` : ''}
+                {orgName}
               </p>
             </div>
             <div className="my-1 h-px bg-(--line)" />
-            {can.manageSettings(t.role) && (
+            {access.can('manageSettings') && (
               <Link to="/settings" onClick={close} className={menuItem}>
                 <Settings className="size-4 text-(--ink-3)" /> Company settings
               </Link>
@@ -411,21 +395,6 @@ export default function Header() {
               <Building2 className="size-4 text-(--ink-3)" /> Set up a new
               company
             </Link>
-            <label className={cn(menuItem, 'lg:hidden')}>
-              <ShieldCheck className="size-4 text-(--ink-3)" />
-              <select
-                value={t.role}
-                onChange={(e) => actions.setRole(e.target.value as OrgRole)}
-                className="flex-1 cursor-pointer bg-transparent outline-none"
-                aria-label="Preview the app as a role"
-              >
-                {(Object.keys(ROLE_LABEL) as Array<OrgRole>).map((r) => (
-                  <option key={r} value={r}>
-                    View as {ROLE_LABEL[r]}
-                  </option>
-                ))}
-              </select>
-            </label>
             <button
               type="button"
               className={menuItem}

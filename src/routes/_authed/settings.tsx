@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 
+import { useRole } from '#/integrations/organization/use-role'
 import PageShell from '#/components/crm/PageShell'
 import {
   Alert,
@@ -34,15 +35,13 @@ import { PLANS } from '#/components/crm/plans'
 import {
   ROLE_DESCRIPTION,
   ROLE_LABEL,
-  actions,
-  can,
-  useCrmState,
-  useTenant,
-} from '#/components/crm/store'
+} from '#/integrations/organization/permissions'
+import { actions, useCrmState, useTenant } from '#/mocks/crm-store'
 import { diffDays, fmtDate, todayISO } from '#/components/crm/format'
 import { cn } from '#/lib/utils'
-import type { Tenant } from '#/components/crm/store'
-import type { BillingCycle, OrgRole, Weekday } from '#/components/crm/types'
+import type { Tenant } from '#/mocks/crm-store'
+import type { BillingCycle, Weekday } from '#/mocks/crm-types'
+import type { OrgRole } from '#/integrations/organization/permissions'
 
 export const Route = createFileRoute('/_authed/settings')({
   component: SettingsPage,
@@ -52,11 +51,12 @@ type Tab = 'company' | 'hours' | 'subscription' | 'roles' | 'security'
 
 function SettingsPage() {
   const t = useTenant()
+  const access = useRole()
   const [tab, setTab] = useState<Tab>('company')
   const tabs: Array<{ value: Tab; label: string }> = [
     { value: 'company', label: 'Company profile' },
     { value: 'hours', label: 'Hours & service areas' },
-    ...(can.manageBilling(t.role)
+    ...(access.can('manageBilling')
       ? [{ value: 'subscription' as const, label: 'Subscription' }]
       : []),
     { value: 'roles', label: 'Users & roles' },
@@ -67,7 +67,7 @@ function SettingsPage() {
       kicker={t.org.name}
       title="Company settings"
       subtitle="Your company profile, hours, service areas, plan, and who can do what."
-      allowed={can.manageSettings(t.role)}
+      allowed={access.can('manageSettings')}
       section="Settings"
     >
       <Tabs className="mb-5" value={tab} onChange={setTab} tabs={tabs} />

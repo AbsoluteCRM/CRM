@@ -1,5 +1,6 @@
 /**
- * Domain types for the landscaping CRM UI.
+ * Types for the in-memory demo store (src/mocks/crm-store.ts). See
+ * src/mocks/README.md for which live table replaces each one.
  *
  * Field names follow docs/database where a table already exists
  * (`organization_id`, `*_cents` money, `client_status`, `org_role`, ...).
@@ -8,10 +9,17 @@
  * tRPC procedures land.
  */
 
-export type ID = string
+import type { OrgRole } from '#/integrations/organization/permissions'
+import type { Frequency, Service } from '#/integrations/services/types'
 
-/** `org_role` in docs/database/tables/tenancy.md. UI labels: Owner / Manager / Dispatcher / Contractor. */
-export type OrgRole = 'owner' | 'admin' | 'dispatcher' | 'worker'
+export type { OrgRole } from '#/integrations/organization/permissions'
+export type {
+  Frequency,
+  Service,
+  ServiceUnit,
+} from '#/integrations/services/types'
+
+export type ID = string
 
 export type Plan = 'starter' | 'professional' | 'enterprise'
 export type BillingCycle = 'monthly' | 'annual'
@@ -126,29 +134,6 @@ export interface Property {
   /** Position on the demo route map, 0-100 on each axis. Replaced by `geography location`. */
   x: number
   y: number
-}
-
-/** `service_unit` in catalog-tax.md. */
-export type ServiceUnit =
-  'monthly' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
-export type Frequency = 'one_time' | 'weekly' | 'biweekly' | 'monthly'
-
-export interface Service {
-  id: ID
-  organization_id: ID
-  name: string
-  description: string
-  unit: ServiceUnit
-  default_price_cents: number
-  default_duration_minutes: number
-  is_active: boolean
-  color: string
-  equipment: Array<string>
-  frequencies: Array<Frequency>
-  precipitation_type: 'none' | 'rain' | 'snow' | 'any'
-  precipitation_action: 'none' | 'schedule' | 'reschedule'
-  /** No column yet: seasonal availability, months 1-12 inclusive (wraps over new year). Null = year-round. */
-  season: { start: number; end: number } | null
 }
 
 /**
@@ -279,8 +264,6 @@ export interface Activity {
 export interface CrmState {
   organizations: Array<Organization>
   activeOrgId: ID
-  /** Demo-only: lets you preview each role's view. Comes from organization_members.role when wired. */
-  role: OrgRole
   members: Array<Member>
   crews: Array<Crew>
   clients: Array<Client>

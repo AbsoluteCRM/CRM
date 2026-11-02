@@ -1,4 +1,7 @@
 /**
+ * DEMO DATA ONLY. In-memory store behind the screens that have no live
+ * procedures yet; nothing here is saved. See src/mocks/README.md.
+ *
  * Client-side demo store for the CRM screens.
  *
  * A tiny external store (useSyncExternalStore) so every page shares the same
@@ -12,9 +15,17 @@
 import { useMemo, useSyncExternalStore } from 'react'
 
 import { useOrganization } from '#/integrations/organization/context'
+import { ROLE_LABEL } from '#/integrations/organization/permissions'
 
-import { DEFAULT_HOURS, DEFAULT_SERVICES, createSeed, inSeason } from './seed'
-import { addDays, endTime, parseDate, todayISO, toMinutes, uid } from './format'
+import {
+  addDays,
+  endTime,
+  parseDate,
+  todayISO,
+  toMinutes,
+  uid,
+} from '#/components/crm/format'
+import { DEFAULT_HOURS, DEFAULT_SERVICES, createSeed } from './crm-seed'
 import type {
   Activity,
   ActivityKind,
@@ -34,7 +45,7 @@ import type {
   ServiceRequest,
   TimeOff,
   Weekday,
-} from './types'
+} from './crm-types'
 
 // ---------------------------------------------------------------------------
 // Store plumbing
@@ -63,48 +74,15 @@ export function useCrmState() {
 }
 
 // ---------------------------------------------------------------------------
-// Roles & permissions
-// ---------------------------------------------------------------------------
-
-export const ROLE_LABEL: Record<OrgRole, string> = {
-  owner: 'Owner',
-  admin: 'Manager',
-  dispatcher: 'Dispatcher',
-  worker: 'Contractor',
-}
-
-export const ROLE_DESCRIPTION: Record<OrgRole, string> = {
-  owner: 'Full access, including billing and subscription.',
-  admin: 'Manages jobs, crews, clients, and services.',
-  dispatcher: 'Schedules and dispatches jobs and requests.',
-  worker: 'Sees and completes the jobs assigned to their crew.',
-}
-
-export { can } from '#/integrations/organization/permissions'
-
-export type Section =
-  | 'dashboard'
-  | 'calendar'
-  | 'requests'
-  | 'jobs'
-  | 'clients'
-  | 'teams'
-  | 'services'
-  | 'settings'
-  | 'route-builder'
-
-export function canSee(role: OrgRole, section: Section) {
-  if (role !== 'worker') return true
-  return section === 'dashboard' || section === 'calendar' || section === 'jobs'
-}
-
-// ---------------------------------------------------------------------------
 // Tenant-scoped reads
 // ---------------------------------------------------------------------------
 
 export function useTenant() {
   const s = useCrmState()
   const { organization } = useOrganization()
+  // Which demo rows to show (e.g. a worker sees only their crew's jobs). Follows
+  // the real role; with no active org it shows the least, like a worker.
+  const role: OrgRole = organization?.role ?? 'worker'
 
   return useMemo(() => {
     // Prefer the real org from OrganizationProvider once it's wired; fall back to the demo tenant.
@@ -130,11 +108,11 @@ export function useTenant() {
     const roleMatch = (r: OrgRole) =>
       members.find((m) => m.role === r && m.status === 'active')
     const me =
-      s.role === 'worker'
+      role === 'worker'
         ? (members.find(
             (m) => m.role === 'worker' && crews.some((c) => c.leadId === m.id),
           ) ?? roleMatch('worker'))
-        : (roleMatch(s.role) ?? roleMatch('owner') ?? members[0])
+        : (roleMatch(role) ?? roleMatch('owner') ?? members[0])
     const myCrew = me
       ? (crews.find((c) => c.memberIds.includes(me.id)) ?? null)
       : null
@@ -152,7 +130,7 @@ export function useTenant() {
     const invoiceMap = byId(invoices)
 
     const visibleJobs =
-      s.role === 'worker'
+      role === 'worker'
         ? jobs.filter((j) => myCrew && j.crew_id === myCrew.id)
         : jobs
 
@@ -160,7 +138,6 @@ export function useTenant() {
       org,
       orgId: org.id,
       organizations: s.organizations,
-      role: s.role,
       me,
       myCrew,
       members,
@@ -200,7 +177,7 @@ export function useTenant() {
             0,
           ),
     }
-  }, [s, organization])
+  }, [s, organization, role])
 }
 
 export type Tenant = ReturnType<typeof useTenant>
@@ -456,7 +433,7 @@ function activeOrgId() {
 function actorName() {
   const s = getState()
   const me = s.members.find(
-    (m) => m.organization_id === s.activeOrgId && m.role === s.role,
+    (m) => m.organization_id === s.activeOrgId && m.role === 'owner',
   )
   return me?.display_name ?? 'You'
 }
@@ -495,9 +472,6 @@ function nextNumber(
 export const actions = {
   setActiveOrg(id: string) {
     setState((s) => ({ ...s, activeOrgId: id }))
-  },
-  setRole(role: OrgRole) {
-    setState((s) => ({ ...s, role }))
   },
 
   // ---- Organization / onboarding ----
@@ -1126,4 +1100,4 @@ export const actions = {
   },
 }
 
-export { DEFAULT_HOURS, DEFAULT_SERVICES, inSeason }
+export { DEFAULT_HOURS, DEFAULT_SERVICES }

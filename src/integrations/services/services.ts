@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
 
 import { toast } from '#/lib/toast'
-import type { Service } from '#/components/crm/types'
+import type { Service } from '#/integrations/services/types'
 import { useOrganization } from '#/integrations/organization/context'
 import { useTRPC } from '#/integrations/trpc/react'
 import type { TRPCRouter } from '#/integrations/trpc/router'

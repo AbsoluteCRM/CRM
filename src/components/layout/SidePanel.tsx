@@ -13,8 +13,10 @@ import { Link } from '@tanstack/react-router'
 
 import { LogoMark } from '#/components/crm/Logo'
 import { useOrganization } from '#/integrations/organization/context'
-import { ROLE_LABEL, canSee, useTenant } from '#/components/crm/store'
-import type { Section } from '#/components/crm/store'
+import { ROLE_LABEL } from '#/integrations/organization/permissions'
+import { useRole } from '#/integrations/organization/use-role'
+import { useTenant } from '#/mocks/crm-store'
+import type { Section } from '#/integrations/organization/permissions'
 
 const NAV = [
   {
@@ -86,6 +88,7 @@ function IconRow({
  */
 export default function SidePanel() {
   const t = useTenant()
+  const access = useRole()
   const { organization, isLoading } = useOrganization()
   const orgName = organization?.name ?? (isLoading ? 'Loading…' : 'No company')
   const newRequests = t.requests.filter((r) => r.status === 'submitted').length
@@ -112,7 +115,7 @@ export default function SidePanel() {
         </Link>
 
         <div className="relative flex flex-1 flex-col gap-1.5">
-          {NAV.filter((n) => canSee(t.role, n.section)).map((n) => (
+          {NAV.filter((n) => access.canSee(n.section)).map((n) => (
             <IconRow
               key={n.to}
               label={n.label}
@@ -124,7 +127,7 @@ export default function SidePanel() {
         </div>
 
         <div className="relative flex flex-col gap-1.5">
-          {canSee(t.role, 'settings') && (
+          {access.canSee('settings') && (
             <IconRow label="Settings" icon={Settings} route="/settings" />
           )}
           <div className="mt-2 flex items-center gap-3 rounded-2xl bg-white/6 p-1.5">
