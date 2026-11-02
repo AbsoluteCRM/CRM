@@ -4,7 +4,7 @@
  * optimizer; `optimizeOrder` is a nearest-neighbour stand-in until then.
  */
 import { fromMinutes, toMinutes } from './format'
-import type { Job, Property } from './types'
+import type { Job, Property } from '#/mocks/crm-types'
 
 export const DEPOT = { x: 48, y: 56 }
 

@@ -9,6 +9,13 @@ export const env = createEnv({
     SERVER_URL: z.string().optional(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
     PORTAL_IP_HMAC_KEY: z.string().min(16).optional(),
+    // Geocoding (server only; see src/server/geo).
+    MAPTILER_API_KEY: z.string().min(1).optional(),
+    GEOCODER_CHAIN: z
+      .string()
+      .regex(/^\s*[a-z]+(\s*,\s*[a-z]+)*\s*$/i)
+      .optional(),
+    NOMINATIM_USER_AGENT: z.string().min(8).optional(),
   },
 
   /**
@@ -22,6 +29,7 @@ export const env = createEnv({
     VITE_SUPABASE_URL: z.string().url(),
     VITE_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
     VITE_GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+    VITE_GEOAPIFY_API_KEY: z.string().min(1).optional(),
   },
 
   /**

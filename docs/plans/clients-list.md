@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `clients-list` / `feat/clients-list`
 - **Tier**: full (tRPC, auth middleware, per-request Supabase client)
-- **Status**: approved (audit skipped by user: plan-auditor model unavailable)
+- **Status**: implemented (audit skipped by user: plan-auditor model unavailable)
 - **Confidence**: 95%; the approach and scope are user-confirmed. Archived-row handling and the auth middleware shape are agent defaults.
 
 ## Original request

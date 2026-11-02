@@ -101,6 +101,8 @@ erDiagram
         uuid client_id FK
         text address_line1
         geography location
+        text geocode_source
+        text geocode_accuracy
         uuid service_area_id FK "derived"
         text access_notes
     }
