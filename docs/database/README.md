@@ -26,6 +26,7 @@ This folder is the design record for the schema:
 | 7   | Invoicing & payments | invoices, invoice_line_items, invoice_visits, invoice_line_item_taxes, payments, stripe_events                | [billing.md](tables/billing.md)             |
 | 8   | Time tracking        | shifts, visit_time_entries                                                                                    | [time.md](tables/time.md)                   |
 | 9   | Requests             | requests, request_submission_log                                                                              | [requests.md](tables/requests.md)           |
+| 10  | Service areas        | service_regions, service_areas, service_area_rotations (and the derived `properties.service_area_id`)         | [service-areas.md](tables/service-areas.md) |
 
 The core business flow is:
 
@@ -87,12 +88,15 @@ These rules apply to every table unless its reference doc says otherwise.
 - **Document numbers**: quotes, jobs, and invoices get a per-organization,
   gap-free, human-facing `number` (`Q-1001`, `J-1001`, `INV-1001`) from
   `private.next_document_number(org, kind)`.
-- **Geo**: `location geography(Point, 4326)` with a GiST index. Stored
-  generated `latitude` / `longitude` columns exist so clients that can't read
-  PostGIS types, such as the generated TypeScript types, still see usable
-  fields. Points come from server-side geocoding on save, stored with
-  `geocode_source` and `geocode_accuracy`, through a provider chain and a
-  service-role-only `geocode_cache` ([ADR 0013](decisions/0013-geocoding-chain-and-cache.md)).
+- **Geo**: points are `location geography(Point, 4326)` with a GiST index.
+  Stored generated `latitude` / `longitude` columns exist so clients that
+  can't read PostGIS types, such as the generated TypeScript types, still see
+  usable fields. Points are geocoded on save with `geocode_source` and
+  `geocode_accuracy`, through a provider chain and service-role-only
+  `geocode_cache` ([ADR 0013](decisions/0013-geocoding-chain-and-cache.md)).
+  Service area and region polygons are `geometry(MultiPolygon, 4326)`, read
+  and written only as GeoJSON through RPCs
+  ([ADR 0012](decisions/0012-service-areas.md)).
 - **Extensions** (installed in schema `extensions`, except `pg_cron`): `postgis`,
   `btree_gist`, `btree_gin`, `moddatetime`, `pg_trgm`, `pgcrypto`, `pgtap`,
   `pg_cron`. There is no `citext`: emails are `text` with a
@@ -162,7 +166,10 @@ assigned. Before running `pnpm db:types`, compare `list_migrations` with
 owned by the first auth user: `absolute-demo` (a full Edmonton landscaping
 company) and a small `northside-demo` for checking tenant isolation.
 `supabase/seed/teardown.sql` removes them. See [seed.md](seed.md) for what it
-creates and how to run it after the migrations are applied.
+creates and how to run it after the migrations are applied. The
+`absolute-demo` org also contains a Calgary region, four service areas
+(including unassigned and overlapping areas), and Calgary properties both
+inside and outside those areas.
 
 ## Migration plan
 

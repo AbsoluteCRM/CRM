@@ -1032,3 +1032,88 @@ begin
   raise notice 'seeded % (%)', v_slug, v_org;
 end;
 $$;
+
+-- Service areas: a Calgary region with four areas (one unowned, and a
+-- higher-priority downtown area overlapping NW and NE), a second crew, and
+-- Calgary properties inside and outside them. Hand-picked coordinates; no
+-- provider calls. Triggers derive properties.service_area_id.
+--
+-- Idempotent: runs once per demo org (skips if it already has a region).
+do $$
+declare
+  v_org uuid;
+  v_truck1 uuid;
+  v_truck2 uuid;
+  v_region uuid;
+  v_downtown uuid;
+  v_client uuid;
+begin
+  select id into v_org from public.organizations where slug = 'absolute-demo';
+  if v_org is null then
+    raise notice 'demo org not found; run the seed above first';
+    return;
+  end if;
+  if exists (select 1 from public.service_regions where organization_id = v_org) then
+    raise notice 'demo service areas already exist; skipping';
+    return;
+  end if;
+
+  select id into v_truck1
+  from public.crews
+  where organization_id = v_org and name in ('Truck 1', 'Truck 1 - West')
+  order by case name when 'Truck 1' then 0 else 1 end
+  limit 1;
+  select id into v_truck2
+  from public.crews
+  where organization_id = v_org and name in ('Truck 2', 'Truck 2 - East')
+  order by case name when 'Truck 2' then 0 else 1 end
+  limit 1;
+  if v_truck2 is null then
+    insert into public.crews (organization_id, name, color, vehicle, default_start_location, max_work_minutes)
+    values (v_org, 'Truck 2', '#2563eb', 'F-150 #2', 'SRID=4326;POINT(-114.0719 51.0447)', 480)
+    returning id into v_truck2;
+  end if;
+
+  insert into public.service_regions (organization_id, name, center, bbox, source)
+  values (v_org, 'Calgary', 'SRID=4326;POINT(-114.0719 51.0447)',
+          extensions.st_makeenvelope(-114.32, 50.84, -113.86, 51.21, 4326), 'manual')
+  returning id into v_region;
+
+  insert into public.service_areas (organization_id, crew_id, region_id, name, color, priority, boundary) values
+    (v_org, v_truck1, v_region, 'NW Calgary', '#16a34a', 0,
+     extensions.st_multi(extensions.st_makeenvelope(-114.25, 51.06, -114.07, 51.18, 4326))),
+    (v_org, v_truck2, v_region, 'NE Calgary', '#2563eb', 0,
+     extensions.st_multi(extensions.st_makeenvelope(-114.07, 51.05, -113.92, 51.18, 4326))),
+    (v_org, null, v_region, 'South Calgary (unassigned)', '#9ca3af', 0,
+     extensions.st_multi(extensions.st_makeenvelope(-114.20, 50.88, -113.95, 51.03, 4326)));
+  -- Overlaps the south edge of NW and NE Calgary; priority 10 wins there.
+  insert into public.service_areas (organization_id, crew_id, region_id, name, color, priority, boundary)
+  values (v_org, v_truck2, v_region, 'Downtown core', '#ca8a04', 10,
+          extensions.st_multi(extensions.st_makeenvelope(-114.10, 51.03, -114.03, 51.07, 4326)))
+  returning id into v_downtown;
+  -- Saturdays downtown go to Truck 1.
+  insert into public.service_area_rotations (organization_id, service_area_id, weekday, crew_id)
+  values (v_org, v_downtown, 6, v_truck1);
+
+  insert into public.clients (organization_id, kind, display_name, company_name, email, phone)
+  values (v_org, 'company', 'Bow River Property Group', 'Bow River Property Group Inc.', 'ops@example.com', '403-555-0140')
+  returning id into v_client;
+  insert into public.properties (organization_id, client_id, name, address_line1, city, region, postal_code, location, geocoded_at, geocode_source)
+  values
+    -- Downtown core only.
+    (v_org, v_client, 'Kensington', '1120 Kensington Rd NW', 'Calgary', 'AB', 'T2N 3P5', 'SRID=4326;POINT(-114.0880 51.0530)', now(), 'manual'),
+    -- Downtown core and NE Calgary: downtown wins on priority.
+    (v_org, v_client, 'Crescent Heights', '120 16 Ave NE', 'Calgary', 'AB', 'T2E 1J5', 'SRID=4326;POINT(-114.0650 51.0650)', now(), 'manual'),
+    (v_org, v_client, 'Tuscany', '400 Tuscany Valley Dr NW', 'Calgary', 'AB', 'T3L 2L7', 'SRID=4326;POINT(-114.2390 51.1240)', now(), 'manual'),
+    (v_org, v_client, 'Saddle Ridge', '80 Saddlecrest Blvd NE', 'Calgary', 'AB', 'T3J 5L1', 'SRID=4326;POINT(-113.9480 51.1270)', now(), 'manual'),
+    -- Unowned area.
+    (v_org, v_client, 'Lake Bonavista', '1000 Lake Bonavista Dr SE', 'Calgary', 'AB', 'T2J 0M8', 'SRID=4326;POINT(-114.0560 50.9440)', now(), 'manual'),
+    -- Outside every area.
+    (v_org, v_client, 'Cochrane yard', '205 1 St W', 'Cochrane', 'AB', 'T4C 1A5', 'SRID=4326;POINT(-114.4670 51.1890)', now(), 'manual');
+  -- Not geocoded yet.
+  insert into public.properties (organization_id, client_id, name, address_line1, city, region, postal_code)
+  values (v_org, v_client, 'Bridgeland', '920 McDougall Rd NE', 'Calgary', 'AB', 'T2E 7H9');
+
+  raise notice 'seeded demo service areas in org %', v_org;
+end;
+$$;

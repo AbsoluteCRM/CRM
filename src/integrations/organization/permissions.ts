@@ -37,6 +37,9 @@ export const can = {
   manageRequests: (r: OrgRole) => r !== 'worker',
   manageCrews: (r: OrgRole) => r !== 'worker',
   manageServices: (r: OrgRole) => r === 'owner' || r === 'admin',
+  manageServiceAreas: (r: OrgRole) => r === 'owner' || r === 'admin',
+  // Coverage counts properties, which only office staff can read under RLS.
+  viewServiceAreaCoverage: (r: OrgRole) => r !== 'worker',
   manageTeam: (r: OrgRole) => r === 'owner' || r === 'admin',
   viewTeam: (r: OrgRole) => r !== 'worker',
   manageSettings: (r: OrgRole) => r === 'owner' || r === 'admin',
