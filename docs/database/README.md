@@ -158,10 +158,11 @@ below, and the remote was reset and rebuilt from them. Files are named
 assigned. Before running `pnpm db:types`, compare `list_migrations` with
 `supabase/migrations/`.
 
-**Demo data**: `supabase/seed.sql` is idempotent and creates the
-`absolute-demo` org (Edmonton, GST only), owned by the first auth user, with
-a crew, 3 clients, recurring and one-off jobs, visits for the next 8 weeks,
-and a draft quote. Run it with `execute_sql` or psql. Run it after the migrations are applied.
+**Demo data**: `supabase/seed.sql` is idempotent and creates two demo orgs
+owned by the first auth user: `absolute-demo` (a full Edmonton landscaping
+company) and a small `northside-demo` for checking tenant isolation.
+`supabase/seed/teardown.sql` removes them. See [seed.md](seed.md) for what it
+creates and how to run it after the migrations are applied.
 
 ## Migration plan
 

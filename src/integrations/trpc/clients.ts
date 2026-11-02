@@ -2,7 +2,8 @@ import * as Sentry from '@sentry/tanstackstart-react'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
-import { protectedProcedure, requireOrgPermission } from './init'
+import { dbError } from './errors'
+import { organizationProcedure, requireOrgPermission } from './init'
 import { getGeocoder } from '#/server/geo'
 import {
   geocodeKeyChanged,
@@ -85,18 +86,6 @@ const propertyFields = {
 const blankToNull = (v: string | null | undefined) =>
   v === undefined ? undefined : v || null
 
-function toTRPCError(error: { message: string; code?: string }) {
-  const code =
-    error.code === '23505'
-      ? 'CONFLICT'
-      : error.code === '42501'
-        ? 'FORBIDDEN'
-        : error.code === 'P0002' || error.code === '23503'
-          ? 'BAD_REQUEST'
-          : 'INTERNAL_SERVER_ERROR'
-  return new TRPCError({ code, message: error.message, cause: error })
-}
-
 // Trimmed + lowercased to match the DB's `email = lower(email)` check; blank normalizes to null.
 const emailField = z
   .string()
@@ -106,27 +95,19 @@ const emailField = z
   .optional()
 
 export const clientsRouter = {
-  // RLS limits rows to orgs the caller is office staff in; the org filter picks the active one.
-  list: protectedProcedure
-    .input(z.object({ organizationId: z.uuid() }))
-    .query(({ ctx, input }) =>
-      Sentry.startSpan({ name: 'clients.list' }, async () => {
-        const { data, error } = await ctx.supabase
-          .from('clients')
-          .select(CLIENT_COLUMNS)
-          .eq('organization_id', input.organizationId)
-          .is('archived_at', null)
-          .order('display_name', { ascending: true })
-        if (error) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: error.message,
-            cause: error,
-          })
-        }
-        return data
-      }),
-    ),
+  // Membership is verified; RLS further limits rows to office staff.
+  list: organizationProcedure.query(({ ctx }) =>
+    Sentry.startSpan({ name: 'clients.list' }, async () => {
+      const { data, error } = await ctx.supabase
+        .from('clients')
+        .select(CLIENT_COLUMNS)
+        .eq('organization_id', ctx.organizationId)
+        .is('archived_at', null)
+        .order('display_name', { ascending: true })
+      if (error) throw dbError(error)
+      return data
+    }),
+  ),
 
   create: manageClients
     .input(
@@ -155,7 +136,7 @@ export const clientsRouter = {
           })
           .select(CLIENT_COLUMNS)
           .single()
-        if (error) throw toTRPCError(error)
+        if (error) throw dbError(error)
         return data
       }),
     ),
@@ -207,7 +188,7 @@ export const clientsRouter = {
           .eq('organization_id', ctx.organizationId)
           .eq('id', input.clientId)
           .select('id')
-        if (error) throw toTRPCError(error)
+        if (error) throw dbError(error)
         if (data.length === 0) {
           throw new TRPCError({
             code: 'NOT_FOUND',
@@ -230,7 +211,7 @@ export const clientsRouter = {
             .eq('client_id', input.clientId)
             .is('archived_at', null)
             .order('created_at', { ascending: true })
-          if (error) throw toTRPCError(error)
+          if (error) throw dbError(error)
           return data.map(withLocationStatus)
         }),
       ),
@@ -267,7 +248,7 @@ export const clientsRouter = {
             })
             .select(PROPERTY_COLUMNS)
             .single()
-          if (error) throw toTRPCError(error)
+          if (error) throw dbError(error)
           return withLocationStatus(data)
         }),
       ),
@@ -300,7 +281,7 @@ export const clientsRouter = {
             .eq('organization_id', ctx.organizationId)
             .eq('id', input.propertyId)
             .maybeSingle()
-          if (current.error) throw toTRPCError(current.error)
+          if (current.error) throw dbError(current.error)
           if (!current.data) {
             throw new TRPCError({
               code: 'NOT_FOUND',
@@ -356,7 +337,7 @@ export const clientsRouter = {
             .eq('organization_id', ctx.organizationId)
             .eq('id', input.propertyId)
             .select(PROPERTY_COLUMNS)
-          if (error) throw toTRPCError(error)
+          if (error) throw dbError(error)
           if (data.length === 0) {
             throw new TRPCError({
               code: 'NOT_FOUND',
@@ -373,7 +354,7 @@ export const clientsRouter = {
               .eq('id', input.propertyId)
               .is('location', null)
               .select(PROPERTY_COLUMNS)
-            if (guarded.error) throw toTRPCError(guarded.error)
+            if (guarded.error) throw dbError(guarded.error)
             if (guarded.data.length > 0) {
               return withLocationStatus(guarded.data[0])
             }
@@ -382,7 +363,7 @@ export const clientsRouter = {
               .select(PROPERTY_COLUMNS)
               .eq('organization_id', ctx.organizationId)
               .eq('id', input.propertyId)
-            if (reread.error) throw toTRPCError(reread.error)
+            if (reread.error) throw dbError(reread.error)
             if (reread.data.length > 0) {
               return withLocationStatus(reread.data[0])
             }
@@ -421,7 +402,7 @@ export const clientsRouter = {
               .eq('organization_id', ctx.organizationId)
               .eq('id', input.propertyId)
               .select(PROPERTY_COLUMNS)
-            if (error) throw toTRPCError(error)
+            if (error) throw dbError(error)
             if (data.length === 0) {
               throw new TRPCError({
                 code: 'NOT_FOUND',

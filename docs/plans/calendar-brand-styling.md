@@ -3,7 +3,7 @@
 - **Slug / branch**: `calendar-brand-styling` / `chore/calendar-brand-styling`
 - **Tier**: light (small presentation-only chore; all implementation changes
   stay in the UI layer, with stories and the design record supporting it)
-- **Status**: draft
+- **Status**: implemented (merged as PR #24)
 - **Confidence**: 96%, because the user confirmed the whole Calendar experience
   should use the CRM brand style, and the relevant components, brand tokens, and
   existing interaction stories have been inspected.
