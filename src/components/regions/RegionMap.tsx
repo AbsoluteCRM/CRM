@@ -1,10 +1,18 @@
+
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet'
 import type { Layer, Map as LeafletMap } from 'leaflet'
-import type { Geometry } from 'geojson'
+import type {
+  Feature,
+  FeatureCollection,
+  Geometry,
+  Polygon,
+} from 'geojson'
 
 import { useCrews } from '#/integrations/crews/crews'
 import { useOrganization } from '#/integrations/organization/context'
+import { useTRPC } from '#/integrations/trpc/react'
 
 import 'leaflet/dist/leaflet.css'
 import '@geoman-io/leaflet-geoman-free'
@@ -13,6 +21,52 @@ import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
 type PendingRegion = {
   layer: Layer
   boundary: Extract<Geometry, { type: 'Polygon' }>
+}
+
+type SavedRegion = {
+  id: string
+  name: string
+  crew_id: string | null
+  boundary: unknown
+}
+
+function parsePolygon(value: unknown): Polygon | null {
+  let geometry: unknown = value
+
+  if (typeof geometry === 'string') {
+    try {
+      geometry = JSON.parse(geometry)
+    } catch {
+      return null
+    }
+  }
+
+  if (!geometry || typeof geometry !== 'object') return null
+
+  const candidate = geometry as {
+    type?: unknown
+    coordinates?: unknown
+  }
+
+  if (candidate.type !== 'Polygon') return null
+  if (!Array.isArray(candidate.coordinates)) return null
+
+  const valid = candidate.coordinates.every(
+    (ring) =>
+      Array.isArray(ring) &&
+      ring.length >= 4 &&
+      ring.every(
+        (point) =>
+          Array.isArray(point) &&
+          point.length >= 2 &&
+          typeof point[0] === 'number' &&
+          typeof point[1] === 'number',
+      ),
+  )
+
+  if (!valid) return null
+
+  return candidate as Polygon
 }
 
 function DrawingControls({
@@ -75,23 +129,68 @@ function DrawingControls({
 
 export default function RegionMap() {
   const mapRef = useRef<LeafletMap | null>(null)
+  const savingRef = useRef(false)
 
-  const [pendingRegion, setPendingRegion] = useState<PendingRegion | null>(
-    null,
-  )
+  const [pendingRegion, setPendingRegion] =
+    useState<PendingRegion | null>(null)
+
   const [regionName, setRegionName] = useState('')
   const [selectedCrewId, setSelectedCrewId] = useState('')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
 
-  // Load crews through AbsoluteCRM's existing integration.
-  const crewsQuery = useCrews()
-  const crews = crewsQuery.data ?? []
+  const trpc = useTRPC()
+  const queryClient = useQueryClient()
 
-  // Temporary diagnostics for the authenticated organization.
   const {
     organization,
     isLoading: organizationLoading,
     error: organizationError,
   } = useOrganization()
+
+  const organizationId = organization?.id
+
+  const crewsQuery = useCrews()
+  const crews = crewsQuery.data ?? []
+
+  const regionsQuery = useQuery({
+  ...trpc.regions.list.queryOptions({
+    organizationId: organizationId!,
+    }),
+  enabled: Boolean(organizationId),
+  })
+
+  const createRegion = useMutation(
+    trpc.regions.create.mutationOptions(),
+  )
+
+  const savedRegions: Array<SavedRegion> =
+    regionsQuery.data ?? []
+
+  const savedFeatures: Array<Feature<Polygon>> = savedRegions.flatMap(
+    (region) => {
+      const polygon = parsePolygon(region.boundary)
+
+      if (!polygon) return []
+
+      return [
+        {
+          type: 'Feature' as const,
+          id: region.id,
+          properties: {
+            name: region.name,
+            crewId: region.crew_id,
+          },
+          geometry: polygon,
+        },
+      ]
+    },
+  )
+
+  const savedCollection: FeatureCollection<Polygon> = {
+    type: 'FeatureCollection',
+    features: savedFeatures,
+  }
 
   const handleMapReady = useCallback((map: LeafletMap) => {
     mapRef.current = map
@@ -108,9 +207,13 @@ export default function RegionMap() {
 
     setRegionName('')
     setSelectedCrewId('')
+    setSaveError(null)
+    setSaveSuccess(null)
   }, [])
 
   const handleCancel = () => {
+    if (savingRef.current) return
+
     if (pendingRegion) {
       mapRef.current?.removeLayer(pendingRegion.layer)
     }
@@ -118,11 +221,82 @@ export default function RegionMap() {
     setPendingRegion(null)
     setRegionName('')
     setSelectedCrewId('')
+    setSaveError(null)
+  }
+
+  const handleSave = async () => {
+    if (
+      savingRef.current ||
+      !pendingRegion ||
+      !organization ||
+      !regionName.trim()
+    ) {
+      return
+    }
+
+    savingRef.current = true
+    setSaveError(null)
+    setSaveSuccess(null)
+
+    try {
+      const layer = pendingRegion.layer
+
+      if (
+        !('toGeoJSON' in layer) ||
+        typeof layer.toGeoJSON !== 'function'
+      ) {
+        throw new Error('Unable to read the drawn polygon.')
+      }
+
+      const feature = layer.toGeoJSON()
+
+      if (
+        feature.type !== 'Feature' ||
+        feature.geometry?.type !== 'Polygon'
+      ) {
+        throw new Error('Please draw a valid polygon before saving.')
+      }
+
+      await createRegion.mutateAsync({
+        organizationId: organization.id,
+        name: regionName.trim(),
+        crewId: selectedCrewId || null,
+        boundary: {
+          type: 'Polygon',
+          coordinates: feature.geometry.coordinates.map(
+            (ring: number[][]) =>
+              ring.map(
+                (point: number[]) =>
+                  [point[0], point[1]] as [number, number],
+              ),
+          ),
+        },
+      })
+
+      // Reload the saved regions before removing the temporary layer.
+      await queryClient.invalidateQueries({
+        queryKey: trpc.regions.list.queryKey(),
+      })
+
+      mapRef.current?.removeLayer(pendingRegion.layer)
+
+      setPendingRegion(null)
+      setRegionName('')
+      setSelectedCrewId('')
+      setSaveSuccess('Service region saved successfully.')
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to save region.',
+      )
+    } finally {
+      savingRef.current = false
+    }
   }
 
   return (
     <div className="space-y-4">
-      {/* Temporary diagnostic information */}
       <p className="text-sm text-gray-600">
         Organization:{' '}
         {organizationLoading
@@ -150,8 +324,79 @@ export default function RegionMap() {
             onCreate={handleCreate}
             onMapReady={handleMapReady}
           />
+
+          {organizationId && savedFeatures.length > 0 && (
+            <GeoJSON
+              key={`${organizationId}-${savedFeatures
+                .map((feature) => feature.id)
+                .join('-')}-${regionsQuery.dataUpdatedAt}`}
+              data={savedCollection}
+              style={{
+                color: '#2563eb',
+                weight: 3,
+                fillColor: '#3b82f6',
+                fillOpacity: 0.2,
+              }}
+              onEachFeature={(feature, layer) => {
+                // Saved polygons are read-only in this version.
+                // Prevent Geoman's edit/removal tools from modifying
+                // a polygon without updating Supabase.
+                // Prevent Geoman from editing or removing saved polygons.
+                // The Leaflet type definitions do not expose pm on a generic Layer.
+                if ('pm' in layer && layer.pm) {
+                  const pm = layer.pm as {
+                    setOptions: (options: {
+                      allowEditing: boolean
+                      allowRemoval: boolean
+                      allowCutting: boolean
+                      allowRotation: boolean
+                    }) => void
+                  }
+
+                  pm.setOptions({
+                    allowEditing: false,
+                    allowRemoval: false,
+                    allowCutting: false,
+                    allowRotation: false,
+                  })
+                }
+
+                const name =
+                  typeof feature.properties?.name === 'string'
+                    ? feature.properties.name
+                    : 'Service region'
+
+                layer.bindTooltip(name)
+              }}
+            />
+          )}
         </MapContainer>
       </div>
+
+      {organization && regionsQuery.isPending && (
+        <p className="text-sm text-gray-500">
+          Loading saved service regions...
+        </p>
+      )}
+
+      {organization && regionsQuery.isError && (
+        <p role="alert" className="text-sm text-red-600">
+          Unable to load saved regions: {regionsQuery.error.message}
+        </p>
+      )}
+
+      {organization && regionsQuery.isSuccess && (
+        <p className="text-sm text-gray-600">
+          {savedFeatures.length} saved service{' '}
+          {savedFeatures.length === 1 ? 'region' : 'regions'}
+        </p>
+      )}
+
+      {saveSuccess && (
+        <p role="status" className="text-sm text-green-700">
+          {saveSuccess}
+        </p>
+      )}
 
       {pendingRegion && (
         <div className="space-y-4 rounded-xl border p-4">
@@ -162,8 +407,11 @@ export default function RegionMap() {
             <input
               type="text"
               value={regionName}
-              onChange={(event) => setRegionName(event.target.value)}
+              onChange={(event) =>
+                setRegionName(event.target.value)
+              }
               placeholder="e.g. Northwest Calgary"
+              disabled={createRegion.isPending}
               className="mt-1 w-full rounded-lg border px-3 py-2"
             />
           </label>
@@ -179,7 +427,8 @@ export default function RegionMap() {
                 !organization ||
                 organizationLoading ||
                 crewsQuery.isPending ||
-                crewsQuery.isError
+                crewsQuery.isError ||
+                createRegion.isPending
               }
               className="mt-1 w-full rounded-lg border px-3 py-2"
             >
@@ -236,27 +485,37 @@ export default function RegionMap() {
               </p>
             )}
 
+          {saveError && (
+            <p role="alert" className="text-sm text-red-600">
+              Unable to save region: {saveError}
+            </p>
+          )}
+
           <div className="flex gap-2">
             <button
               type="button"
-              disabled={!regionName.trim()}
+              onClick={handleSave}
+              disabled={
+                !organization ||
+                !regionName.trim() ||
+                createRegion.isPending
+              }
               className="rounded-lg bg-green-700 px-4 py-2 text-white disabled:opacity-50"
             >
-              Save region
+              {createRegion.isPending
+                ? 'Saving...'
+                : 'Save region'}
             </button>
 
             <button
               type="button"
               onClick={handleCancel}
-              className="rounded-lg border px-4 py-2"
+              disabled={createRegion.isPending}
+              className="rounded-lg border px-4 py-2 disabled:opacity-50"
             >
               Cancel
             </button>
           </div>
-
-          <p className="text-xs text-gray-500">
-            Saving will be connected after we verify the crew dropdown.
-          </p>
         </div>
       )}
     </div>
