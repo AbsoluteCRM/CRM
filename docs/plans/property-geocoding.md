@@ -107,7 +107,7 @@ Agent defaults (minor; Eric may veto them):
 
 ## Layers touched
 
-- [x] Migration (`supabase/migrations/20261102160000_geocoding.sql`)
+- [x] Migration (`supabase/migrations/20261102193330_geocoding.sql`)
 - [x] RLS / grants / pgTAP test (`supabase/tests/geocoding_test.sql`)
 - [x] `docs/database` (clients.md, README, ADR)
 - [x] Types (hand-edited in the generated style until `pnpm db:types` runs)
