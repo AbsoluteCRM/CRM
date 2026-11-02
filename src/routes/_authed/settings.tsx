@@ -29,13 +29,16 @@ import {
   Tabs,
   TextInput,
   Toggle,
-  toast,
 } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import { PLANS } from '#/components/crm/plans'
-import { ROLE_DESCRIPTION, ROLE_LABEL } from '#/components/crm/store'
 import OnlineRequestsSettings from '#/components/settings/OnlineRequestsSettings'
 import { useOrganization } from '#/integrations/organization/context'
-import { can } from '#/integrations/organization/permissions'
+import {
+  ROLE_DESCRIPTION,
+  ROLE_LABEL,
+} from '#/integrations/organization/permissions'
+import { useRole } from '#/integrations/organization/use-role'
 import { WEEKDAYS } from '#/integrations/settings/schema'
 import {
   portalUrl,
@@ -66,15 +69,15 @@ type Tab =
   'company' | 'hours' | 'online' | 'subscription' | 'roles' | 'security'
 
 function SettingsPage() {
-  const { organization, isLoading } = useOrganization()
-  const role: OrgRole = organization?.role ?? 'worker'
+  const { organization } = useOrganization()
+  const access = useRole()
   const [tab, setTab] = useState<Tab>('company')
   const company = useCompanySettings()
   const tabs: Array<{ value: Tab; label: string }> = [
     { value: 'company', label: 'Company profile' },
     { value: 'hours', label: 'Hours & service areas' },
     { value: 'online', label: 'Online requests' },
-    ...(can.manageBilling(role)
+    ...(access.can('manageBilling')
       ? [{ value: 'subscription' as const, label: 'Subscription' }]
       : []),
     { value: 'roles', label: 'Users & roles' },
@@ -86,7 +89,7 @@ function SettingsPage() {
       kicker={organization?.name}
       title="Company settings"
       subtitle="Your company profile, hours, online requests, plan, and who can do what."
-      allowed={isLoading || can.manageSettings(role)}
+      allowed={access.can('manageSettings')}
       section="Settings"
     >
       <Tabs className="mb-5" value={tab} onChange={setTab} tabs={tabs} />

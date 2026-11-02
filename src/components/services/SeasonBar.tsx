@@ -1,7 +1,7 @@
 import { MONTHS, parseDate, todayISO } from '#/components/crm/format'
-import { inSeason } from '#/components/crm/store'
+import { inSeason } from '#/integrations/services/types'
 import { cn } from '#/lib/utils'
-import type { Service } from '#/components/crm/types'
+import type { Service } from '#/integrations/services/types'
 
 type Seasonal = Pick<Service, 'season' | 'color'>
 

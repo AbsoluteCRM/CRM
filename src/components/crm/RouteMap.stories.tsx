@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from '@storybook/tanstack-react'
 import RouteMap from './RouteMap'
 import { demoLonLat } from './route'
 import type { RouteStop } from './route'
-import type { Job, Property } from './types'
+import type { Job, Property } from '#/mocks/crm-types'
 import '#/styles.css'
 
 function stop(

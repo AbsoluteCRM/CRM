@@ -1,0 +1,26 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "address.123456789",
+      "text": "83 Avenue Northwest",
+      "place_name": "11220 83 Avenue Northwest, Edmonton, Alberta T6G 0T8, Canada",
+      "place_type": ["address"],
+      "place_type_name": ["address"],
+      "relevance": 1,
+      "center": [-113.5219, 53.5186],
+      "bbox": [-113.5219, 53.5186, -113.5219, 53.5186],
+      "geometry": { "type": "Point", "coordinates": [-113.5219, 53.5186] },
+      "properties": { "country_code": "ca" },
+      "address": "11220",
+      "context": [
+        { "id": "municipality.1", "text": "Edmonton" },
+        { "id": "region.1", "text": "Alberta" },
+        { "id": "country.1", "text": "Canada" }
+      ]
+    }
+  ],
+  "query": ["11220", "83", "ave", "nw", "edmonton", "ab", "t6g", "0t8", "ca"],
+  "attribution": "&copy; MapTiler &copy; OpenStreetMap contributors"
+}

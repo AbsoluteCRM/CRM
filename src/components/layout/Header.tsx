@@ -22,8 +22,11 @@ import OrgAvatar from './OrgAvatar'
 import { useNewRequests } from '#/integrations/requests/requests'
 import { useMyMember } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
-import { ROLE_LABEL, can, useTenant } from '#/components/crm/store'
-import { Toaster } from '#/components/crm/ui'
+import { ROLE_LABEL } from '#/integrations/organization/permissions'
+import { useRole } from '#/integrations/organization/use-role'
+import { useTenant } from '#/mocks/crm-store'
+import { SampleDataBadge } from '#/mocks/SampleDataBadge'
+import { Toaster } from '#/lib/toast'
 import { fmtDate } from '#/components/crm/format'
 import AppThemeStyles from './AppTheme'
 
@@ -75,6 +78,7 @@ const menuItem =
 
 function GlobalSearch() {
   const t = useTenant()
+  const searchAll = useRole().can('manageClients')
   const navigate = useNavigate()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
@@ -132,8 +136,8 @@ function GlobalSearch() {
           r.prospect?.name ?? t.client(r.client_id)?.display_name ?? 'Request',
         sub: t.service(r.service_id)?.name ?? '',
       }))
-    return can.manageClients(t.role) ? [...clients, ...jobs, ...requests] : jobs
-  }, [q, t])
+    return searchAll ? [...clients, ...jobs, ...requests] : jobs
+  }, [q, t, searchAll])
 
   const go = (r: (typeof results)[number]) => {
     setOpen(false)
@@ -166,6 +170,9 @@ function GlobalSearch() {
       />
       {open && q.trim().length >= 2 && (
         <div className="crm-pop absolute top-full right-0 left-0 z-50 mt-2 overflow-hidden rounded-2xl border border-(--line) bg-(--paper) p-1.5 shadow-xl">
+          <p className="flex justify-end px-3 pt-1.5">
+            <SampleDataBadge />
+          </p>
           {results.length === 0 ? (
             <p className="px-3 py-4 text-center text-sm text-(--ink-3)">
               No matches for “{q}”
@@ -202,7 +209,7 @@ function GlobalSearch() {
 const ORG_AVATAR = 'bg-(--leaf-700)'
 
 export default function Header() {
-  const t = useTenant()
+  const access = useRole()
   const {
     organizations,
     organization,
@@ -328,7 +335,7 @@ export default function Header() {
             className="relative flex size-10 cursor-pointer items-center justify-center rounded-full text-(--ink-2) hover:bg-(--sage)"
           >
             <Bell className="size-5" />
-            {newRequests > 0 && (
+            {newRequests > 0 && access.can('manageRequests') && (
               <span className="absolute top-1.5 right-1.5 flex size-4 items-center justify-center rounded-full bg-(--clay) text-[10px] font-bold text-white">
                 {newRequests > 9 ? '9+' : newRequests}
               </span>
@@ -365,7 +372,7 @@ export default function Header() {
                 </span>
               </Link>
             ))}
-            {can.manageRequests(t.role) && (
+            {access.can('manageRequests') && (
               <Link
                 to="/requests"
                 onClick={close}
@@ -418,7 +425,7 @@ export default function Header() {
               </p>
             </div>
             <div className="my-1 h-px bg-(--line)" />
-            {can.manageSettings(t.role) && (
+            {access.can('manageSettings') && (
               <Link to="/settings" onClick={close} className={menuItem}>
                 <Settings className="size-4 text-(--ink-3)" /> Company settings
               </Link>

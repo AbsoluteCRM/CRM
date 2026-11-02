@@ -9,6 +9,13 @@ export const env = createEnv({
     SERVER_URL: z.string().optional(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
     PORTAL_IP_HMAC_KEY: z.string().min(16).optional(),
+    // Geocoding (server only; see src/server/geo).
+    MAPTILER_API_KEY: z.string().min(1).optional(),
+    GEOCODER_CHAIN: z
+      .string()
+      .regex(/^\s*[a-z]+(\s*,\s*[a-z]+)*\s*$/i)
+      .optional(),
+    NOMINATIM_USER_AGENT: z.string().min(8).optional(),
   },
 
   /**
