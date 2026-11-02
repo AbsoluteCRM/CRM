@@ -60,3 +60,16 @@ glyph. Legs stay straight until road routing lands. Stops without a location
 are listed under the map instead of placed. See
 [ADR 0014](../database/decisions/0014-map-provider.md),
 [Calendar UI](../calendar/ui.md), and [Jobs UI](../jobs/ui.md).
+
+## 2026-11-02 — Service area editor in Settings
+
+Eric approved the service area editor in the roadmap: owners and admins draw
+crew service areas on a map in Settings → "Hours & service areas", replacing
+the mock string list. Each save shows the impact first (properties that would
+move, from and to) and warns on overlaps without blocking, because overlaps
+are allowed and priority decides. The area list is the keyboard equivalent of
+the map. Cities are added by typing or picking a centre, or by framing the
+current view; no provider is called. Drawing is for desktop and tablet; phones
+and non-managers see the map and list read-only. See
+[Service area editor](../service-areas/ui.md) and
+[the plan](../plans/service-areas-editor.md).

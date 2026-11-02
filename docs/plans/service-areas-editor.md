@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `service-areas-editor` / `feat/service-areas-editor`
 - **Tier**: full (new UI feature on a security-gated route file)
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%. Every material choice comes from Eric's roadmap
   decisions (Q1–Q7, D3, D5; 2026-11-02) or from the code and RPC shapes
   verified in PRs #91 and #92. The few agent defaults are listed under D1–D6.
