@@ -169,7 +169,27 @@ export function IconBtn({
 // ---------------------------------------------------------------------------
 
 export type Tone =
-  'green' | 'lime' | 'sun' | 'clay' | 'sky' | 'gray' | 'violet' | 'dark'
+  | 'green'
+  | 'lime'
+  | 'sun'
+  | 'clay'
+  | 'sky'
+  | 'gray'
+  | 'violet'
+  | 'dark'
+  | 'success'
+  | 'warning'
+  | 'danger'
+
+/**
+ * Status colours that mean the same thing in every colour theme, so they use
+ * fixed values instead of the themeable --leaf / --lime tokens.
+ */
+export const FIXED_TONE = {
+  success: 'bg-[#dcf0e2] text-[#1d6b3c]',
+  warning: 'bg-[#fdf1c7] text-[#8a6100]',
+  danger: 'bg-[#fde2df] text-[#b42318]',
+} as const
 
 const toneClass: Record<Tone, string> = {
   green: 'bg-(--sage) text-(--leaf-700)',
@@ -180,6 +200,7 @@ const toneClass: Record<Tone, string> = {
   gray: 'bg-(--cream-2) text-(--ink-2)',
   violet: 'bg-(--violet-100) text-(--violet)',
   dark: 'bg-(--leaf-900) text-(--lime)',
+  ...FIXED_TONE,
 }
 
 export function Badge({
@@ -211,18 +232,18 @@ const STATUS: Partial<Record<string, { label: string; tone: Tone }>> = {
   // jobs
   scheduled: { label: 'Scheduled', tone: 'sky' },
   assigned: { label: 'Assigned', tone: 'violet' },
-  in_progress: { label: 'In progress', tone: 'sun' },
-  completed: { label: 'Completed', tone: 'green' },
-  cancelled: { label: 'Cancelled', tone: 'gray' },
+  in_progress: { label: 'In progress', tone: 'warning' },
+  completed: { label: 'Completed', tone: 'success' },
+  cancelled: { label: 'Cancelled', tone: 'danger' },
   // requests
   submitted: { label: 'New', tone: 'lime' },
   reviewing: { label: 'In review', tone: 'sky' },
   estimated: { label: 'Estimate sent', tone: 'violet' },
-  approved: { label: 'Approved', tone: 'green' },
+  approved: { label: 'Approved', tone: 'success' },
   rejected: { label: 'Rejected', tone: 'clay' },
   converted: { label: 'Converted', tone: 'dark' },
   // clients
-  active: { label: 'Active', tone: 'green' },
+  active: { label: 'Active', tone: 'success' },
   inactive: { label: 'Inactive', tone: 'gray' },
   lead: { label: 'Lead', tone: 'lime' },
   invited: { label: 'Invited', tone: 'sky' },
@@ -231,7 +252,7 @@ const STATUS: Partial<Record<string, { label: string; tone: Tone }>> = {
   draft: { label: 'Draft', tone: 'gray' },
   sent: { label: 'Sent', tone: 'sky' },
   partially_paid: { label: 'Partially paid', tone: 'sun' },
-  paid: { label: 'Paid', tone: 'green' },
+  paid: { label: 'Paid', tone: 'success' },
   void: { label: 'Void', tone: 'gray' },
   overdue: { label: 'Overdue', tone: 'clay' },
 }
@@ -598,18 +619,21 @@ export function CheckPill({
   checked,
   onChange,
   children,
+  disabled,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   children: ReactNode
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       aria-pressed={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-left text-[13px] font-semibold transition-colors',
+        'inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-left text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40',
         checked
           ? 'border-(--leaf-600) bg-(--lime-100) text-(--leaf-900)'
           : 'border-(--line-2) bg-(--paper) text-(--ink-2) hover:border-(--leaf-500)',

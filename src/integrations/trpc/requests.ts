@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/tanstackstart-react'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
@@ -17,9 +16,7 @@ const slug = z
 export const portalRouter = {
   get: publicProcedure
     .input(z.object({ orgSlug: slug }))
-    .query(({ input }) =>
-      Sentry.startSpan({ name: 'portal.get' }, () => getPortal(input.orgSlug)),
-    ),
+    .query(({ input }) => getPortal(input.orgSlug)),
 
   submit: publicProcedure
     .input(
@@ -35,51 +32,41 @@ export const portalRouter = {
         website: z.string().max(200),
       }),
     )
-    .mutation(({ ctx, input }) =>
-      Sentry.startSpan({ name: 'portal.submit' }, async () => {
-        if (input.website !== '') {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: 'Invalid submission',
-          })
-        }
-        return submitRequest({
-          slug: input.orgSlug,
-          serviceId: input.serviceId,
-          name: input.name,
-          email: input.email,
-          phone: input.phone || null,
-          address: input.address,
-          notes: input.notes || null,
-          ipHash: hashClientIp(ctx.headers),
+    .mutation(async ({ ctx, input }) => {
+      if (input.website !== '') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid submission',
         })
-      }),
-    ),
+      }
+      return submitRequest({
+        slug: input.orgSlug,
+        serviceId: input.serviceId,
+        name: input.name,
+        email: input.email,
+        phone: input.phone || null,
+        address: input.address,
+        notes: input.notes || null,
+        ipHash: hashClientIp(ctx.headers),
+      })
+    }),
 } satisfies TRPCRouterRecord
 
 const manageRequests = requireOrgPermission('manageRequests')
 
-export const REQUEST_COLUMNS =
+const REQUEST_COLUMNS =
   'id, organization_id, client_id, service_id, contact_name, contact_email, contact_phone, address, notes, info_needed, status, source, submitted_at, created_at, updated_at'
 
 export const requestsRouter = {
-  list: manageRequests.query(({ ctx }) =>
-    Sentry.startSpan({ name: 'requests.list' }, async () => {
-      const { data, error } = await ctx.supabase
-        .from('requests')
-        .select(REQUEST_COLUMNS)
-        .eq('organization_id', ctx.organizationId)
-        .order('submitted_at', { ascending: false })
-      if (error) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to load requests',
-          cause: error,
-        })
-      }
-      return data
-    }),
-  ),
+  list: manageRequests.query(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase
+      .from('requests')
+      .select(REQUEST_COLUMNS)
+      .eq('organization_id', ctx.organizationId)
+      .order('submitted_at', { ascending: false })
+    if (error) throw dbError(error)
+    return data
+  }),
 
   setStatus: manageRequests
     .input(
@@ -96,30 +83,22 @@ export const requestsRouter = {
         ]),
       }),
     )
-    .mutation(({ ctx, input }) =>
-      Sentry.startSpan({ name: 'requests.setStatus' }, async () => {
-        const { data, error } = await ctx.supabase
-          .from('requests')
-          .update({ status: input.status })
-          .eq('organization_id', ctx.organizationId)
-          .eq('id', input.id)
-          .select(REQUEST_COLUMNS)
-        if (error) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'Failed to update the request',
-            cause: error,
-          })
-        }
-        if (data.length === 0) {
-          throw new TRPCError({
-            code: 'NOT_FOUND',
-            message: 'Request not found',
-          })
-        }
-        return data[0]
-      }),
-    ),
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('requests')
+        .update({ status: input.status })
+        .eq('organization_id', ctx.organizationId)
+        .eq('id', input.id)
+        .select(REQUEST_COLUMNS)
+      if (error) throw dbError(error)
+      if (data.length === 0) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Request not found',
+        })
+      }
+      return data[0]
+    }),
 
   setInfoNeeded: manageRequests
     .input(
@@ -128,22 +107,20 @@ export const requestsRouter = {
         note: z.string().trim().max(2000).nullable(),
       }),
     )
-    .mutation(({ ctx, input }) =>
-      Sentry.startSpan({ name: 'requests.setInfoNeeded' }, async () => {
-        const { data, error } = await ctx.supabase
-          .from('requests')
-          .update({ info_needed: input.note || null })
-          .eq('organization_id', ctx.organizationId)
-          .eq('id', input.id)
-          .select(REQUEST_COLUMNS)
-        if (error) throw dbError(error)
-        if (data.length === 0) {
-          throw new TRPCError({
-            code: 'NOT_FOUND',
-            message: 'Request not found',
-          })
-        }
-        return data[0]
-      }),
-    ),
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('requests')
+        .update({ info_needed: input.note || null })
+        .eq('organization_id', ctx.organizationId)
+        .eq('id', input.id)
+        .select(REQUEST_COLUMNS)
+      if (error) throw dbError(error)
+      if (data.length === 0) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Request not found',
+        })
+      }
+      return data[0]
+    }),
 } satisfies TRPCRouterRecord

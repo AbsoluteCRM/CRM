@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 
+import { useAuth } from '#/integrations/auth/context'
 import { useTRPC } from '#/integrations/trpc/react'
 import { useOrganization } from '#/integrations/organization/context'
 import type { OrgRole } from '#/integrations/organization/permissions'
@@ -40,6 +41,16 @@ export function useTeamMembers() {
       return data
     },
   })
+}
+
+/** The signed-in user's own member row in the active company. */
+export function useMyMember() {
+  const { user } = useAuth()
+  const members = useTeamMembers()
+  const me = user
+    ? (members.data?.find((m) => m.user_id === user.id) ?? null)
+    : null
+  return { me, isLoading: members.isLoading }
 }
 
 export type InviteRole = Exclude<OrgRole, 'owner'>
