@@ -99,6 +99,8 @@ erDiagram
         uuid client_id FK
         text address_line1
         geography location
+        text geocode_source
+        text geocode_accuracy
         text access_notes
     }
     client_portal_users {

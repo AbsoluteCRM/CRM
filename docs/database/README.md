@@ -18,7 +18,7 @@ This folder is the design record for the schema:
 | #   | Domain               | Tables                                                                                                        | Reference                                   |
 | --- | -------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | 1   | Tenancy & identity   | organizations, profiles, organization_members, organization_invitations, member_pay_rates, document_sequences | [tenancy.md](tables/tenancy.md)             |
-| 2   | Clients & properties | clients, client_contacts, properties, client_portal_users                                                     | [clients.md](tables/clients.md)             |
+| 2   | Clients & properties | clients, client_contacts, properties, client_portal_users, geocode_cache                                      | [clients.md](tables/clients.md)             |
 | 3   | Catalog & tax        | services, tax_rates, service_default_taxes                                                                    | [catalog-tax.md](tables/catalog-tax.md)     |
 | 4   | Quotes               | quotes, quote_line_items, quote_line_item_taxes                                                               | [quotes.md](tables/quotes.md)               |
 | 5   | Jobs & visits        | jobs, job_line_items, visits, attachments                                                                     | [jobs-visits.md](tables/jobs-visits.md)     |
@@ -90,7 +90,9 @@ These rules apply to every table unless its reference doc says otherwise.
 - **Geo**: `location geography(Point, 4326)` with a GiST index. Stored
   generated `latitude` / `longitude` columns exist so clients that can't read
   PostGIS types, such as the generated TypeScript types, still see usable
-  fields.
+  fields. Points come from server-side geocoding on save, stored with
+  `geocode_source` and `geocode_accuracy`, through a provider chain and a
+  service-role-only `geocode_cache` ([ADR 0013](decisions/0013-geocoding-chain-and-cache.md)).
 - **Extensions** (installed in schema `extensions`, except `pg_cron`): `postgis`,
   `btree_gist`, `btree_gin`, `moddatetime`, `pg_trgm`, `pgcrypto`, `pgtap`,
   `pg_cron`. There is no `citext`: emails are `text` with a
@@ -187,6 +189,7 @@ lands, an applied migration is never edited; fixes go in a new migration.
 | 15  | `route_stop_guard_lock_fix` | applied | Route-stop date guard locks the visit only on insert or visit change (avoids a deadlock)                                                         |
 | 16  | `void_payment_refund_fix`   | applied | On a void invoice, settled payments can still be refunded                                                                                        |
 | 17  | `route_stop_race_fix`       | applied | Stop-date guard locks the visit on every write again; reschedule unroute uses NOT EXISTS (security review)                                       |
+| —   | `geocoding`                 | pending | `geocode_cache` (service role only), `properties.geocode_accuracy` ([ADR 0013](decisions/0013-geocoding-chain-and-cache.md))                     |
 
 ## Out of scope (for now)
 
