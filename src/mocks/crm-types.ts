@@ -264,6 +264,7 @@ export interface Activity {
 export interface CrmState {
   organizations: Array<Organization>
   activeOrgId: ID
+  role: OrgRole
   members: Array<Member>
   crews: Array<Crew>
   clients: Array<Client>

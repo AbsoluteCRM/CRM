@@ -173,3 +173,13 @@ export function uid(prefix = 'id') {
 export function pluralize(n: number, word: string, plural = `${word}s`) {
   return `${n} ${n === 1 ? word : plural}`
 }
+
+/** North American numbers as (403) 555-0142; anything else is returned as typed. */
+export function fmtPhone(phone: string) {
+  const digits = phone.replace(/\D/g, '')
+  const local =
+    digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+  if (local.length !== 10) return phone.trim()
+  const formatted = `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`
+  return local === digits ? formatted : `+1 ${formatted}`
+}

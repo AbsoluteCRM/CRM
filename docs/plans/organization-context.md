@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `organization-context` / `feat/organization-context`
 - **Tier**: full, because the provider handles tenancy.
-- **Status**: implemented (local; PR publication and merge blocked)
+- **Status**: implemented (merged as PR #27)
 - **Confidence**: 95%; membership schema, provider consumers, and capability rules are verified in the repository; selection and permission behavior are user-confirmed.
 - **Plan-mode file**: this file; native plan mode is unavailable.
 

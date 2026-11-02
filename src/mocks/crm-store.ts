@@ -80,11 +80,11 @@ export function useCrmState() {
 export function useTenant() {
   const s = useCrmState()
   const { organization } = useOrganization()
-  // Which demo rows to show (e.g. a worker sees only their crew's jobs). Follows
-  // the real role; with no active org it shows the least, like a worker.
-  const role: OrgRole = organization?.role ?? 'worker'
+  // The signed-in member's role. The demo role only applies with no real company.
+  const realRole = organization?.role
 
   return useMemo(() => {
+    const role: OrgRole = realRole ?? s.role
     // Prefer the real org from OrganizationProvider once it's wired; fall back to the demo tenant.
     const orgId =
       organization && s.organizations.some((o) => o.id === organization.id)
@@ -138,6 +138,7 @@ export function useTenant() {
       org,
       orgId: org.id,
       organizations: s.organizations,
+      role,
       me,
       myCrew,
       members,
@@ -177,7 +178,7 @@ export function useTenant() {
             0,
           ),
     }
-  }, [s, organization, role])
+  }, [s, organization, realRole])
 }
 
 export type Tenant = ReturnType<typeof useTenant>

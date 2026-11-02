@@ -18,6 +18,9 @@ import {
 
 import { useAuth } from '#/integrations/auth/context'
 import { useOrganization } from '#/integrations/organization/context'
+import OrgAvatar from './OrgAvatar'
+import { useNewRequests } from '#/integrations/requests/requests'
+import { useMyMember } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
 import { ROLE_LABEL } from '#/integrations/organization/permissions'
 import { useRole } from '#/integrations/organization/use-role'
@@ -25,6 +28,7 @@ import { useTenant } from '#/mocks/crm-store'
 import { SampleDataBadge } from '#/mocks/SampleDataBadge'
 import { Toaster } from '#/lib/toast'
 import { fmtDate } from '#/components/crm/format'
+import AppThemeStyles from './AppTheme'
 
 function useClickOutside(onOutside: () => void) {
   const ref = useRef<HTMLDivElement>(null)
@@ -205,7 +209,6 @@ function GlobalSearch() {
 const ORG_AVATAR = 'bg-(--leaf-700)'
 
 export default function Header() {
-  const t = useTenant()
   const access = useRole()
   const {
     organizations,
@@ -216,15 +219,21 @@ export default function Header() {
   const orgName = organization?.name ?? (orgLoading ? 'Loading…' : 'No company')
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
-  const newRequests = t.requests.filter((r) => r.status === 'submitted')
-  const displayName =
-    access.role === 'owner' && user?.email
-      ? user.email
-      : (t.me?.display_name ?? 'You')
+  const { count: newRequests, latest } = useNewRequests()
+  const { me } = useMyMember()
+  const accountEmail = user?.email ?? me?.email ?? null
+  const displayName = me?.display_name ?? accountEmail ?? 'You'
+  const initials = me?.display_name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join('')
 
   return (
     <header className="fixed top-0 right-0 left-0 z-40 flex h-16 items-center gap-3 border-b border-(--line) bg-(--paper)/90 pr-4 pl-[92px] backdrop-blur-md sm:pr-6">
       <Toaster />
+      <AppThemeStyles />
 
       {/* Workspace (tenant) switcher */}
       <Menu
@@ -237,14 +246,10 @@ export default function Header() {
             aria-expanded={open}
             className="flex min-w-0 cursor-pointer items-center gap-2 rounded-full py-1.5 pr-3 pl-1.5 hover:bg-(--sage)"
           >
-            <span
-              className={cn(
-                'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white',
-                ORG_AVATAR,
-              )}
-            >
-              {orgName.charAt(0)}
-            </span>
+            <OrgAvatar
+              name={orgName}
+              className="size-8 rounded-full text-sm ring-1 ring-(--line)"
+            />
             <span className="hidden min-w-0 text-left sm:block">
               <span className="block max-w-[200px] truncate text-[13px] font-bold text-(--ink)">
                 {orgName}
@@ -277,14 +282,21 @@ export default function Header() {
                   close()
                 }}
               >
-                <span
-                  className={cn(
-                    'flex size-7 items-center justify-center rounded-full text-xs font-bold text-white',
-                    ORG_AVATAR,
-                  )}
-                >
-                  {o.name.charAt(0)}
-                </span>
+                {o.id === organization?.id ? (
+                  <OrgAvatar
+                    name={o.name}
+                    className="size-7 rounded-full text-xs ring-1 ring-(--line)"
+                  />
+                ) : (
+                  <span
+                    className={cn(
+                      'flex size-7 items-center justify-center rounded-full text-xs font-bold text-white',
+                      ORG_AVATAR,
+                    )}
+                  >
+                    {o.name.charAt(0)}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1 truncate">{o.name}</span>
                 {o.id === organization?.id && (
                   <Check className="size-4 text-(--leaf-600)" />
@@ -319,13 +331,13 @@ export default function Header() {
             type="button"
             onClick={toggle}
             aria-expanded={open}
-            aria-label={`Notifications, ${newRequests.length} new requests`}
+            aria-label={`Notifications, ${newRequests} new requests`}
             className="relative flex size-10 cursor-pointer items-center justify-center rounded-full text-(--ink-2) hover:bg-(--sage)"
           >
             <Bell className="size-5" />
-            {newRequests.length > 0 && access.can('manageRequests') && (
+            {newRequests > 0 && access.can('manageRequests') && (
               <span className="absolute top-1.5 right-1.5 flex size-4 items-center justify-center rounded-full bg-(--clay) text-[10px] font-bold text-white">
-                {newRequests.length}
+                {newRequests > 9 ? '9+' : newRequests}
               </span>
             )}
           </button>
@@ -333,20 +345,32 @@ export default function Header() {
       >
         {(close) => (
           <>
-            <p className="flex items-center justify-between gap-2 px-3 pt-2 pb-1 text-[11px] font-bold tracking-wider text-(--ink-3) uppercase">
-              Recent activity
-              <SampleDataBadge />
+            <p className="px-3 pt-2 pb-1 text-[11px] font-bold tracking-wider text-(--ink-3) uppercase">
+              New requests
             </p>
-            {t.activity.slice(0, 5).map((a) => (
-              <div
-                key={a.id}
-                className="rounded-xl px-3 py-2 text-[13px] text-(--ink)"
+            {latest.length === 0 && (
+              <p className="px-3 py-2 text-[13px] text-(--ink-3)">
+                You’re all caught up.
+              </p>
+            )}
+            {latest.map((r) => (
+              <Link
+                key={r.id}
+                to="/requests"
+                search={{ id: r.id }}
+                onClick={close}
+                className={cn(menuItem, 'flex-col items-start gap-0')}
               >
-                {a.text}
-                <span className="block text-[11px] text-(--ink-3)">
-                  {a.actor}
+                <span className="text-[13px] font-semibold text-(--ink)">
+                  {r.contact_name}
                 </span>
-              </div>
+                <span className="text-[11px] text-(--ink-3)">
+                  {fmtDate(r.submitted_at.slice(0, 10), {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
+              </Link>
             ))}
             {access.can('manageRequests') && (
               <Link
@@ -354,8 +378,9 @@ export default function Header() {
                 onClick={close}
                 className={cn(menuItem, 'justify-center text-(--leaf-700)')}
               >
-                Review {newRequests.length} new request
-                {newRequests.length === 1 ? '' : 's'}
+                {newRequests === 0
+                  ? 'Go to requests'
+                  : `Review ${newRequests} new request${newRequests === 1 ? '' : 's'}`}
               </Link>
             )}
           </>
@@ -373,21 +398,30 @@ export default function Header() {
             aria-label="Account menu"
             className="flex cursor-pointer items-center gap-2 rounded-full p-1 hover:bg-(--sage)"
           >
-            <span className="flex size-9 items-center justify-center rounded-full bg-(--leaf-900) text-(--lime)">
-              <CircleUser className="size-5" />
+            <span className="flex size-9 items-center justify-center rounded-full bg-(--leaf-900) text-[13px] font-bold text-(--lime)">
+              {initials ?? <CircleUser className="size-5" />}
             </span>
           </button>
         )}
       >
         {(close) => (
           <>
+            {/* Everything here comes from the signed-in membership. */}
             <div className="px-3 pt-2 pb-2">
               <p className="truncate text-[13px] font-bold text-(--ink)">
                 {displayName}
               </p>
-              <p className="text-xs text-(--ink-3)">
-                {access.role ? `${ROLE_LABEL[access.role]} · ` : ''}
-                {orgName}
+              {accountEmail && (
+                <p className="truncate text-xs text-(--ink-2)">
+                  {accountEmail}
+                </p>
+              )}
+              <p className="mt-1 truncate text-xs text-(--ink-3)">
+                {organization
+                  ? `${ROLE_LABEL[organization.role]} · ${organization.name}`
+                  : orgLoading
+                    ? 'Loading…'
+                    : 'No company yet'}
               </p>
             </div>
             <div className="my-1 h-px bg-(--line)" />

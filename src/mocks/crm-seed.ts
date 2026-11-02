@@ -1572,6 +1572,7 @@ export function createSeed(): CrmState {
   return {
     organizations: [greenleaf, northline],
     activeOrgId: greenleaf.id,
+    role: 'owner',
     members: [...a.members, ...b.members],
     crews: [...a.crews, ...b.crews],
     clients: [...a.clients, ...b.clients],

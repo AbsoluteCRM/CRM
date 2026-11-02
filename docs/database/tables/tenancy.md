@@ -34,12 +34,33 @@ A contractor business, and the tenant boundary. There's no
 
 `settings` keys (validated in the app, except `default_payment_terms_days`, which falls back to 30 when not a whole number; defaults apply when a key is absent):
 
-| Key                                              | Type    | Default              | Meaning                                               |
-| ------------------------------------------------ | ------- | -------------------- | ----------------------------------------------------- |
-| `workers_see_prices`                             | boolean | `false`              | `worker_route_stops` returns the job price to workers |
-| `visit_horizon_weeks`                            | integer | `8`                  | How far ahead recurring visits are materialized       |
-| `default_payment_terms_days`                     | integer | `30`                 | Invoice due date = issue date + N days                |
-| `invoice_prefix` / `quote_prefix` / `job_prefix` | text    | `INV-` / `Q-` / `J-` | Prefixes for document numbers                         |
+| Key                                              | Type    | Default               | Meaning                                                                                      |
+| ------------------------------------------------ | ------- | --------------------- | -------------------------------------------------------------------------------------------- |
+| `workers_see_prices`                             | boolean | `false`               | `worker_route_stops` returns the job price to workers                                        |
+| `visit_horizon_weeks`                            | integer | `8`                   | How far ahead recurring visits are materialized                                              |
+| `default_payment_terms_days`                     | integer | `30`                  | Invoice due date = issue date + N days                                                       |
+| `invoice_prefix` / `quote_prefix` / `job_prefix` | text    | `INV-` / `Q-` / `J-`  | Prefixes for document numbers                                                                |
+| `brand_color`                                    | text    | `#2f7350`             | `#rrggbb`. Colour theme of the signed-in app: a preset's colour, or any colour to derive one |
+| `business_hours`                                 | object  | Every day 08:00–17:00 | `{ mon…sun: { closed, open, close } }`, `HH:MM` times                                        |
+| `service_areas`                                  | text[]  | `[]`                  | Up to 50 labels (≤ 80 chars) shown on the request page                                       |
+| `online_requests`                                | object  | see below             | Public request page (`/portal/$orgSlug`) settings                                            |
+
+`online_requests` keys. They are read and written through `src/integrations/settings/schema.ts`, which applies defaults key by key, so one bad or missing key never hides the rest. `src/server/trusted/portal.ts` is the only reader for anonymous visitors, and it returns an allow-list of fields:
+
+| Key                                                                  | Type    | Default                                  | Meaning                                                                                                                        |
+| -------------------------------------------------------------------- | ------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`                                                            | boolean | `true`                                   | Off hides services on the page, and `portal.submit` returns `FORBIDDEN` before writing                                         |
+| `tagline` / `mission` / `about`                                      | text    | `null`                                   | Page copy (≤ 140 / 600 / 2000 chars)                                                                                           |
+| `show_prices` / `show_hours` / `show_service_areas` / `show_contact` | boolean | `true`                                   | Off removes that data from the public payload, not just the UI                                                                 |
+| `palette`                                                            | object  | Forest (`#11301f`, `#e7ecdf`, `#c6ef6a`) | `{ primary, secondary, accent }`, each `#rrggbb`. Request page colours: top bar and buttons, intro and footer tint, highlights |
+| `embed.enabled`                                                      | boolean | `true`                                   | Off: other sites can't frame `?embed=true` (CSP `frame-ancestors 'self'`)                                                      |
+| `embed.style`                                                        | text    | `inline`                                 | `inline` (iframe snippet) or `button` (link snippet)                                                                           |
+| `embed.height`                                                       | integer | `900`                                    | Iframe height in px, 400–2000                                                                                                  |
+| `embed.button_label`                                                 | text    | `Request a quote`                        | Button snippet text (≤ 40 chars)                                                                                               |
+| `embed.compact`                                                      | boolean | `false`                                  | The embedded view shows only services and the form                                                                             |
+| `embed.allowed_origins`                                              | text[]  | `[]`                                     | Origins allowed to frame the form (`https://…`, max 20). Empty allows any site. Enforced by `src/start.ts`                     |
+
+The company logo is `logo_path`: an image under `org-files/<org id>/branding/`, uploaded by office staff through the existing storage policies. `settings.setLogo` only accepts paths in that folder, and the app serves the logo through short-lived signed URLs.
 
 **On create**: organizations are created only through the
 `public.create_organization(name, slug, timezone, currency, country)` RPC. It inserts the org
