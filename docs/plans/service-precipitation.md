@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `service-precipitation` / `feat/service-precipitation`
 - **Tier**: full; schema, procedures, and UI.
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%; scope, existing create/update paths, and one-rule-per-service model confirmed. User replied "Approved" on 2026-10-28 after the explicit one-pair recommendation and draft plan.
 - **Plan-mode file**: this file; native plan mode unavailable. Explicit approval in chat is required before implementation by the repository workflow.
 

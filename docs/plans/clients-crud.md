@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `clients-crud` / `feat/clients-crud`
 - **Tier**: full (tRPC procedures, security-gated routes, UI, design record)
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 96%. Scope, the three schema/UX tradeoffs, and the mutation
   shape are user-confirmed or verified against the schema and existing
   procedures/hooks (`clients.list`, `crews.create`/`update`, `useCrewMutations`,

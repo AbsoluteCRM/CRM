@@ -3,7 +3,7 @@
 - **Slug / branch**: `requests-tab-live-read` / `feat/requests-tab-live-read`
 - **Tier**: full (feature workflow; authenticated route, organization-scoped data,
   UI and design record)
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 97%. The requested read-only scope, replacement of demo
   requests, active-organization context, and existing procedures are confirmed
   by the user or verified in the repository.
