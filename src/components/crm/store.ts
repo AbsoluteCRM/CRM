@@ -648,6 +648,8 @@ export const actions = {
       instructions: input.instructions ?? '',
       x: Math.round(10 + Math.random() * 80),
       y: Math.round(12 + Math.random() * 76),
+      // Geocoding on save comes in phase 2; until then new addresses aren't on the map.
+      location: null,
     }
     setState((st) =>
       pushActivity(

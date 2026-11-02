@@ -8,6 +8,8 @@
  * tRPC procedures land.
  */
 
+import type { LonLat } from '#/lib/map/geo'
+
 export type ID = string
 
 /** `org_role` in docs/database/tables/tenancy.md. UI labels: Owner / Manager / Dispatcher / Contractor. */
@@ -123,9 +125,11 @@ export interface Property {
   pets: string
   accessNotes: string
   instructions: string
-  /** Position on the demo route map, 0-100 on each axis. Replaced by `geography location`. */
+  /** Demo drive-time grid, 0-100 on each axis. Drive estimates use it until phase 5. */
   x: number
   y: number
+  /** `properties.location` as lon/lat; null until the address is geocoded. */
+  location: LonLat | null
 }
 
 /** `service_unit` in catalog-tax.md. */
