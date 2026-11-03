@@ -1,15 +1,15 @@
 import { useState } from 'react'
-import type { DragEvent } from 'react'
+import type { DragEvent, ReactNode } from 'react'
 import {
   ArrowDown,
   ArrowUp,
   Check,
-  FlaskConical,
   GripVertical,
-  Warehouse,
+  Lock,
   Plus,
-  RotateCcw,
   Route,
+  TriangleAlert,
+  Trash2,
   Truck,
   X,
 } from 'lucide-react'
@@ -24,142 +24,184 @@ import {
   TextInput,
 } from '#/components/crm/ui'
 import { fmtDate, fmtDuration } from '#/components/crm/format'
-import { cn } from '#/lib/utils'
-import {
-  crews,
-  EXAMPLE_DATE,
-  initialTemplates,
-  makeStops,
-  positions,
-  visitDetails,
-  visits,
-} from '#/components/route-builder/mock-data'
+import { MapView } from '#/components/map/MapView'
+import type { MapStop } from '#/components/map/MapView'
+import { UnplacedStops } from '#/components/map/UnplacedStops'
+import { DraftRoutesPanel } from '#/components/route-builder/DraftRoutesPanel'
+import type { DraftRun } from '#/components/route-builder/DraftRoutesPanel'
+import { isPendingStop } from '#/integrations/routes/routes'
 import type {
-  DraftStop,
-  RouteTemplate,
-} from '#/components/route-builder/mock-data'
+  AvailableVisit,
+  DayRoute,
+  DraftResult,
+  RouteStop,
+} from '#/integrations/routes/routes'
+import { cn } from '#/lib/utils'
 
-const VISIT_MIME = 'application/x-crm-route-visit'
-function initialState(date: string) {
-  const templates = initialTemplates()
-  return {
-    templates,
-    date,
-    selectedId: templates.find((r) => r.date === date)?.id ?? null,
-    nextLabel: 3,
-    feedback: '',
-  }
+const DRAG_MIME = 'application/x-crm-route-item'
+const DEFAULT_COLOR = '#2f7350'
+
+/** A pooled visit or a stop on a route, carried by a drag. */
+type DragItem = { kind: 'visit' | 'stop'; id: string }
+
+export type CrewOption = {
+  id: string
+  name: string
+  color: string | null
+  vehicle: string | null
 }
-function duration(route: RouteTemplate) {
-  return route.visitIds.reduce(
-    (sum, id) => sum + (visitDetails(id).visit?.duration_minutes ?? 0),
-    0,
-  )
+
+export type RouteBuilderActions = {
+  /** Resolves with the new route's id. */
+  createRoute: (crewId: string) => Promise<string>
+  /** Resolves with the id of the route that replaces this one. */
+  assignCrew: (routeId: string, crewId: string) => Promise<string>
+  deleteRoute: (routeId: string) => Promise<void>
+  /** Builds draft routes from service areas; rejects with the server's message. */
+  generateDrafts: () => Promise<DraftResult>
+  addStop: (routeId: string, visitId: string, position?: number) => void
+  moveStop: (stopId: string, toRouteId: string, position: number) => void
+  removeStop: (stopId: string) => void
+  reorderStops: (routeId: string, stopIds: Array<string>) => void
+}
+
+export type RouteBuilderProps = {
+  date: string
+  onDateChange: (date: string) => void
+  routes: Array<DayRoute>
+  available: Array<AvailableVisit>
+  crews: Array<CrewOption>
+  status: 'loading' | 'error' | 'ready'
+  errorMessage?: string
+  onRetry?: () => void
+  /** False for roles that cannot manage jobs: the build button is not shown. */
+  canBuild?: boolean
+  actions: RouteBuilderActions
+}
+
+const STATUS_LABEL: Record<DayRoute['status'], string> = {
+  draft: 'Draft',
+  optimized: 'Optimized',
+  published: 'Published',
+  in_progress: 'In progress',
+  completed: 'Completed',
+}
+
+const routeName = (route: DayRoute) => route.crew?.name ?? 'Route'
+const customer = (v: { clientName: string | null }) =>
+  v.clientName ?? 'Customer unavailable'
+
+function readDrag(e: DragEvent<HTMLElement>): DragItem | null {
+  try {
+    const raw = JSON.parse(
+      e.dataTransfer.getData(DRAG_MIME),
+    ) as Partial<DragItem>
+    return (raw.kind === 'visit' || raw.kind === 'stop') &&
+      typeof raw.id === 'string'
+      ? { kind: raw.kind, id: raw.id }
+      : null
+  } catch {
+    return null
+  }
 }
 
 export function RouteBuilder({
-  initialDate = EXAMPLE_DATE,
-}: {
-  initialDate?: string
-}) {
-  const [state, setState] = useState(() => initialState(initialDate))
+  date,
+  onDateChange,
+  routes,
+  available,
+  crews,
+  status,
+  errorMessage,
+  onRetry,
+  canBuild = true,
+  actions,
+}: RouteBuilderProps) {
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [over, setOver] = useState<string | null>(null)
-  const { templates, date, selectedId, feedback } = state
-  const dayRoutes = templates.filter((r) => r.date === date)
-  const selected = dayRoutes.find((r) => r.id === selectedId)
-  const assigned = new Set(templates.flatMap((r) => r.visitIds))
-  const dayVisits = visits.filter((v) => v.scheduled_date === date)
-  const available = dayVisits.filter((v) => !assigned.has(v.id))
-  const filtered = available.filter((v) => {
-    const { job, client, property } = visitDetails(v.id)
-    return `${job?.number ?? ''} ${job?.title ?? ''} ${client?.display_name ?? ''} ${property?.address_line1 ?? ''}`
-      .toLowerCase()
-      .includes(query.trim().toLowerCase())
-  })
+  const [feedback, setFeedback] = useState('')
+  const [newCrewId, setNewCrewId] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [draftRun, setDraftRun] = useState<DraftRun>({ state: 'idle' })
 
-  function transfer(visitId: string, destinationId: string | null) {
-    setState((current) => {
-      const visit = visits.find((v) => v.id === visitId)
-      const target = current.templates.find((r) => r.id === destinationId)
-      if (
-        !visit ||
-        visit.scheduled_date !== current.date ||
-        (destinationId !== null &&
-          (!target || target.date !== visit.scheduled_date))
-      ) {
-        return {
-          ...current,
-          feedback:
-            'This visit cannot be moved here. Choose a route on the same date.',
-        }
-      }
-      const source = current.templates.find((r) => r.visitIds.includes(visitId))
-      if (source?.id === destinationId || (!source && destinationId === null))
-        return current
-      return {
-        ...current,
-        templates: current.templates.map((r) => ({
-          ...r,
-          visitIds:
-            r.id === destinationId
-              ? [...r.visitIds.filter((id) => id !== visitId), visitId]
-              : r.visitIds.filter((id) => id !== visitId),
-        })),
-        feedback: `${visitDetails(visitId).client?.display_name ?? 'Visit'} moved to ${target?.label ?? 'Available jobs'}.`,
-      }
-    })
+  const selected =
+    routes.find((r) => r.id === selectedId) ??
+    routes.find((r) => r.editable) ??
+    routes.at(0)
+  const editableRoutes = routes.filter((r) => r.editable)
+  const usedCrewIds = new Set(routes.map((r) => r.crew?.id))
+  const freeCrews = crews.filter((c) => !usedCrewIds.has(c.id))
+  const newCrew = freeCrews.find((c) => c.id === newCrewId) ?? freeCrews.at(0)
+  const needle = query.trim().toLowerCase()
+  const filtered = available.filter(
+    (v) =>
+      !needle ||
+      `${v.jobNumber ?? ''} ${v.jobTitle ?? ''} ${v.clientName ?? ''} ${v.address ?? ''} ${v.city ?? ''}`
+        .toLowerCase()
+        .includes(needle),
+  )
+
+  function say(message: string) {
+    setFeedback(message)
   }
-  function assignCrew(routeId: string, crewId: string) {
-    setState((current) => {
-      const route = current.templates.find((r) => r.id === routeId)
-      if (!route || (crewId && !crews.some((c) => c.id === crewId)))
-        return current
-      if (
-        crewId &&
-        current.templates.some(
-          (r) =>
-            r.id !== routeId && r.date === route.date && r.crewId === crewId,
-        )
-      )
-        return {
-          ...current,
-          feedback:
-            'That crew already has a route on this date. Choose another crew or No crew.',
-        }
-      return {
-        ...current,
-        templates: current.templates.map((r) =>
-          r.id === routeId ? { ...r, crewId: crewId || null } : r,
-        ),
-        feedback: `${route.label} crew updated. Visits stay on the route.`,
-      }
-    })
+
+  function addToRoute(visit: AvailableVisit, route: DayRoute) {
+    if (!route.editable) return say(`${routeName(route)} is locked.`)
+    actions.addStop(route.id, visit.visitId)
+    say(`${customer(visit)} added to ${routeName(route)}.`)
   }
-  function reorder(routeId: string, visitId: string, direction: number) {
-    setState((current) => ({
-      ...current,
-      templates: current.templates.map((r) => {
-        if (r.id !== routeId) return r
-        const index = r.visitIds.indexOf(visitId)
-        const next = index + direction
-        if (index < 0 || next < 0 || next >= r.visitIds.length) return r
-        const ids = [...r.visitIds]
-        ;[ids[index], ids[next]] = [ids[next], ids[index]]
-        return { ...r, visitIds: ids }
-      }),
-      feedback: 'Stop order updated.',
-    }))
+
+  function moveToRoute(stop: RouteStop, from: DayRoute, to: DayRoute) {
+    if (!to.editable || !from.editable)
+      return say('A locked route cannot be changed.')
+    if (from.id === to.id) return
+    actions.moveStop(stop.id, to.id, to.stops.length + 1)
+    say(`${customer(stop)} moved to ${routeName(to)}.`)
   }
-  function dragStart(e: DragEvent<HTMLElement>, id: string) {
-    e.dataTransfer.setData(VISIT_MIME, id)
+
+  function returnToPool(stop: RouteStop, from: DayRoute) {
+    if (!from.editable) return say('A locked route cannot be changed.')
+    actions.removeStop(stop.id)
+    say(`${customer(stop)} returned to Available jobs.`)
+  }
+
+  function nudge(route: DayRoute, stop: RouteStop, direction: -1 | 1) {
+    const ids = route.stops.map((s) => s.id)
+    const index = ids.indexOf(stop.id)
+    const next = index + direction
+    if (index < 0 || next < 0 || next >= ids.length) return
+    ;[ids[index], ids[next]] = [ids[next], ids[index]]
+    actions.reorderStops(route.id, ids)
+    say('Stop order updated.')
+  }
+
+  // Resolves a drag against the current board, so a stale or foreign payload
+  // changes nothing.
+  function drop(item: DragItem, destination: DayRoute | null) {
+    if (item.kind === 'visit') {
+      const visit = available.find((v) => v.visitId === item.id)
+      if (!visit || !destination) return
+      return addToRoute(visit, destination)
+    }
+    const from = routes.find((r) => r.stops.some((s) => s.id === item.id))
+    const stop = from?.stops.find((s) => s.id === item.id)
+    if (!from || !stop) return say('That stop is no longer on a route.')
+    if (destination) moveToRoute(stop, from, destination)
+    else returnToPool(stop, from)
+  }
+
+  function dragStart(e: DragEvent<HTMLElement>, item: DragItem) {
+    e.dataTransfer.setData(DRAG_MIME, JSON.stringify(item))
     e.dataTransfer.effectAllowed = 'move'
   }
-  function dropProps(id: string | null) {
-    const key = id ?? 'pool'
+
+  function dropProps(route: DayRoute | null) {
+    const key = route?.id ?? 'pool'
+    const accepts = route === null || route.editable
     return {
       onDragOver: (e: DragEvent<HTMLElement>) => {
-        if (!e.dataTransfer.types.includes(VISIT_MIME)) return
+        if (!accepts || !e.dataTransfer.types.includes(DRAG_MIME)) return
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
         setOver(key)
@@ -171,51 +213,79 @@ export function RouteBuilder({
       onDrop: (e: DragEvent<HTMLElement>) => {
         e.preventDefault()
         setOver(null)
-        if (e.dataTransfer.types.includes(VISIT_MIME))
-          transfer(e.dataTransfer.getData(VISIT_MIME), id)
+        if (!accepts) return
+        const item = readDrag(e)
+        if (item) drop(item, route)
       },
+    }
+  }
+
+  async function createRoute() {
+    if (!newCrew || busy) return
+    setBusy(true)
+    try {
+      const id = await actions.createRoute(newCrew.id)
+      setSelectedId(id)
+      setNewCrewId('')
+      say(`${newCrew.name} route created for ${fmtDate(date)}.`)
+    } catch {
+      say('The route could not be created.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function buildDrafts() {
+    if (draftRun.state === 'building') return
+    setDraftRun({ state: 'building' })
+    try {
+      const result = await actions.generateDrafts()
+      setDraftRun({ state: 'done', result })
+      say(
+        result.assigned
+          ? `${result.assigned} ${result.assigned === 1 ? 'visit' : 'visits'} placed on routes.`
+          : 'No visits were placed.',
+      )
+    } catch (e) {
+      setDraftRun({
+        state: 'error',
+        message:
+          e instanceof Error && e.message ? e.message : 'Something went wrong',
+      })
+      say('The routes could not be built.')
+    }
+  }
+
+  async function changeCrew(route: DayRoute, crewId: string) {
+    const crew = crews.find((c) => c.id === crewId)
+    if (!crew || crew.id === route.crew?.id) return
+    try {
+      const id = await actions.assignCrew(route.id, crew.id)
+      setSelectedId(id)
+      say(`${crew.name} now runs this route. Stops stay on it.`)
+    } catch {
+      say('The crew could not be changed.')
+    }
+  }
+
+  async function deleteRoute(route: DayRoute) {
+    try {
+      await actions.deleteRoute(route.id)
+      say(`${routeName(route)} route deleted.`)
+    } catch {
+      say('The route could not be deleted.')
     }
   }
 
   return (
     <div className="space-y-5" onDragEnd={() => setOver(null)}>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-(--leaf-300) bg-(--sage) px-4 py-3">
-        <p className="flex max-w-xl items-start gap-2 text-xs leading-relaxed text-(--ink-2)">
-          <FlaskConical
-            className="mt-0.5 size-4 shrink-0 text-(--leaf-600)"
-            aria-hidden
-          />
-          <span>
-            <strong className="text-(--leaf-800)">
-              A little room to experiment.
-            </strong>{' '}
-            This is a mock builder. Changes stay in this page and reset on
-            refresh.
-          </span>
-        </p>
-        <Btn
-          variant="ghost"
-          size="sm"
-          icon={RotateCcw}
-          onClick={() => {
-            setState({
-              ...initialState(EXAMPLE_DATE),
-              feedback: 'Demo reset. Original routes and visits restored.',
-            })
-            setQuery('')
-            setOver(null)
-          }}
-        >
-          Reset demo
-        </Btn>
-      </div>
       <section aria-label="Create route">
         <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div>
             <h2 className="crm-display text-xl font-semibold">Create route</h2>
-            <p className="mt-1 text-xs text-(--ink-3)">
-              Start with an empty template. Add jobs and choose a crew when
-              you’re ready.
+            <p className="mt-1 max-w-md text-xs text-(--ink-3)">
+              Pick the day and a crew. Each crew has one route a day. Then add
+              the day’s scheduled visits to it.
             </p>
           </div>
           <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto">
@@ -227,334 +297,202 @@ export function RouteBuilder({
                 value={date}
                 className="mt-1.5"
                 onChange={(e) => {
-                  const value = e.target.value
-                  if (value)
-                    setState((s) => ({
-                      ...s,
-                      date: value,
-                      selectedId:
-                        s.templates.find((r) => r.date === value)?.id ?? null,
-                      feedback: '',
-                    }))
-                  setOver(null)
+                  if (e.target.value) {
+                    onDateChange(e.target.value)
+                    setOver(null)
+                    setFeedback('')
+                    setDraftRun({ state: 'idle' })
+                  }
                 }}
               />
             </label>
+            <label className="min-w-0 flex-1 basis-44 text-xs font-bold text-(--ink-2)">
+              Crew for new route
+              <SelectInput
+                aria-label="Crew for new route"
+                className="mt-1.5"
+                value={newCrew?.id ?? ''}
+                disabled={!freeCrews.length}
+                onChange={(e) => setNewCrewId(e.target.value)}
+              >
+                {!freeCrews.length && <option value="">No free crew</option>}
+                {freeCrews.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </SelectInput>
+            </label>
             <Btn
               icon={Plus}
-              onClick={() =>
-                setState((s) => {
-                  const id = `template-${s.nextLabel}`
-                  return {
-                    ...s,
-                    nextLabel: s.nextLabel + 1,
-                    selectedId: id,
-                    templates: [
-                      ...s.templates,
-                      {
-                        id,
-                        label: `Route ${s.nextLabel}`,
-                        date: s.date,
-                        crewId: null,
-                        visitIds: [],
-                      },
-                    ],
-                    feedback: `Route ${s.nextLabel} created. Empty template ready for jobs and a crew.`,
-                  }
-                })
-              }
+              disabled={!newCrew || busy || status !== 'ready'}
+              onClick={createRoute}
             >
               Create route
             </Btn>
           </div>
+          {status === 'ready' && !freeCrews.length && (
+            <p className="w-full text-xs text-(--ink-3)">
+              {crews.length
+                ? 'Every crew already has a route on this date.'
+                : 'There are no crews yet. Add one in Teams to build routes.'}
+            </p>
+          )}
         </Card>
       </section>
-      <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <section aria-label="Existing routes" className="min-w-0 space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="crm-display text-2xl font-semibold">
-                Existing routes{' '}
-                <span className="text-base text-(--ink-3)">
-                  ({dayRoutes.length})
-                </span>
-              </h2>
-              <p className="mt-1 text-xs text-(--ink-3)">
-                {fmtDate(date)} · Drag visits between routes, or use the move
-                controls.
+      {canBuild && (
+        <DraftRoutesPanel
+          date={date}
+          run={draftRun}
+          visits={available}
+          disabled={status !== 'ready'}
+          onBuild={buildDrafts}
+          onDismiss={() => setDraftRun({ state: 'idle' })}
+        />
+      )}
+      {status === 'loading' && <BoardSkeleton />}
+      {status === 'error' && (
+        <Card role="alert" className="p-2">
+          <EmptyState
+            icon={TriangleAlert}
+            title="Routes didn’t load"
+            body={errorMessage ?? 'Something went wrong. Try again.'}
+            action={
+              onRetry && (
+                <Btn variant="outline" size="sm" onClick={onRetry}>
+                  Try again
+                </Btn>
+              )
+            }
+          />
+        </Card>
+      )}
+      {status === 'ready' && (
+        <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <section aria-label="Existing routes" className="min-w-0 space-y-4">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="crm-display text-2xl font-semibold">
+                  Existing routes{' '}
+                  <span className="text-base text-(--ink-3)">
+                    ({routes.length})
+                  </span>
+                </h2>
+                <p className="mt-1 text-xs text-(--ink-3)">
+                  {fmtDate(date)} · Drag visits between routes, or use the move
+                  controls.
+                </p>
+              </div>
+            </div>
+            {!routes.length && (
+              <Card>
+                <EmptyState
+                  icon={Route}
+                  title="A fresh start"
+                  body="No routes for this date. Choose a crew above and create the first one."
+                />
+              </Card>
+            )}
+            <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
+              {routes.map((route) => (
+                <RouteCard
+                  key={route.id}
+                  route={route}
+                  crews={crews}
+                  routes={routes}
+                  editableRoutes={editableRoutes}
+                  active={selected?.id === route.id}
+                  highlighted={over === route.id}
+                  dropProps={dropProps(route)}
+                  onSelect={() => setSelectedId(route.id)}
+                  onChangeCrew={(crewId) => changeCrew(route, crewId)}
+                  onDelete={() => deleteRoute(route)}
+                  onNudge={(stop, direction) => nudge(route, stop, direction)}
+                  onReturn={(stop) => returnToPool(stop, route)}
+                  onMove={(stop, to) => moveToRoute(stop, route, to)}
+                  onDragStart={dragStart}
+                />
+              ))}
+            </div>
+            {selected && <RoutePreview route={selected} />}
+          </section>
+          <section
+            aria-label="Available jobs"
+            {...dropProps(null)}
+            className={cn(
+              'min-w-0 rounded-[22px] border bg-(--paper) transition-colors',
+              over === 'pool'
+                ? 'border-(--leaf-500) bg-(--lime-100)'
+                : 'border-(--line)',
+            )}
+          >
+            <div className="border-b border-(--line) p-5">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="crm-display text-xl font-semibold">
+                  Available jobs
+                </h2>
+                <Badge>{available.length}</Badge>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-(--ink-3)">
+                Scheduled visits on this date that are not on a route. Each stop
+                is one visit. Drop a route stop here to return it.
+              </p>
+              <SearchInput
+                className="mt-4"
+                value={query}
+                onChange={setQuery}
+                placeholder="Search jobs, customers, addresses"
+              />
+              <p className="mt-3 text-[11px] font-semibold text-(--leaf-700)">
+                {selected?.editable
+                  ? `Adding to ${routeName(selected)}`
+                  : selected
+                    ? `${routeName(selected)} is locked. Select a draft route to add jobs.`
+                    : 'Create or select a route to add jobs.'}
               </p>
             </div>
-            <span className="text-[11px] font-semibold text-(--leaf-700)">
-              Local drafts
-            </span>
-          </div>
-          {!dayRoutes.length && (
-            <Card>
-              <EmptyState
-                icon={Route}
-                title="A fresh start"
-                body="No routes for this date. Create an empty route above to begin."
-              />
-            </Card>
-          )}
-          <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
-            {dayRoutes.map((route) => {
-              const crew = crews.find((c) => c.id === route.crewId)
-              const active = selectedId === route.id
-              return (
-                <section
-                  key={route.id}
-                  aria-label={route.label}
-                  {...dropProps(route.id)}
-                  className={cn(
-                    'min-w-0 rounded-[22px] border bg-(--paper) p-3 transition-colors',
-                    active
-                      ? 'border-(--leaf-600) ring-2 ring-(--leaf-600)/10'
-                      : 'border-(--line)',
-                    over === route.id && 'border-(--leaf-500) bg-(--lime-100)',
-                  )}
+            <div className="min-h-24 space-y-3 p-3">
+              {filtered.map((visit) => (
+                <VisitCard
+                  key={visit.visitId}
+                  visit={visit}
+                  showOwner
+                  onDragStart={(e) =>
+                    dragStart(e, { kind: 'visit', id: visit.visitId })
+                  }
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      aria-label={`Select ${route.label}`}
-                      aria-pressed={active}
-                      onClick={() =>
-                        setState((s) => ({ ...s, selectedId: route.id }))
-                      }
-                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl p-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--leaf-500)"
-                    >
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-(--leaf-900) text-(--lime)">
-                        <Route className="size-4" aria-hidden />
-                      </span>
-                      <span>
-                        <span className="block text-sm font-bold">
-                          {route.label}
-                        </span>
-                        <span className="text-[11px] text-(--ink-3)">
-                          {active ? 'Selected route' : 'Select route'}
-                        </span>
-                      </span>
-                    </button>
-                    <Badge>Draft</Badge>
-                  </div>
-                  <div className="mt-2 rounded-xl bg-(--cream) p-3">
-                    <label className="block text-[11px] font-bold text-(--ink-3)">
-                      Assign crew
-                      <SelectInput
-                        className="mt-1"
-                        aria-label={`Crew for ${route.label}`}
-                        value={route.crewId ?? ''}
-                        onChange={(e) => assignCrew(route.id, e.target.value)}
-                      >
-                        <option value="">No crew</option>
-                        {crews.map((c) => (
-                          <option
-                            key={c.id}
-                            value={c.id}
-                            disabled={templates.some(
-                              (r) =>
-                                r.id !== route.id &&
-                                r.date === route.date &&
-                                r.crewId === c.id,
-                            )}
-                          >
-                            {c.name}
-                            {templates.some(
-                              (r) =>
-                                r.id !== route.id &&
-                                r.date === route.date &&
-                                r.crewId === c.id,
-                            )
-                              ? ' · already assigned'
-                              : ''}
-                          </option>
-                        ))}
-                      </SelectInput>
-                    </label>
-                    <p className="mt-2 flex items-center gap-1 text-[11px] text-(--ink-3)">
-                      <Truck className="size-3" aria-hidden />
-                      {crew?.vehicle ?? 'Unassigned · choose a crew anytime'}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap justify-between gap-1 px-1 py-3 text-[11px] text-(--ink-3)">
-                    <span>{fmtDate(route.date)}</span>
-                    <span
-                      aria-label={`${route.label}: ${route.visitIds.length} stops, ${fmtDuration(duration(route))} on site`}
-                    >
-                      {route.visitIds.length} stops ·{' '}
-                      {fmtDuration(duration(route))} on site
-                    </span>
-                  </div>
-                  <ol
-                    aria-label={`Ordered stops for ${route.label}`}
-                    className="space-y-2"
+                  <Btn
+                    variant="outline"
+                    size="sm"
+                    icon={Plus}
+                    className="w-full"
+                    aria-label={`Add ${customer(visit)} to route`}
+                    disabled={!selected?.editable}
+                    onClick={() => selected && addToRoute(visit, selected)}
                   >
-                    {makeStops(route.id, route.visitIds).map((stop, index) => (
-                      <li key={stop.id}>
-                        <VisitCard
-                          visitId={stop.visit_id}
-                          sequence={stop.sequence}
-                          onDragStart={dragStart}
-                        >
-                          <div className="flex items-center justify-between border-t border-(--line) pt-2">
-                            <span className="text-[10px] text-(--ink-3)">
-                              Arrange stops
-                            </span>
-                            <div className="flex gap-0.5">
-                              <IconBtn
-                                icon={ArrowUp}
-                                label={`Move ${visitDetails(stop.visit_id).client?.display_name} up`}
-                                disabled={index === 0}
-                                onClick={() =>
-                                  reorder(route.id, stop.visit_id, -1)
-                                }
-                              />
-                              <IconBtn
-                                icon={ArrowDown}
-                                label={`Move ${visitDetails(stop.visit_id).client?.display_name} down`}
-                                disabled={index === route.visitIds.length - 1}
-                                onClick={() =>
-                                  reorder(route.id, stop.visit_id, 1)
-                                }
-                              />
-                              <IconBtn
-                                icon={X}
-                                label={`Remove ${visitDetails(stop.visit_id).client?.display_name} from route`}
-                                onClick={() => transfer(stop.visit_id, null)}
-                              />
-                            </div>
-                          </div>
-                          <MoveControl
-                            visitId={stop.visit_id}
-                            routes={dayRoutes.filter((r) => r.id !== route.id)}
-                            onMove={transfer}
-                          />
-                        </VisitCard>
-                      </li>
-                    ))}
-                  </ol>
-                  {!route.visitIds.length && (
-                    <div className="rounded-xl border border-dashed border-(--line-2) px-3 py-8 text-center">
-                      <p className="text-sm font-bold">Empty template</p>
-                      <p className="mt-1 text-xs text-(--ink-3)">
-                        Drop visits here or select this route and add available
-                        jobs.
-                      </p>
-                    </div>
-                  )}
-                  <p className="mt-3 text-center text-[10px] text-(--ink-3)">
-                    Drop a job visit onto this route
-                  </p>
-                </section>
-              )
-            })}
-          </div>
-          {selected && (
-            <Card className="overflow-hidden">
-              <div className="flex flex-wrap justify-between gap-2 p-4">
-                <div>
-                  <h3 className="text-sm font-bold">
-                    {selected.label} · Illustrative preview
-                  </h3>
-                  <p className="mt-1 text-[11px] text-(--ink-3)">
-                    Schematic locations only. No road directions or travel
-                    estimates.
-                  </p>
-                </div>
-                <span className="text-xs text-(--leaf-700)">
-                  {selected.visitIds.length} stops ·{' '}
-                  {fmtDuration(duration(selected))} on site
-                </span>
-              </div>
-              <Schematic
-                stops={makeStops(selected.id, selected.visitIds)}
-                color={
-                  crews.find((c) => c.id === selected.crewId)?.color ??
-                  '#2f7350'
-                }
-              />
-              <div className="h-4" />
-            </Card>
-          )}
-        </section>
-        <section
-          aria-label="Available jobs"
-          {...dropProps(null)}
-          className={cn(
-            'min-w-0 rounded-[22px] border bg-(--paper) transition-colors',
-            over === 'pool'
-              ? 'border-(--leaf-500) bg-(--lime-100)'
-              : 'border-(--line)',
-          )}
-        >
-          <div className="border-b border-(--line) p-5">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="crm-display text-xl font-semibold">
-                Available jobs
-              </h2>
-              <Badge>{available.length}</Badge>
+                    Add to {selected ? routeName(selected) : 'route'}
+                  </Btn>
+                </VisitCard>
+              ))}
+              {!filtered.length && (
+                <EmptyState
+                  icon={available.length ? Route : Check}
+                  title={
+                    needle && available.length
+                      ? 'No matching visits'
+                      : 'Everything is routed'
+                  }
+                  body={
+                    needle && available.length
+                      ? 'Try another customer, address, job number, or service.'
+                      : 'No scheduled visits are waiting on this date. Remove a stop or drag it here to make it available again.'
+                  }
+                />
+              )}
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-(--ink-3)">
-              Each stop is one scheduled job visit. Drop a route visit here to
-              return it to the pool.
-            </p>
-            <SearchInput
-              className="mt-4"
-              value={query}
-              onChange={setQuery}
-              placeholder="Search jobs, customers, addresses"
-            />
-            <p className="mt-3 text-[11px] font-semibold text-(--leaf-700)">
-              {selected
-                ? `Adding to ${selected.label}`
-                : 'Create or select a route to add jobs.'}
-            </p>
-          </div>
-          <div className="min-h-24 space-y-3 p-3">
-            {filtered.map((visit) => (
-              <VisitCard
-                key={visit.id}
-                visitId={visit.id}
-                onDragStart={dragStart}
-              >
-                <Btn
-                  variant="outline"
-                  size="sm"
-                  icon={Plus}
-                  className="w-full"
-                  aria-label={`Add ${visitDetails(visit.id).client?.display_name} to route`}
-                  disabled={!selected}
-                  onClick={() => {
-                    if (selected) transfer(visit.id, selected.id)
-                  }}
-                >
-                  Add to {selected?.label ?? 'route'}
-                </Btn>
-              </VisitCard>
-            ))}
-            {!filtered.length && (
-              <EmptyState
-                icon={dayVisits.length ? Check : Route}
-                title={
-                  query.trim() && available.length
-                    ? 'No matching visits'
-                    : !dayVisits.length
-                      ? 'A clear day'
-                      : 'All visits are on a route'
-                }
-                body={
-                  query.trim() && available.length
-                    ? 'Try another customer, address, job number, or service.'
-                    : !dayVisits.length
-                      ? 'There are no mock visits for this date. Try October 29, 2026.'
-                      : 'Remove a stop or drag a visit here to make it available again.'
-                }
-              />
-            )}
-          </div>
-        </section>
-      </div>
+          </section>
+        </div>
+      )}
       <p
         role="status"
         aria-live="polite"
@@ -566,28 +504,240 @@ export function RouteBuilder({
   )
 }
 
+function BoardSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading routes"
+      className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className="h-72 animate-pulse rounded-[22px] border border-(--line) bg-(--sage)"
+          />
+        ))}
+      </div>
+      <div className="h-72 animate-pulse rounded-[22px] border border-(--line) bg-(--sage)" />
+    </div>
+  )
+}
+
+function RouteCard({
+  route,
+  crews,
+  routes,
+  editableRoutes,
+  active,
+  highlighted,
+  dropProps,
+  onSelect,
+  onChangeCrew,
+  onDelete,
+  onNudge,
+  onReturn,
+  onMove,
+  onDragStart,
+}: {
+  route: DayRoute
+  crews: Array<CrewOption>
+  routes: Array<DayRoute>
+  editableRoutes: Array<DayRoute>
+  active: boolean
+  highlighted: boolean
+  dropProps: object
+  onSelect: () => void
+  onChangeCrew: (crewId: string) => void
+  onDelete: () => void
+  onNudge: (stop: RouteStop, direction: -1 | 1) => void
+  onReturn: (stop: RouteStop) => void
+  onMove: (stop: RouteStop, to: DayRoute) => void
+  onDragStart: (e: DragEvent<HTMLElement>, item: DragItem) => void
+}) {
+  const name = routeName(route)
+  const taken = new Set(
+    routes.filter((r) => r.id !== route.id).map((r) => r.crew?.id),
+  )
+  const canDelete = route.status === 'draft' && route.stops.length === 0
+  return (
+    <section
+      aria-label={name}
+      {...dropProps}
+      className={cn(
+        'min-w-0 rounded-[22px] border bg-(--paper) p-3 transition-colors',
+        active
+          ? 'border-(--leaf-600) ring-2 ring-(--leaf-600)/10'
+          : 'border-(--line)',
+        highlighted && 'border-(--leaf-500) bg-(--lime-100)',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          aria-label={`Select ${name}`}
+          aria-pressed={active}
+          onClick={onSelect}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl p-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--leaf-500)"
+        >
+          <span
+            style={{ background: route.crew?.color ?? undefined }}
+            className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-(--leaf-900) text-(--lime)"
+          >
+            <Route className="size-4" aria-hidden />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-bold">{name}</span>
+            <span className="text-[11px] text-(--ink-3)">
+              {active ? 'Selected route' : 'Select route'}
+            </span>
+          </span>
+        </button>
+        {!route.editable && (
+          <Lock className="size-3.5 text-(--ink-3)" aria-hidden />
+        )}
+        <Badge tone={route.editable ? 'gray' : 'green'}>
+          {STATUS_LABEL[route.status]}
+        </Badge>
+        {canDelete && (
+          <IconBtn
+            icon={Trash2}
+            label={`Delete ${name} route`}
+            onClick={onDelete}
+          />
+        )}
+      </div>
+      <div className="mt-2 rounded-xl bg-(--cream) p-3">
+        <label className="block text-[11px] font-bold text-(--ink-3)">
+          Crew
+          <SelectInput
+            className="mt-1"
+            aria-label={`Crew for ${name}`}
+            value={route.crew?.id ?? ''}
+            disabled={!route.editable}
+            onChange={(e) => onChangeCrew(e.target.value)}
+          >
+            {crews.map((c) => (
+              <option key={c.id} value={c.id} disabled={taken.has(c.id)}>
+                {c.name}
+                {taken.has(c.id) ? ' · already has a route' : ''}
+              </option>
+            ))}
+          </SelectInput>
+        </label>
+        <p className="mt-2 flex items-center gap-1 text-[11px] text-(--ink-3)">
+          <Truck className="size-3" aria-hidden />
+          {route.crew?.vehicle ?? 'No vehicle recorded'}
+        </p>
+      </div>
+      <div className="flex flex-wrap justify-between gap-1 px-1 py-3 text-[11px] text-(--ink-3)">
+        <span>{fmtDate(route.date)}</span>
+        <span
+          aria-label={`${name}: ${route.totals.stops} stops, ${fmtDuration(route.totals.onSiteMinutes)} on site`}
+        >
+          {route.totals.stops} stops · {fmtDuration(route.totals.onSiteMinutes)}{' '}
+          on site
+        </span>
+      </div>
+      <ol aria-label={`Ordered stops for ${name}`} className="space-y-2">
+        {route.stops.map((stop, index) => {
+          const pending = isPendingStop(stop.id)
+          const frozen = !route.editable || pending
+          const who = customer(stop)
+          return (
+            <li key={stop.id}>
+              <VisitCard
+                visit={stop}
+                sequence={stop.sequence}
+                draggable={!frozen}
+                onDragStart={(e) =>
+                  onDragStart(e, { kind: 'stop', id: stop.id })
+                }
+              >
+                <div className="flex items-center justify-between border-t border-(--line) pt-2">
+                  <span className="text-[10px] text-(--ink-3)">
+                    {route.editable ? 'Arrange stops' : 'Route is locked'}
+                  </span>
+                  <div className="flex gap-0.5">
+                    <IconBtn
+                      icon={ArrowUp}
+                      label={`Move ${who} up`}
+                      disabled={frozen || index === 0}
+                      onClick={() => onNudge(stop, -1)}
+                    />
+                    <IconBtn
+                      icon={ArrowDown}
+                      label={`Move ${who} down`}
+                      disabled={frozen || index === route.stops.length - 1}
+                      onClick={() => onNudge(stop, 1)}
+                    />
+                    <IconBtn
+                      icon={X}
+                      label={`Remove ${who} from route`}
+                      disabled={frozen}
+                      onClick={() => onReturn(stop)}
+                    />
+                  </div>
+                </div>
+                <MoveControl
+                  who={who}
+                  disabled={frozen}
+                  routes={editableRoutes.filter((r) => r.id !== route.id)}
+                  onMove={(to) => onMove(stop, to)}
+                />
+              </VisitCard>
+            </li>
+          )
+        })}
+      </ol>
+      {!route.stops.length && (
+        <div className="rounded-xl border border-dashed border-(--line-2) px-3 py-8 text-center">
+          <p className="text-sm font-bold">Empty route</p>
+          <p className="mt-1 text-xs text-(--ink-3)">
+            {route.editable
+              ? 'Drop visits here or select this route and add available jobs.'
+              : 'This route has no stops.'}
+          </p>
+        </div>
+      )}
+      {route.editable && (
+        <p className="mt-3 text-center text-[10px] text-(--ink-3)">
+          Drop a job visit onto this route
+        </p>
+      )}
+    </section>
+  )
+}
+
 function VisitCard({
-  visitId,
+  visit,
   sequence,
+  draggable = true,
+  showOwner = false,
   onDragStart,
   children,
 }: {
-  visitId: string
+  visit: AvailableVisit
   sequence?: number
-  onDragStart: (e: DragEvent<HTMLElement>, id: string) => void
-  children: React.ReactNode
+  draggable?: boolean
+  /** Show the service area and crew that would own this visit. */
+  showOwner?: boolean
+  onDragStart: (e: DragEvent<HTMLElement>) => void
+  children: ReactNode
 }) {
-  const { visit, job, client, property } = visitDetails(visitId)
-  const name = client?.display_name ?? 'Customer unavailable'
+  const name = customer(visit)
   return (
     <article
-      draggable
+      draggable={draggable}
       aria-label={`Visit ${name}`}
-      onDragStart={(e) => onDragStart(e, visitId)}
-      className="cursor-grab space-y-2 rounded-xl border border-(--line) bg-(--paper) p-3 active:cursor-grabbing"
+      onDragStart={onDragStart}
+      className={cn(
+        'space-y-2 rounded-xl border border-(--line) bg-(--paper) p-3',
+        draggable && 'cursor-grab active:cursor-grabbing',
+      )}
     >
       <div className="flex items-center gap-2 text-[10px] font-bold tracking-wide text-(--ink-3)">
-        <GripVertical className="size-3.5" aria-hidden />
+        {draggable && <GripVertical className="size-3.5" aria-hidden />}
         {sequence !== undefined && (
           <span
             aria-label={`Stop ${sequence}`}
@@ -596,171 +746,176 @@ function VisitCard({
             {sequence}
           </span>
         )}
-        <span>{job?.number ?? 'Job'}</span>
-        <span className="ml-auto">
-          {fmtDuration(visit?.duration_minutes ?? 0)}
-        </span>
+        <span>{visit.jobNumber ?? 'Job'}</span>
+        <span className="ml-auto">{fmtDuration(visit.durationMinutes)}</span>
       </div>
       <h3 className="text-[13px] font-bold">{name}</h3>
       <p className="text-xs text-(--ink-3)">
-        {property?.address_line1 ?? 'Address unavailable'}
+        {visit.address
+          ? `${visit.address}${visit.city ? `, ${visit.city}` : ''}`
+          : 'Address unavailable'}
       </p>
       <p className="text-xs font-semibold text-(--ink-2)">
-        {job?.title ?? 'Scheduled service'}
+        {visit.jobTitle ?? 'Scheduled service'}
       </p>
+      {showOwner && <OwnerLine visit={visit} />}
       <p className="text-[10px] text-(--ink-3)">
-        {visit?.window_start && visit.window_end
-          ? `${formatWindow(visit.window_start)}–${formatWindow(visit.window_end)}`
+        {visit.windowStart && visit.windowEnd
+          ? `${formatTime(visit.windowStart)}–${formatTime(visit.windowEnd)}`
           : 'Flexible arrival'}
       </p>
       {children}
     </article>
   )
 }
+
+/**
+ * Who is likely to own a visit: the job's preferred crew, else the service
+ * area and its crew. The server settles it (including the weekday rotation)
+ * when routes are built; this is the browser's hint.
+ */
+function OwnerLine({ visit }: { visit: AvailableVisit }) {
+  const located = visit.latitude !== null && visit.longitude !== null
+  return (
+    <div className="space-y-0.5 text-[10px] text-(--ink-3)">
+      {visit.preferredCrewName && (
+        <p>
+          Prefers{' '}
+          <span className="font-semibold">{visit.preferredCrewName}</span>
+        </p>
+      )}
+      {visit.areaName ? (
+        <p className="flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className="size-2 shrink-0 rounded-full"
+            style={{ background: visit.areaColor ?? DEFAULT_COLOR }}
+          />
+          <span>
+            Area <span className="font-semibold">{visit.areaName}</span>
+            {' · '}
+            {visit.areaCrewName ? `crew ${visit.areaCrewName}` : 'no crew'}
+          </span>
+        </p>
+      ) : located ? (
+        <p>Outside every service area</p>
+      ) : (
+        <p>No map location</p>
+      )}
+    </div>
+  )
+}
+
 function MoveControl({
-  visitId,
+  who,
   routes,
+  disabled,
   onMove,
 }: {
-  visitId: string
-  routes: Array<RouteTemplate>
-  onMove: (visitId: string, routeId: string | null) => void
+  who: string
+  routes: Array<DayRoute>
+  disabled: boolean
+  onMove: (to: DayRoute) => void
 }) {
   const [target, setTarget] = useState('')
-  const name = visitDetails(visitId).client?.display_name ?? 'visit'
+  const to = routes.find((r) => r.id === target)
   return (
     <div className="flex min-w-0 items-center gap-2">
       <SelectInput
         className="min-w-0 flex-1"
-        aria-label={`Move ${name} to route`}
-        value={target}
+        aria-label={`Move ${who} to route`}
+        value={to?.id ?? ''}
+        disabled={disabled || !routes.length}
         onChange={(e) => setTarget(e.target.value)}
       >
-        <option value="">Choose route…</option>
+        <option value="">
+          {routes.length ? 'Choose route…' : 'No other open route'}
+        </option>
         {routes.map((r) => (
           <option key={r.id} value={r.id}>
-            {r.label}
+            {routeName(r)}
           </option>
         ))}
       </SelectInput>
       <Btn
         size="sm"
         variant="ghost"
-        disabled={!routes.some((r) => r.id === target)}
-        aria-label={`Move ${name} to selected route`}
-        onClick={() => onMove(visitId, target)}
+        disabled={disabled || !to}
+        aria-label={`Move ${who} to selected route`}
+        onClick={() => {
+          if (to) {
+            onMove(to)
+            setTarget('')
+          }
+        }}
       >
         Move
       </Btn>
     </div>
   )
 }
-function Schematic({
-  stops,
-  color,
-}: {
-  stops: Array<DraftStop>
-  color: string
-}) {
-  const points = stops.flatMap((s) => {
-    const propertyId = visitDetails(s.visit_id).property?.id
-    const position = propertyId ? positions[propertyId] : undefined
-    return position ? [{ ...position, sequence: s.sequence, id: s.id }] : []
-  })
+
+/** The selected route on the map: numbered stops joined in order. */
+function RoutePreview({ route }: { route: DayRoute }) {
+  const name = routeName(route)
+  const color = route.crew?.color ?? DEFAULT_COLOR
+  const located = route.stops.filter(
+    (s) => s.latitude !== null && s.longitude !== null,
+  )
+  const unplaced = route.stops.filter(
+    (s) => s.latitude === null || s.longitude === null,
+  )
+  const mapStops: Array<MapStop> = located.map((s) => ({
+    id: s.id,
+    position: { lon: s.longitude!, lat: s.latitude! },
+    label: String(s.sequence),
+    title: `${s.sequence}. ${customer(s)}, ${s.address ?? 'no address'}`,
+    color,
+  }))
   return (
-    <div
-      role="img"
-      aria-label={`Illustrative route preview with ${points.length} numbered stops`}
-      className="relative mx-4 aspect-[2/1] overflow-hidden rounded-2xl bg-[#e8eedf] "
-    >
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        className="absolute inset-0 size-full"
-        aria-hidden
-      >
-        <ellipse cx="18" cy="24" rx="17" ry="11" fill="#d3e3c2" />
-        <ellipse cx="83" cy="78" rx="19" ry="13" fill="#d3e3c2" />
-        <ellipse cx="79" cy="15" rx="10" ry="8" fill="#d3e3c2" />
-        <path
-          d="M-5 68 C20 56 29 85 53 67 S89 49 105 58"
-          fill="none"
-          stroke="#c4dceb"
-          strokeWidth="6"
-        />
-        {[15, 35, 55, 75, 92].map((x) => (
-          <line
-            key={`x${x}`}
-            x1={x}
-            x2={x}
-            y1="0"
-            y2="100"
-            stroke="#fff"
-            strokeWidth="1.4"
-          />
-        ))}
-        {[12, 32, 50, 86].map((y) => (
-          <line
-            key={`y${y}`}
-            x1="0"
-            x2="100"
-            y1={y}
-            y2={y}
-            stroke="#fff"
-            strokeWidth="1.4"
-          />
-        ))}
-        <path d="M0 95 L100 5" stroke="#f6f1df" strokeWidth="4" />
-        {!!points.length && (
-          <>
-            <polyline
-              points={`14,49 ${points.map((p) => `${p.x},${p.y}`).join(' ')}`}
-              fill="none"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinejoin="round"
-            />
-            <polyline
-              points={`14,49 ${points.map((p) => `${p.x},${p.y}`).join(' ')}`}
-              fill="none"
-              stroke={color}
-              strokeWidth="1"
-              strokeLinejoin="round"
-              strokeDasharray="2 1"
-            />
-          </>
-        )}
-      </svg>
-      <span className="absolute top-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[9px] font-bold tracking-widest text-(--ink-3) uppercase">
-        Schematic · Calgary
-      </span>
-      <span
-        style={{ left: '14%', top: '49%' }}
-        className="absolute flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl bg-(--leaf-900) text-(--lime) shadow-md"
-      >
-        <Warehouse className="size-4" aria-hidden />
-      </span>
-      {points.map((p) => (
-        <span
-          key={p.id}
-          style={{ left: `${p.x}%`, top: `${p.y}%`, background: color }}
-          className="absolute flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white shadow-md"
-        >
-          {p.sequence}
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap justify-between gap-2 p-4">
+        <div>
+          <h3 className="text-sm font-bold">{name} · Map preview</h3>
+          <p className="mt-1 text-[11px] text-(--ink-3)">
+            Stops in order, joined by straight lines. No road directions or
+            travel estimates.
+          </p>
+        </div>
+        <span className="text-xs text-(--leaf-700)">
+          {route.totals.stops} stops · {fmtDuration(route.totals.onSiteMinutes)}{' '}
+          on site
         </span>
-      ))}
-      {!points.length && (
-        <span className="absolute right-4 bottom-4 left-4 rounded-xl bg-white/90 p-3 text-center text-xs text-(--ink-2)">
-          Add stops to sketch your route.
-        </span>
+      </div>
+      {route.stops.length ? (
+        <div className="space-y-3 px-4 pb-4">
+          <MapView
+            label={`Map of ${name}`}
+            className="w-full border border-(--line)"
+            style={{ height: 320 }}
+            stops={mapStops}
+            route={{ path: mapStops.map((s) => s.position), color }}
+          />
+          <UnplacedStops
+            stops={unplaced.map((s) => ({
+              id: s.id,
+              label: String(s.sequence),
+              title: customer(s),
+              detail: s.address ?? undefined,
+            }))}
+          />
+        </div>
+      ) : (
+        <p className="px-4 pb-4 text-xs text-(--ink-2)">
+          Add stops to see this route on the map.
+        </p>
       )}
-    </div>
+    </Card>
   )
 }
 
-function formatWindow(value: string) {
+function formatTime(value: string) {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Edmonton',
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value))

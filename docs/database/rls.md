@@ -142,6 +142,28 @@ Notes:
   `security definer` and re-check `has_org_role(org, '{owner,admin}')`.
   `properties.service_area_id` is derived by triggers and has no grant.
 
+- **Route Builder writes** ([tables/crews-routing.md](tables/crews-routing.md#route-builder-functions)):
+  `create_route`, `change_route_crew`, `add_route_stop`, `move_route_stop`,
+  `reorder_route_stops`, `remove_route_stop` and `delete_route` are
+  `security invoker`, so the office-staff policies on `routes`, `route_stops`
+  and `route_members` decide access: a worker or another org's user can't see
+  the rows, so every function raises `P0002` for them. They add no policy or
+  grant. Execute is revoked from `public`, `anon` and `service_role` and
+  granted to `authenticated`. They lock the route row first, and refuse to
+  change a route that is not `draft` or `optimized` (`55000`); the existing
+  triggers don't enforce that lock themselves.
+
+- **Auto-assignment** ([tables/crews-routing.md](tables/crews-routing.md#auto-assignment-generate_draft_routes)):
+  `generate_draft_routes(org, date)` is `security invoker`, so the office-staff
+  policies on `routes`, `route_stops`, `visits`, `jobs`, `properties`, `crews`
+  and the service-area tables decide what it can read and write. It adds no
+  policy or grant on tables. It also checks
+  `private.has_org_role(org, '{owner,admin,dispatcher}')` first and raises
+  `42501` for anyone else, so a worker or non-member gets an error rather than
+  an empty result. Execute is revoked from `public`, `anon` and `service_role`
+  and granted to `authenticated`. The helper `private.order_stops` is pure
+  (no table access) and executable by `authenticated`.
+
 ## Storage
 
 Bucket `org-files` (private). Object paths are

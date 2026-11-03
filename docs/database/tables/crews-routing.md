@@ -188,6 +188,88 @@ new route instead of moving one.
 `reset_job_schedule()` (a `security definer` function with an office-role
 check) never deletes a visit that has a route stop.
 
+## Route Builder functions
+
+The Route Builder ([UI](../../route-builder/ui.md)) writes through seven
+`security invoker` functions in `public`, so RLS (office staff only) decides
+access and each change is one transaction. Each locks the route row first
+(two routes in id order), so edits to one route serialize. A route that is
+missing, or belongs to another org, raises `P0002`. Only `draft` and
+`optimized` routes can change; a `published`, `in_progress` or `completed`
+route raises `55000`. Triggers don't enforce that lock; the functions do.
+Execute is granted to `authenticated` only.
+
+| Function                                                                   | Does                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `create_route(p_organization_id, p_route_date, p_crew_id)`                 | Inserts a draft route and returns its id. The crew must exist and not be archived (`P0002`), and have no route that date (`23505`). The insert triggers copy depots and seed `route_members`                                         |
+| `change_route_crew(p_organization_id, p_route_id, p_crew_id)`              | `crew_id` is fixed, so this builds a route for the new crew (same date and status), re-points the stops, clears their planned times, and deletes the old route and its roster. Returns the new id; the same crew returns the same id |
+| `add_route_stop(p_organization_id, p_route_id, p_visit_id, p_position)`    | The visit must be `scheduled` (`55000`) and unrouted (`23505`). The date guard rejects another date (`23514`). Inserts at the clamped 1-based position (null = last) and shifts later stops. Returns the stop id                     |
+| `move_route_stop(p_organization_id, p_stop_id, p_to_route_id, p_position)` | Moves a stop to a position on another route or its own. Both routes must be editable and on one date. Closes the gap, opens the slot, and clears the moved stop's planned times and travel                                           |
+| `reorder_route_stops(p_organization_id, p_route_id, p_stop_ids)`           | Applies a full order. The array must name every stop on the route once (`22023`)                                                                                                                                                     |
+| `remove_route_stop(p_organization_id, p_stop_id)`                          | Deletes the stop and closes the gap                                                                                                                                                                                                  |
+| `delete_route(p_organization_id, p_route_id)`                              | Deletes a `draft` route with no stops (`55000` otherwise)                                                                                                                                                                            |
+
+Renumbering uses the deferred `route_stops_sequence_key`, so no temporary
+sequence values are needed. Concurrent moves of one stop are resolved under the
+route locks: the loser raises `55000` ("that stop changed; reload"). Tests:
+`supabase/tests/route_builder_rpcs_test.sql`.
+
+## Auto-assignment (`generate_draft_routes`)
+
+`generate_draft_routes(p_organization_id, p_date)` puts a date's scheduled,
+unrouted visits on draft routes by service area. It is `security invoker`
+(RLS decides access) and also requires an office role (`owner`, `admin`,
+`dispatcher`; `42501` otherwise). Execute is granted to `authenticated` only.
+Migration `generate_draft_routes`; tests:
+`supabase/tests/generate_draft_routes_test.sql`.
+
+**Owning crew**, first match wins:
+
+1. `jobs.preferred_crew_id`, if that crew is not archived;
+2. the rotation crew in `service_area_rotations` for the ISO weekday of the
+   date, on the property's `service_area_id`;
+3. the area's `crew_id`.
+
+The area comes from `properties.service_area_id`, which already applies the
+overlap rule (`priority desc`, smaller area, oldest).
+
+**Unassigned reasons** (returned, never raised):
+
+| Reason             | Meaning                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `no_location`      | The property has no map location (checked first; ordering needs coordinates)                  |
+| `no_area`          | No service area covers the property and the job has no usable preferred crew                  |
+| `area_has_no_crew` | The area (and its rotation for that weekday) names no crew                                    |
+| `crew_archived`    | The owning crew is archived (also: a preferred crew that is archived with no area to fall to) |
+| `route_locked`     | The owning crew's route that date is `published`, `in_progress` or `completed`                |
+
+**Routes and stops.** One route per (crew, date), created with
+`create_route` (so depots, planned start and the roster come from the same
+triggers), or the existing `draft` / `optimized` one, locked `for update`. New
+stops are appended after the highest existing `sequence`; existing and locked
+stops are never changed. An `optimized` route keeps its status. A crew with no
+placeable visit gets no route.
+
+**Order of the new stops**: nearest neighbour from the origin, then 2-opt
+passes on the open path (at most 100), using `ST_Distance` on `geography`
+(straight-line metres, no roads). The origin is the last existing stop's
+location if the route has stops, else `routes.start_location`, else the first
+new visit (which becomes stop 1). `private.order_stops(origin, points)` is the
+pure helper. `travel_distance_m` is the straight-line distance from the
+previous stop (or the origin), rounded to metres. `travel_duration_s`,
+`planned_arrival` and `planned_departure` stay null: there are no ETAs until
+the optimizer ([ADR 0006](../decisions/0006-external-route-optimizer.md)).
+
+**Result**: `{assigned, routes_created, remaining, unassigned: [{visit_id, reason}]}`.
+At most 500 visits are handled per call (arrival window, then id); `remaining`
+is the number left, and running again places them.
+
+**Safety.** One function body is one transaction, so an error undoes
+everything. An advisory lock per org and date serializes runs. A second run
+finds the placed visits already routed and does nothing new (it reports the
+same unassigned visits). A manual add of the same visit at the same instant
+makes the run fail with `23505` and change nothing; retrying works.
+
 ## Worker access
 
 Workers have no table policies on routes, stops, visits, jobs, properties, or
