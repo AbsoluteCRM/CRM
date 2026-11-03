@@ -105,3 +105,13 @@ Use pnpm 10 as CI does; Chromium must be installed. Local host has Node 25, GitH
 ## Scope-change log
 
 Verification exposed a merged schema conflict: cities are service regions, crew assignments belong to service areas. User selected alignment with the existing model. Expanded plan removes the duplicate legacy UI/API and retains the documented service-area editor, without database changes.
+
+### GitHub follow-up
+
+First push exposed a nullable OpenLayers map target in the new story helper.
+Added a null guard before storing its WeakMap entry. The prior local typecheck
+ran before that helper edit; final verification now runs after all source edits.
+Fresh reviewer and security both passed with high confidence over the whole repair.
+Corrected verification: TypeScript, ESLint and Prettier pass; all 43 test files
+and 453 tests pass. The first GitHub Storybook job passed; both jobs must pass
+on the corrected push before the task is complete.

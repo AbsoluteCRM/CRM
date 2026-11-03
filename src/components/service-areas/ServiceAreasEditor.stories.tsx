@@ -176,7 +176,8 @@ const meta = {
     canEdit: true,
     compact: false,
     onMapReady: (map) => {
-      maps.set(map.getTargetElement(), map)
+      const target = map.getTargetElement()
+      if (target) maps.set(target, map)
     },
     actions: {
       preview: fn(() => Promise.resolve(PREVIEW)),
