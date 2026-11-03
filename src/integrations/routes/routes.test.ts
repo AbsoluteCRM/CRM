@@ -16,6 +16,7 @@ const visit = (n: number, minutes = 30, windowStart: string | null = null) =>
     windowStart,
     windowEnd: null,
     jobId: `j${n}`,
+    clientId: `c${n}`,
     jobNumber: `J-${n}`,
     jobTitle: 'Mow',
     clientName: `Client ${n}`,
@@ -24,6 +25,11 @@ const visit = (n: number, minutes = 30, windowStart: string | null = null) =>
     city: 'Calgary',
     latitude: null,
     longitude: null,
+    preferredCrewName: null,
+    areaId: null,
+    areaName: null,
+    areaColor: null,
+    areaCrewName: null,
   }) satisfies AvailableVisit
 
 const stop = (n: number, sequence: number, minutes = 30): RouteStop => ({

@@ -11,6 +11,8 @@ type Outputs = inferRouterOutputs<TRPCRouter>['routes']
 export type DayRoute = Outputs['list'][number]
 export type RouteStop = DayRoute['stops'][number]
 export type AvailableVisit = Outputs['availableVisits'][number]
+/** What "Build routes from service areas" returns. */
+export type DraftResult = Outputs['generateDrafts']
 
 /** The active organization as tRPC input, from `useOrgScope()`. */
 export type OrgScope = ReturnType<typeof useOrgScope>
@@ -225,6 +227,11 @@ export function useRouteMutations(scope: OrgScope, date: string) {
       toast(`Couldn't ${what}: ${e.message}`, 'warning'),
   })
 
+  const generate = useMutation(
+    trpc.routes.generateDrafts.mutationOptions({
+      ...settle,
+    }),
+  )
   const create = useMutation(
     trpc.routes.create.mutationOptions(failed('create the route')),
   )
@@ -264,6 +271,9 @@ export function useRouteMutations(scope: OrgScope, date: string) {
       (await create.mutateAsync({ ...base, date, crewId })).id,
     assignCrew: async (routeId: string, crewId: string) =>
       (await assign.mutateAsync({ ...base, routeId, crewId })).id,
+    /** Rejects with the server's message; the caller shows it. */
+    generateDrafts: (): Promise<DraftResult> =>
+      generate.mutateAsync({ ...base, date }),
     deleteRoute: async (routeId: string) => {
       await remove.mutateAsync({ ...base, routeId })
     },

@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/tanstackstart-react'
+import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
 import { dbError } from './errors'
@@ -12,8 +14,10 @@ const date = z.iso.date()
 
 // Never the raw `location` (geography); the generated latitude/longitude
 // stand in for it.
+// The job's preferred crew and the property's service area (with the area's
+// crew) say who is likely to own the visit; the server decides when it builds.
 const VISIT_FIELDS =
-  'id, duration_minutes, window_start, window_end, jobs(id, number, title, clients(id, display_name)), properties(id, address_line1, city, latitude, longitude)'
+  'id, duration_minutes, window_start, window_end, jobs(id, number, title, preferred_crew:crews(id, name), clients(id, display_name)), properties(id, address_line1, city, latitude, longitude, service_areas(id, name, color, crews(id, name)))'
 
 const ROUTE_FIELDS = `id, route_date, status, crew_id, planned_start, crews(id, name, color, vehicle), route_stops(id, sequence, is_locked, visit_id, visits(${VISIT_FIELDS}))`
 
@@ -29,6 +33,7 @@ type VisitRow = {
     id: string
     number: string
     title: string
+    preferred_crew?: { id: string; name: string } | null
     clients: { id: string; display_name: string } | null
   } | null
   properties: {
@@ -37,6 +42,12 @@ type VisitRow = {
     city: string
     latitude: number | null
     longitude: number | null
+    service_areas?: {
+      id: string
+      name: string
+      color: string | null
+      crews: { id: string; name: string } | null
+    } | null
   } | null
 }
 
@@ -48,6 +59,7 @@ export function summarizeVisit(v: VisitRow) {
     windowStart: v.window_start,
     windowEnd: v.window_end,
     jobId: v.jobs?.id ?? null,
+    clientId: v.jobs?.clients?.id ?? null,
     jobNumber: v.jobs?.number ?? null,
     jobTitle: v.jobs?.title ?? null,
     clientName: v.jobs?.clients?.display_name ?? null,
@@ -56,6 +68,11 @@ export function summarizeVisit(v: VisitRow) {
     city: v.properties?.city ?? null,
     latitude: v.properties?.latitude ?? null,
     longitude: v.properties?.longitude ?? null,
+    preferredCrewName: v.jobs?.preferred_crew?.name ?? null,
+    areaId: v.properties?.service_areas?.id ?? null,
+    areaName: v.properties?.service_areas?.name ?? null,
+    areaColor: v.properties?.service_areas?.color ?? null,
+    areaCrewName: v.properties?.service_areas?.crews?.name ?? null,
   }
 }
 
@@ -84,6 +101,15 @@ function summarizeCrew(crew: CrewRow | null) {
 }
 
 export type VisitSummary = ReturnType<typeof summarizeVisit>
+
+// What generate_draft_routes returns (jsonb). Parsed, so a change in the
+// function shows up as an error here instead of a blank summary in the UI.
+const draftResult = z.object({
+  assigned: z.number().int(),
+  routes_created: z.number().int(),
+  remaining: z.number().int(),
+  unassigned: z.array(z.object({ visit_id: z.string(), reason: z.string() })),
+})
 
 export const routesRouter = {
   // The date's routes: crew, ordered stops with their visit summaries, totals.
@@ -237,6 +263,40 @@ export const routesRouter = {
       })
       if (error) throw dbError(error)
     }),
+
+  // Puts the date's scheduled, unrouted visits on draft routes by service
+  // area (see generate_draft_routes). Safe to repeat: a second press places
+  // nothing new. `unassigned` lists the visits that need a human, with a
+  // reason code; `remaining` is how many eligible visits were beyond the
+  // per-call cap.
+  generateDrafts: manageRoutes
+    .input(z.object({ date }))
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'routes.generateDrafts' }, async () => {
+        const { data, error } = await ctx.supabase.rpc(
+          'generate_draft_routes',
+          { p_organization_id: ctx.organizationId, p_date: input.date },
+        )
+        if (error) throw dbError(error)
+        const parsed = draftResult.safeParse(data)
+        if (!parsed.success) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Database error',
+            cause: parsed.error,
+          })
+        }
+        return {
+          assigned: parsed.data.assigned,
+          routesCreated: parsed.data.routes_created,
+          remaining: parsed.data.remaining,
+          unassigned: parsed.data.unassigned.map((u) => ({
+            visitId: u.visit_id,
+            reason: u.reason,
+          })),
+        }
+      }),
+    ),
 
   // Only an empty draft route.
   delete: manageRoutes

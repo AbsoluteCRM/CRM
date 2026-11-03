@@ -295,6 +295,7 @@ describe('routes.availableVisits', () => {
         windowStart: null,
         windowEnd: null,
         jobId: 'job-v1',
+        clientId: 'c1',
         jobNumber: 'J-1',
         jobTitle: 'Mow',
         clientName: 'Jane',
@@ -303,8 +304,54 @@ describe('routes.availableVisits', () => {
         city: 'Calgary',
         latitude: 51.04,
         longitude: -114.07,
+        preferredCrewName: null,
+        areaId: null,
+        areaName: null,
+        areaColor: null,
+        areaCrewName: null,
       },
     ])
+  })
+
+  it('returns the preferred crew and the service area with its crew', async () => {
+    const base = visit('v1', 60)
+    fake.result = {
+      data: [
+        {
+          ...base,
+          jobs: { ...base.jobs, preferred_crew: { id: 'c1', name: 'North' } },
+          properties: {
+            ...base.properties,
+            service_areas: {
+              id: 'a1',
+              name: 'Northwest',
+              color: '#2f7350',
+              crews: { id: 'c2', name: 'West' },
+            },
+          },
+          route_stops: [],
+        },
+      ],
+      error: null,
+    }
+    const [row] = await caller().routes.availableVisits({
+      organizationId: ORG,
+      date: DATE,
+    })
+    expect(row).toMatchObject({
+      preferredCrewName: 'North',
+      areaId: 'a1',
+      areaName: 'Northwest',
+      areaColor: '#2f7350',
+      areaCrewName: 'West',
+    })
+  })
+
+  it('selects the area and its crew without any PostGIS column', async () => {
+    await caller().routes.availableVisits({ organizationId: ORG, date: DATE })
+    const [select] = fake.callsTo('visits.select')
+    expect(String(select[1])).toContain('service_areas(')
+    expect(String(select[1])).toContain('preferred_crew:crews(')
   })
 
   it('returns an empty list when RLS hides the rows', async () => {
