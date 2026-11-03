@@ -6,7 +6,7 @@
   2026-11-02 and said to build auto-assignment once Route Builder reads live
   data (PR #97, `feat/route-builder-live-data`, still open: this branch is
   stacked on it).
-- **Status**: approved (roadmap approval; no separate plan-mode round, see
+- **Status**: implemented (approved via the roadmap; no separate plan-mode round, see
   Scope-change log)
 - **Confidence**: 95%. Every material choice is in Eric's roadmap decisions
   (Q1 to Q7, D1) or in his instruction for this phase. Assumptions are listed

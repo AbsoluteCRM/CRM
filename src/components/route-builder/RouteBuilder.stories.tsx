@@ -30,6 +30,7 @@ import type {
   AvailableVisit,
   Board,
   DayRoute,
+  DraftResult,
   RouteStop,
 } from '#/integrations/routes/routes'
 import { TRPCProvider } from '#/integrations/trpc/react'
@@ -72,6 +73,7 @@ const visit = (
   windowStart: null,
   windowEnd: null,
   jobId: `job-${n}`,
+  clientId: `client-${n}`,
   jobNumber: `J-10${n}`,
   jobTitle: title,
   clientName: client,
@@ -80,6 +82,23 @@ const visit = (
   city: 'Calgary',
   latitude: at?.[0] ?? null,
   longitude: at?.[1] ?? null,
+  preferredCrewName: null,
+  areaId: null,
+  areaName: null,
+  areaColor: null,
+  areaCrewName: null,
+})
+
+const inArea = (
+  v: AvailableVisit,
+  areaName: string,
+  areaCrewName: string | null,
+): AvailableVisit => ({
+  ...v,
+  areaId: `area-${areaName}`,
+  areaName,
+  areaColor: '#2f7350',
+  areaCrewName,
 })
 
 const V = {
@@ -115,13 +134,17 @@ const V = {
     90,
     [51.02, -114.2],
   ),
-  oliver: visit(
-    5,
-    'Oliver Bennett',
-    '5 Coulee Court',
-    'Weekly mowing',
-    40,
-    [51.1, -114.05],
+  oliver: inArea(
+    visit(
+      5,
+      'Oliver Bennett',
+      '5 Coulee Court',
+      'Weekly mowing',
+      40,
+      [51.1, -114.05],
+    ),
+    'Northwest',
+    'North crew',
   ),
   grace: visit(6, 'Grace Kim', '300 Prairie Lane', 'Snow-ready prep', 30, null),
   noah: visit(
@@ -170,10 +193,18 @@ const seedRoutes = (): Array<DayRoute> => [
 const seedPool = (): Array<AvailableVisit> => [V.oliver, V.grace, V.noah]
 
 const noop = () => undefined
+
+const DRAFTED: DraftResult = {
+  assigned: 4,
+  routesCreated: 2,
+  remaining: 0,
+  unassigned: [],
+}
 const actionSpies = () => ({
   createRoute: fn(() => Promise.resolve('route-new')),
   assignCrew: fn((routeId: string) => Promise.resolve(routeId)),
   deleteRoute: fn(() => Promise.resolve()),
+  generateDrafts: fn(() => Promise.resolve(DRAFTED)),
   addStop: fn(),
   moveStop: fn(),
   removeStop: fn(),
@@ -599,6 +630,15 @@ function handle(server: Server, path: string, input: Record<string, string>) {
     case 'routes.reorderStops':
       server.board = applyReorder(b, input.routeId, input.stopIds as never)
       return undefined
+    case 'routes.generateDrafts':
+      // Oliver is in an area, so he is routed; Grace has no location.
+      server.board = settle(applyAdd(b, 'visit-5', 'route-north'))
+      return {
+        assigned: 1,
+        routesCreated: 0,
+        remaining: 0,
+        unassigned: [{ visitId: 'visit-6', reason: 'no_location' }],
+      }
     case 'routes.create': {
       const crew = CREWS.find((c) => c.id === input.crewId)!
       server.board = {
@@ -909,5 +949,282 @@ export const LiveLoadFailureOffersRetry = liveStory(
     server().failing.clear()
     await userEvent.click(c.getByRole('button', { name: 'Try again' }))
     await loaded(c)
+  },
+)
+
+// Build routes from service areas ---------------------------------------------
+
+const buildButton = (c: ReturnType<typeof within>) =>
+  c.getByRole('button', { name: 'Build routes from service areas' })
+
+const MIXED: DraftResult = {
+  assigned: 6,
+  routesCreated: 2,
+  remaining: 12,
+  unassigned: [
+    { visitId: 'visit-6', reason: 'no_location' },
+    { visitId: 'visit-5', reason: 'no_area' },
+    { visitId: 'visit-7', reason: 'area_has_no_crew' },
+    { visitId: 'visit-9', reason: 'crew_archived' },
+    { visitId: 'visit-8', reason: 'route_locked' },
+  ],
+}
+
+export const BuildRoutesShowsWhatToFix: Story = {
+  args: {
+    actions: {
+      ...actionSpies(),
+      generateDrafts: fn(() => Promise.resolve(MIXED)),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const c = within(canvasElement)
+    await userEvent.click(buildButton(c))
+    await expect(args.actions.generateDrafts).toHaveBeenCalledOnce()
+    const result = await c.findByRole('status', { name: 'Build result' })
+    const r = within(result)
+    await expect(r.getByText('6 visits placed on 2 new routes')).toBeVisible()
+    await expect(r.getByText(/12 more visits are waiting/)).toBeVisible()
+    await expect(r.getByText('5 visits need attention')).toBeVisible()
+    const list = r.getByRole('list', {
+      name: 'Visits that could not be placed',
+    })
+    const rows = within(list).getAllByRole('listitem')
+    await expect(rows.map((row) => row.dataset.reason)).toEqual([
+      'no_location',
+      'no_area',
+      'area_has_no_crew',
+      'crew_archived',
+      'route_locked',
+    ])
+    // Known visits are named; unknown ones are still listed.
+    await expect(rows[0]).toHaveTextContent('Grace Kim')
+    await expect(rows[0]).toHaveTextContent('No map location')
+    await expect(
+      within(rows[0]).getByRole('link', {
+        name: 'Open the client to set a location',
+      }),
+    ).toHaveAttribute('href', '/clients?id=client-6')
+    await expect(rows[1]).toHaveTextContent('Outside every service area')
+    await expect(
+      within(rows[1]).getByRole('link', { name: 'Edit service areas' }),
+    ).toHaveAttribute('href', '/settings')
+    await expect(rows[2]).toHaveTextContent('Area has no crew')
+    await expect(
+      within(rows[3]).getByRole('link', { name: 'Open Teams' }),
+    ).toHaveAttribute('href', '/teams')
+    await expect(rows[4]).toHaveTextContent('already published')
+    await expect(within(rows[4]).queryByRole('link')).toBeNull()
+    await userEvent.click(r.getByRole('button', { name: 'Dismiss result' }))
+    await expect(c.queryByRole('status', { name: 'Build result' })).toBeNull()
+  },
+}
+
+export const BuildRoutesSummary: Story = {
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await userEvent.click(buildButton(c))
+    await expect(
+      await c.findByText('4 visits placed on 2 new routes'),
+    ).toBeVisible()
+    await expect(c.queryByText(/need attention/)).toBeNull()
+    await expect(c.getByText('4 visits placed on routes.')).toBeVisible()
+  },
+}
+
+export const BuildRoutesIntoExistingRoutes: Story = {
+  args: {
+    actions: {
+      ...actionSpies(),
+      generateDrafts: fn(() =>
+        Promise.resolve({ ...DRAFTED, assigned: 1, routesCreated: 0 }),
+      ),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await userEvent.click(buildButton(c))
+    await expect(
+      await c.findByText('1 visit placed on 0 new routes'),
+    ).toBeVisible()
+    await expect(c.getByText(/routes that already existed/)).toBeVisible()
+  },
+}
+
+export const BuildRoutesNothingToPlace: Story = {
+  args: {
+    actions: {
+      ...actionSpies(),
+      generateDrafts: fn(() =>
+        Promise.resolve({
+          assigned: 0,
+          routesCreated: 0,
+          remaining: 0,
+          unassigned: [],
+        }),
+      ),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await userEvent.click(buildButton(c))
+    await expect(await c.findByText('Nothing to place')).toBeVisible()
+    await expect(
+      c.getByText('Every scheduled visit on this date is already on a route.'),
+    ).toBeVisible()
+  },
+}
+
+export const BuildRoutesInProgress: Story = {
+  args: {
+    actions: {
+      ...actionSpies(),
+      generateDrafts: fn(() => new Promise<DraftResult>(() => undefined)),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const c = within(canvasElement)
+    await userEvent.click(buildButton(c))
+    const busy = await c.findByRole('button', { name: 'Building routes…' })
+    await expect(busy).toBeDisabled()
+    await expect(busy).toHaveAttribute('aria-busy', 'true')
+    // A second press does nothing while the first is running.
+    await userEvent.click(busy)
+    await expect(args.actions.generateDrafts).toHaveBeenCalledOnce()
+  },
+}
+
+export const BuildRoutesFails: Story = {
+  args: {
+    actions: {
+      ...actionSpies(),
+      generateDrafts: fn(() =>
+        Promise.reject(new Error('That conflicts with existing data')),
+      ),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await userEvent.click(buildButton(c))
+    const alert = await c.findByRole('alert')
+    await expect(alert).toHaveTextContent('Routes were not built')
+    await expect(alert).toHaveTextContent('That conflicts with existing data.')
+    await expect(alert).toHaveTextContent('Nothing was changed')
+    // The button is usable again.
+    await expect(buildButton(c)).toBeEnabled()
+  },
+}
+
+export const BuildRoutesNeedsTheBoard: Story = {
+  args: { status: 'loading', routes: [], available: [] },
+  play: async ({ canvasElement }) => {
+    await expect(buildButton(within(canvasElement))).toBeDisabled()
+  },
+}
+
+export const BuildRoutesHiddenWithoutPermission: Story = {
+  args: { canBuild: false },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await expect(
+      c.queryByRole('button', { name: 'Build routes from service areas' }),
+    ).toBeNull()
+    await expect(
+      c.queryByRole('region', { name: 'Build routes from service areas' }),
+    ).toBeNull()
+    await expect(c.getByRole('button', { name: 'Create route' })).toBeVisible()
+  },
+}
+
+export const ChangingTheDateClearsTheResult: Story = {
+  args: {
+    actions: {
+      ...actionSpies(),
+      generateDrafts: fn(() => Promise.resolve(MIXED)),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await userEvent.click(buildButton(c))
+    await c.findByRole('status', { name: 'Build result' })
+    fireEvent.change(c.getByLabelText('Route date'), {
+      target: { value: '2026-10-30' },
+    })
+    await expect(c.queryByRole('status', { name: 'Build result' })).toBeNull()
+  },
+}
+
+export const VisitCardsShowTheirOwner: Story = {
+  args: {
+    available: [
+      V.oliver,
+      { ...V.noah, preferredCrewName: 'South crew' },
+      V.grace,
+      V.hannah,
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const pool = region(canvasElement, 'Available jobs')
+    const card = (name: string) =>
+      within(pool.getByRole('article', { name: `Visit ${name}` }))
+    await expect(card('Oliver Bennett').getByText('Northwest')).toBeVisible()
+    await expect(
+      card('Oliver Bennett').getByText(/crew North crew/),
+    ).toBeVisible()
+    await expect(card('Noah Wilson').getByText('South crew')).toBeVisible()
+    await expect(
+      card('Noah Wilson').getByText('Outside every service area'),
+    ).toBeVisible()
+    await expect(card('Grace Kim').getByText('No map location')).toBeVisible()
+    await expect(
+      card('Hannah Brooks').getByText('Outside every service area'),
+    ).toBeVisible()
+    // Stops already on a route don't repeat it.
+    await expect(
+      region(canvasElement, 'North crew').queryByText(
+        'Outside every service area',
+      ),
+    ).toBeNull()
+  },
+}
+
+export const LiveBuildRoutesRefreshesTheBoard = liveStory(
+  [],
+  async ({ canvasElement }, server) => {
+    const c = within(canvasElement)
+    await loaded(c)
+    await userEvent.click(buildButton(c))
+    const result = await c.findByRole('status', { name: 'Build result' })
+    await expect(
+      within(result).getByText('1 visit placed on 0 new routes'),
+    ).toBeVisible()
+    await expect(within(result).getByText(/Grace Kim/)).toBeVisible()
+    // The board refetched: Oliver left the pool and is on North crew's route.
+    await waitFor(() =>
+      expect(
+        region(canvasElement, 'North crew').getByRole('article', {
+          name: 'Visit Oliver Bennett',
+        }),
+      ).toBeVisible(),
+    )
+    await expect(
+      region(canvasElement, 'Available jobs').queryByRole('article', {
+        name: 'Visit Oliver Bennett',
+      }),
+    ).toBeNull()
+    await expect(countOf(server(), 'routes.generateDrafts')).toBe(1)
+    await expect(countOf(server(), 'routes.list')).toBeGreaterThan(1)
+  },
+)
+
+export const LiveBuildRoutesFailureShowsAnError = liveStory(
+  ['routes.generateDrafts'],
+  async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await loaded(c)
+    await userEvent.click(buildButton(c))
+    const alert = await c.findByRole('alert')
+    await expect(alert).toHaveTextContent('Routes were not built')
+    await expect(alert).toHaveTextContent('The database said no')
   },
 )

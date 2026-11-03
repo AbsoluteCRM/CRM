@@ -27,10 +27,13 @@ import { fmtDate, fmtDuration } from '#/components/crm/format'
 import { MapView } from '#/components/map/MapView'
 import type { MapStop } from '#/components/map/MapView'
 import { UnplacedStops } from '#/components/map/UnplacedStops'
+import { DraftRoutesPanel } from '#/components/route-builder/DraftRoutesPanel'
+import type { DraftRun } from '#/components/route-builder/DraftRoutesPanel'
 import { isPendingStop } from '#/integrations/routes/routes'
 import type {
   AvailableVisit,
   DayRoute,
+  DraftResult,
   RouteStop,
 } from '#/integrations/routes/routes'
 import { cn } from '#/lib/utils'
@@ -54,6 +57,8 @@ export type RouteBuilderActions = {
   /** Resolves with the id of the route that replaces this one. */
   assignCrew: (routeId: string, crewId: string) => Promise<string>
   deleteRoute: (routeId: string) => Promise<void>
+  /** Builds draft routes from service areas; rejects with the server's message. */
+  generateDrafts: () => Promise<DraftResult>
   addStop: (routeId: string, visitId: string, position?: number) => void
   moveStop: (stopId: string, toRouteId: string, position: number) => void
   removeStop: (stopId: string) => void
@@ -69,6 +74,8 @@ export type RouteBuilderProps = {
   status: 'loading' | 'error' | 'ready'
   errorMessage?: string
   onRetry?: () => void
+  /** False for roles that cannot manage jobs: the build button is not shown. */
+  canBuild?: boolean
   actions: RouteBuilderActions
 }
 
@@ -107,6 +114,7 @@ export function RouteBuilder({
   status,
   errorMessage,
   onRetry,
+  canBuild = true,
   actions,
 }: RouteBuilderProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -115,6 +123,7 @@ export function RouteBuilder({
   const [feedback, setFeedback] = useState('')
   const [newCrewId, setNewCrewId] = useState('')
   const [busy, setBusy] = useState(false)
+  const [draftRun, setDraftRun] = useState<DraftRun>({ state: 'idle' })
 
   const selected =
     routes.find((r) => r.id === selectedId) ??
@@ -226,6 +235,27 @@ export function RouteBuilder({
     }
   }
 
+  async function buildDrafts() {
+    if (draftRun.state === 'building') return
+    setDraftRun({ state: 'building' })
+    try {
+      const result = await actions.generateDrafts()
+      setDraftRun({ state: 'done', result })
+      say(
+        result.assigned
+          ? `${result.assigned} ${result.assigned === 1 ? 'visit' : 'visits'} placed on routes.`
+          : 'No visits were placed.',
+      )
+    } catch (e) {
+      setDraftRun({
+        state: 'error',
+        message:
+          e instanceof Error && e.message ? e.message : 'Something went wrong',
+      })
+      say('The routes could not be built.')
+    }
+  }
+
   async function changeCrew(route: DayRoute, crewId: string) {
     const crew = crews.find((c) => c.id === crewId)
     if (!crew || crew.id === route.crew?.id) return
@@ -271,6 +301,7 @@ export function RouteBuilder({
                     onDateChange(e.target.value)
                     setOver(null)
                     setFeedback('')
+                    setDraftRun({ state: 'idle' })
                   }
                 }}
               />
@@ -309,6 +340,16 @@ export function RouteBuilder({
           )}
         </Card>
       </section>
+      {canBuild && (
+        <DraftRoutesPanel
+          date={date}
+          run={draftRun}
+          visits={available}
+          disabled={status !== 'ready'}
+          onBuild={buildDrafts}
+          onDismiss={() => setDraftRun({ state: 'idle' })}
+        />
+      )}
       {status === 'loading' && <BoardSkeleton />}
       {status === 'error' && (
         <Card role="alert" className="p-2">
@@ -415,6 +456,7 @@ export function RouteBuilder({
                 <VisitCard
                   key={visit.visitId}
                   visit={visit}
+                  showOwner
                   onDragStart={(e) =>
                     dragStart(e, { kind: 'visit', id: visit.visitId })
                   }
@@ -671,12 +713,15 @@ function VisitCard({
   visit,
   sequence,
   draggable = true,
+  showOwner = false,
   onDragStart,
   children,
 }: {
   visit: AvailableVisit
   sequence?: number
   draggable?: boolean
+  /** Show the service area and crew that would own this visit. */
+  showOwner?: boolean
   onDragStart: (e: DragEvent<HTMLElement>) => void
   children: ReactNode
 }) {
@@ -713,6 +758,7 @@ function VisitCard({
       <p className="text-xs font-semibold text-(--ink-2)">
         {visit.jobTitle ?? 'Scheduled service'}
       </p>
+      {showOwner && <OwnerLine visit={visit} />}
       <p className="text-[10px] text-(--ink-3)">
         {visit.windowStart && visit.windowEnd
           ? `${formatTime(visit.windowStart)}–${formatTime(visit.windowEnd)}`
@@ -720,6 +766,43 @@ function VisitCard({
       </p>
       {children}
     </article>
+  )
+}
+
+/**
+ * Who is likely to own a visit: the job's preferred crew, else the service
+ * area and its crew. The server settles it (including the weekday rotation)
+ * when routes are built; this is the browser's hint.
+ */
+function OwnerLine({ visit }: { visit: AvailableVisit }) {
+  const located = visit.latitude !== null && visit.longitude !== null
+  return (
+    <div className="space-y-0.5 text-[10px] text-(--ink-3)">
+      {visit.preferredCrewName && (
+        <p>
+          Prefers{' '}
+          <span className="font-semibold">{visit.preferredCrewName}</span>
+        </p>
+      )}
+      {visit.areaName ? (
+        <p className="flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className="size-2 shrink-0 rounded-full"
+            style={{ background: visit.areaColor ?? DEFAULT_COLOR }}
+          />
+          <span>
+            Area <span className="font-semibold">{visit.areaName}</span>
+            {' · '}
+            {visit.areaCrewName ? `crew ${visit.areaCrewName}` : 'no crew'}
+          </span>
+        </p>
+      ) : located ? (
+        <p>Outside every service area</p>
+      ) : (
+        <p>No map location</p>
+      )}
+    </div>
   )
 }
 

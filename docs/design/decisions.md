@@ -88,3 +88,21 @@ current view; no provider is called. Drawing is for desktop and tablet; phones
 and non-managers see the map and list read-only. See
 [Service area editor](../service-areas/ui.md) and
 [the plan](../plans/service-areas-editor.md).
+
+## 2026-11-03 — Build routes from service areas
+
+Eric approved auto-assignment as a per-day button in Route Builder, not an
+automatic or nightly run. It sits in its own card under "Create route" and is
+hidden for roles that cannot manage jobs. One press places every scheduled,
+unrouted visit on that date on a draft route for its owning crew, then shows
+what happened: visits placed, routes created, and each visit left out with the
+reason in words and a link to fix it (open the client to set a location, edit
+service areas, assign a crew to the area, open Teams). A published route is
+never changed, so a visit whose crew already has one is reported rather than
+dropped. The result stays until dismissed or the date changes, and the board
+refetches behind it. Pool cards show the area and its crew (or "Outside every
+service area" / "No map location") so a dispatcher can see the problem before
+pressing. The button is safe to press again. Ordering is straight-line only;
+no times are estimated. Screenshots are pending. See
+[Route Builder UI](../route-builder/ui.md) and the
+[plan](../plans/auto-assign-routes.md).
