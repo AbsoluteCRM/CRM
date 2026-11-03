@@ -61,6 +61,20 @@ are listed under the map instead of placed. See
 [ADR 0014](../database/decisions/0014-map-provider.md),
 [Calendar UI](../calendar/ui.md), and [Jobs UI](../jobs/ui.md).
 
+## 2026-11-03 — Route Builder reads live data
+
+Eric approved the roadmap and told us to build Route Builder on live data
+before auto-assignment. The mock state is replaced by the day's real routes,
+stops and scheduled visits, with every write atomic in the database. Because
+`routes.crew_id` is required, a route is now created with a crew (the
+prototype's crew-less templates are gone) and a crew change builds a new
+route for the new crew in one transaction. Only draft and optimized routes
+are editable. Drag moves update the board first and roll back with a toast
+when the server refuses. The selected route is drawn on the OpenLayers map
+instead of the schematic. Screenshots are pending. See
+[Route Builder UI](../route-builder/ui.md) and the
+[plan](../plans/route-builder-live-data.md).
+
 ## 2026-11-02 — Service area editor in Settings
 
 Eric approved the service area editor in the roadmap: owners and admins draw

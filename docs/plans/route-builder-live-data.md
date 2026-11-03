@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `route-builder-live-data` / `feat/route-builder-live-data`
 - **Tier**: full; schema (RPC migration), tRPC and UI in one slice.
-- **Status**: approved (roadmap and implementation approved by Eric, 2026-11-02; see Original request). The `plan-auditor` audit loop was not run: this plan was written by a sub-agent that cannot dispatch agents. The reviewer and security gates run on the PR.
+- **Status**: implemented (roadmap and implementation approved by Eric, 2026-11-02; see Original request). The `plan-auditor` audit loop was not run: this plan was written by a sub-agent that cannot dispatch agents. The reviewer and security gates run on the PR.
 - **Confidence**: 90%. The data model, guard triggers, RLS and error mapping are verified in the repo, and the RPC SQL ran against a local Postgres 16 with PostGIS and pgTAP. Less certain: the PostgREST embed shapes (no live PostgREST here) and the crew-at-creation decision (D2).
 - **Plan-mode file**: none; native plan mode is unavailable to this agent.
 - **Roadmap**: [maps-service-areas](maps-service-areas.md) (PR #89, merged). This is the Route Builder step. Auto-assignment is a separate, later phase.
@@ -162,8 +162,9 @@ pnpm install --frozen-lockfile && pnpm lint && pnpm check && pnpm exec tsc --noE
 
 ## Verification
 
-- Verify command above (five Storybook tests fail on `main` and are reported separately).
-- pgTAP file run against a local Postgres 16 + PostGIS + pgTAP with a Supabase shim (not the remote project).
+- Verify command above: lint, prettier, `tsc --noEmit` clean; `vitest run` 611 tests in 46 files passed (unit and Storybook projects, Chromium), including the 23 Route Builder stories. The five Storybook failures seen on `main` earlier did not reproduce.
+- `supabase/tests/route_builder_rpcs_test.sql`: 53 of 53 pass on a local Postgres 16 with PostGIS and pgTAP and a minimal Supabase shim, with every migration on `main` applied first. The older pgTAP files that touch routing still pass (followup_hardening 14, review_fixes 12, audit_regressions 36). This is not the remote project, and the migration is not applied there.
+- Not verified: PostgREST embed shapes and `.is('route_stops', null)` against a live PostgREST; the running app against Supabase.
 - Shots: pending (Git LFS uploads are refused in this environment).
 
 ## Audit log
