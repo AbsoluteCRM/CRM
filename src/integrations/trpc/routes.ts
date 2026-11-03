@@ -2,6 +2,17 @@ import * as Sentry from '@sentry/tanstackstart-react'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
+import { isOptimizationStale } from '#/integrations/routes/optimization'
+import {
+  getOptimizer,
+  optimizerInfo as describeOptimizer,
+} from '#/server/optimizer'
+import {
+  RUN_COLUMNS,
+  RUN_TIMEOUT_MS,
+  RunnerError,
+  startOptimization,
+} from '#/server/trusted/optimization-runner'
 import { dbError } from './errors'
 import { requireOrgPermission } from './init'
 
@@ -19,7 +30,9 @@ const date = z.iso.date()
 const VISIT_FIELDS =
   'id, duration_minutes, window_start, window_end, jobs(id, number, title, preferred_crew:crews(id, name), clients(id, display_name)), properties(id, address_line1, city, latitude, longitude, service_areas(id, name, color, crews(id, name)))'
 
-const ROUTE_FIELDS = `id, route_date, status, crew_id, planned_start, crews(id, name, color, vehicle), route_stops(id, sequence, is_locked, visit_id, visits(${VISIT_FIELDS}))`
+// `optimization_runs` is the run that produced the result (or null), used to
+// tell whether the result is stale. See src/integrations/routes/optimization.ts.
+const ROUTE_FIELDS = `id, route_date, status, crew_id, planned_start, planned_end, total_distance_m, total_duration_s, polyline, optimized_stop_count, updated_at, optimization_run_id, optimization_runs(id, provider, finished_at, unassigned_visit_ids), crews(id, name, color, vehicle), route_stops(id, sequence, is_locked, visit_id, planned_arrival, planned_departure, travel_distance_m, travel_duration_s, updated_at, visits(${VISIT_FIELDS}))`
 
 // Only these routes accept edits; the database enforces the same rule.
 const EDITABLE = new Set(['draft', 'optimized'])
@@ -111,6 +124,49 @@ const draftResult = z.object({
   unassigned: z.array(z.object({ visit_id: z.string(), reason: z.string() })),
 })
 
+/**
+ * A run for the client. A run that is still queued or running long after it
+ * should have finished (the server restarted mid-run) is shown as failed.
+ */
+export function summarizeRun(
+  row: {
+    id: string
+    route_date: string
+    status: 'queued' | 'running' | 'succeeded' | 'failed'
+    provider: string
+    error: string | null
+    crew_ids: Array<string>
+    unassigned_visit_ids: Array<string>
+    started_at: string | null
+    finished_at: string | null
+    created_at: string
+  },
+  now: number = Date.now(),
+) {
+  const active = row.status === 'queued' || row.status === 'running'
+  const dead = active && now - Date.parse(row.created_at) > RUN_TIMEOUT_MS
+  return {
+    id: row.id,
+    date: row.route_date,
+    status: dead ? ('failed' as const) : row.status,
+    provider: row.provider,
+    error: dead ? 'The optimization did not finish.' : row.error,
+    crewCount: row.crew_ids.length,
+    unassignedVisitIds: row.unassigned_visit_ids,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    createdAt: row.created_at,
+  }
+}
+export type RunSummary = ReturnType<typeof summarizeRun>
+
+const RUNNER_CODES = {
+  FORBIDDEN: 'FORBIDDEN',
+  CONFLICT: 'CONFLICT',
+  UNAVAILABLE: 'PRECONDITION_FAILED',
+  INTERNAL: 'INTERNAL_SERVER_ERROR',
+} as const
+
 export const routesRouter = {
   // The date's routes: crew, ordered stops with their visit summaries, totals.
   list: manageRoutes.input(z.object({ date })).query(async ({ ctx, input }) => {
@@ -132,22 +188,56 @@ export const routesRouter = {
               id: stop.id,
               sequence: stop.sequence,
               isLocked: stop.is_locked,
+              plannedArrival: stop.planned_arrival ?? null,
+              plannedDeparture: stop.planned_departure ?? null,
+              travelDistanceM: stop.travel_distance_m ?? null,
+              travelDurationS: stop.travel_duration_s ?? null,
               ...summarizeVisit(visit),
             },
           ])
         })
+      const run = route.optimization_runs ?? null
       return {
         id: route.id,
         date: route.route_date,
         status: route.status,
         editable: EDITABLE.has(route.status),
         plannedStart: route.planned_start,
+        plannedEnd: route.planned_end ?? null,
         crew: summarizeCrew(route.crews),
         stops,
         totals: {
           stops: stops.length,
           onSiteMinutes: stops.reduce((n, s) => n + s.durationMinutes, 0),
         },
+        // Road figures from the last optimization; null until one has run.
+        road:
+          route.status === 'optimized' && route.total_duration_s != null
+            ? {
+                distanceM: route.total_distance_m ?? null,
+                durationS: route.total_duration_s,
+                polyline: route.polyline ?? null,
+                provider: run?.provider ?? null,
+                optimizedAt: run?.finished_at ?? null,
+                stale: isOptimizationStale({
+                  status: route.status,
+                  optimizedStopCount: route.optimized_stop_count ?? null,
+                  updatedAt: route.updated_at,
+                  run: run
+                    ? {
+                        finishedAt: run.finished_at,
+                        unassignedVisitIds: run.unassigned_visit_ids,
+                      }
+                    : null,
+                  stops: route.route_stops.map((s) => ({
+                    visitId: s.visit_id,
+                    sequence: s.sequence,
+                    plannedArrival: s.planned_arrival ?? null,
+                    updatedAt: s.updated_at,
+                  })),
+                }),
+              }
+            : null,
       }
     })
   }),
@@ -297,6 +387,96 @@ export const routesRouter = {
         }
       }),
     ),
+
+  // Whether an optimizer is set up, and if not why. No URLs or secrets.
+  optimizerInfo: manageRoutes.query(() => describeOptimizer()),
+
+  // Asks the solver for the best stop order on real roads for the date's
+  // draft and optimized routes (or just routeIds). Reads the inputs as the
+  // caller (RLS), then the trusted runner records the run, calls the solver
+  // in the background and writes the result. Returns at once with the run:
+  // poll lastRun / optimizationStatus. With no optimizer, or an unreachable
+  // one, the run is recorded as failed with a plain reason and no route
+  // changes. Published, in-progress and completed routes are never touched.
+  optimize: manageRoutes
+    .input(
+      z.object({
+        date,
+        routeIds: z.array(z.uuid()).min(1).max(200).optional(),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      Sentry.startSpan({ name: 'routes.optimize' }, async () => {
+        const { data, error } = await ctx.supabase.rpc('optimizer_inputs', {
+          p_organization_id: ctx.organizationId,
+          p_date: input.date,
+          p_route_ids: input.routeIds,
+        })
+        if (error) throw dbError(error)
+        try {
+          const started = await startOptimization({
+            organizationId: ctx.organizationId,
+            userId: ctx.user.id,
+            date: input.date,
+            inputs: data,
+            info: describeOptimizer(),
+            optimizer: getOptimizer(),
+          })
+          return {
+            run: summarizeRun(started.run),
+            skipped: started.skipped.map((s) => ({
+              routeId: s.route_id,
+              reason: s.reason,
+            })),
+          }
+        } catch (e) {
+          if (e instanceof RunnerError) {
+            throw new TRPCError({
+              code: RUNNER_CODES[e.code],
+              message: e.message,
+              cause: e,
+            })
+          }
+          throw e
+        }
+      }),
+    ),
+
+  // The date's most recent optimization run, or null.
+  lastRun: manageRoutes
+    .input(z.object({ date }))
+    .query(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('optimization_runs')
+        .select(RUN_COLUMNS)
+        .eq('organization_id', ctx.organizationId)
+        .eq('route_date', input.date)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (error) throw dbError(error)
+      return data ? summarizeRun(data) : null
+    }),
+
+  // One run's state, for polling a run the page already knows about.
+  optimizationStatus: manageRoutes
+    .input(z.object({ runId: z.uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('optimization_runs')
+        .select(RUN_COLUMNS)
+        .eq('organization_id', ctx.organizationId)
+        .eq('id', input.runId)
+        .maybeSingle()
+      if (error) throw dbError(error)
+      if (!data) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Optimization run not found',
+        })
+      }
+      return summarizeRun(data)
+    }),
 
   // Only an empty draft route.
   delete: manageRoutes

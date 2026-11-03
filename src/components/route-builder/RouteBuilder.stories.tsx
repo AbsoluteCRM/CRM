@@ -161,6 +161,10 @@ const stop = (id: string, sequence: number, v: AvailableVisit): RouteStop => ({
   id,
   sequence,
   isLocked: false,
+  plannedArrival: null,
+  plannedDeparture: null,
+  travelDistanceM: null,
+  travelDurationS: null,
   ...v,
 })
 
@@ -175,12 +179,14 @@ const route = (
   status,
   editable: status === 'draft' || status === 'optimized',
   plannedStart: null,
+  plannedEnd: null,
   crew,
   stops,
   totals: {
     stops: stops.length,
     onSiteMinutes: stops.reduce((n, s) => n + s.durationMinutes, 0),
   },
+  road: null,
 })
 
 const seedRoutes = (): Array<DayRoute> => [

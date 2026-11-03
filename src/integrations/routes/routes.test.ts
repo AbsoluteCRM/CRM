@@ -36,6 +36,10 @@ const stop = (n: number, sequence: number, minutes = 30): RouteStop => ({
   id: `s${n}`,
   sequence,
   isLocked: false,
+  plannedArrival: null,
+  plannedDeparture: null,
+  travelDistanceM: null,
+  travelDurationS: null,
   ...visit(n, minutes),
 })
 
@@ -45,12 +49,14 @@ const route = (id: string, stops: Array<RouteStop>): DayRoute => ({
   status: 'draft',
   editable: true,
   plannedStart: null,
+  plannedEnd: null,
   crew: { id: `crew-${id}`, name: id, color: null, vehicle: null },
   stops,
   totals: {
     stops: stops.length,
     onSiteMinutes: stops.reduce((n, s) => n + s.durationMinutes, 0),
   },
+  road: null,
 })
 
 const board = (): Board => ({

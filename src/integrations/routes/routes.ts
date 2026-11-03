@@ -49,6 +49,10 @@ const toStop = (v: AvailableVisit, id: string): RouteStop => ({
   id,
   sequence: 0,
   isLocked: false,
+  plannedArrival: null,
+  plannedDeparture: null,
+  travelDistanceM: null,
+  travelDurationS: null,
   ...v,
 })
 
@@ -56,6 +60,10 @@ const toVisit = ({
   id: _id,
   sequence: _sequence,
   isLocked: _isLocked,
+  plannedArrival: _plannedArrival,
+  plannedDeparture: _plannedDeparture,
+  travelDistanceM: _travelDistanceM,
+  travelDurationS: _travelDurationS,
   ...visit
 }: RouteStop): AvailableVisit => visit
 
