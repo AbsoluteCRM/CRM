@@ -20,3 +20,4 @@ rewrite history.
 | 0012 | [Service areas: PostGIS polygons and a derived property area](0012-service-areas.md)             | Accepted           |
 | 0013 | [Geocoding: a provider chain, stored results, a shared cache](0013-geocoding-chain-and-cache.md) | Accepted           |
 | 0014 | [Map provider: OpenLayers on a swappable tile provider](0014-map-provider.md)                    | Accepted           |
+| 0015 | [Public R2 image uploads through an authenticated Edge Function](0015-r2-image-uploads.md)       | Accepted           |
