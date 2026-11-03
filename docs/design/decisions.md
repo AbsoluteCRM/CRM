@@ -106,3 +106,21 @@ pressing. The button is safe to press again. Ordering is straight-line only;
 no times are estimated. Screenshots are pending. See
 [Route Builder UI](../route-builder/ui.md) and the
 [plan](../plans/auto-assign-routes.md).
+
+## 2026-11-03 — Optimize routes on real roads
+
+Eric chose a self-hosted VROOM + OSRM pair for road-based ordering and travel
+times, with the straight-line order from "Build routes" kept as the fallback
+and the default. "Optimize routes" is its own card under "Build routes",
+hidden for roles that cannot manage jobs. It says in words what it does: real
+road travel time, the crew's start and shift, visit durations and arrival
+windows; stops stay with their crew, locked stops keep their place, published
+routes are untouched. Without an optimizer the button is disabled and the card
+says why. A run shows waiting, working, done or failed (with the reason and
+"Routes were not changed"). Done lists each route's distance and total time,
+with an "Out of date" badge once a route is edited, and route cards show
+arrival and drive time per stop. The map draws the road line instead of
+straight lines. Visits the solver cannot fit stay at the end of their route
+with no arrival time. See [Route Builder UI](../route-builder/ui.md), the
+[ops guide](../ops/optimizer.md) and the [plan](../plans/route-optimizer.md).
+Screenshots are pending.

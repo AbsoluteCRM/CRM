@@ -63,6 +63,19 @@ See the [design record README](../design/README.md) for the visual system and sc
 
 **Origin**: Built from the approved [Route Builder template plan](../plans/route-builder-template.md) (PR #63) and the [live data plan](../plans/route-builder-live-data.md), following the maps roadmap (PR #89).
 
+**Optimize routes** (phase 5): a card under Build routes, shown when the viewer can manage jobs.
+
+- It explains that it orders open routes by real road travel time, using the crew's start and shift, visit durations and arrival windows. Stops stay with their crew, locked stops keep their position, published routes are untouched.
+- The button reads "Optimize routes", or "Optimizing…" (disabled, `aria-busy`) while a run is queued or running. It is disabled, with a note giving the reason, when the server has no optimizer ("No route optimizer is set up…"), while the info loads, when the board has not loaded, or when no draft or optimized route has stops.
+- Run state (`role=status` / `alert`, polled every two seconds): waiting to start, working, done (time, a note when routes were skipped, and how many visits could not be fit), or failed (the plain reason and "Routes were not changed"). A refused start (for example a run already active for the date) shows "The optimization did not start". The board refetches when a run ends.
+- A list of optimized routes shows each route's distance, total time and an "Up to date" or "Out of date" badge. A route is out of date once a stop is added, removed, moved or reordered, or the route changes after the run. A note says to optimize again.
+- Route cards show distance and total time, and each stop "Arrive 9:12 a.m. · 6 min drive". Stops the solver could not fit, or with no map location, have no time.
+- The selected route's map draws the decoded road polyline instead of straight lines (`MapRoute.path` takes any vertices; no change to `MapView`). The caption says when the line is out of date.
+- Decisions: the optimizer reorders within a route and never moves a visit between crews; the straight-line order is the fallback and default; polylines are encoded at precision 5 and stored in `routes.polyline`. Setup is in the [ops guide](../ops/optimizer.md); data in [ADR 0015](../database/decisions/0015-optimizer-integration.md).
+- Code: `OptimizePanel.tsx`, `optimize-format.ts`, `useOptimization` in `src/integrations/routes/routes.ts`; server in `src/server/optimizer/` and `src/server/trusted/optimization-runner.ts`.
+- Verification: `routes.optimize.test.ts` (role gating, cross-tenant, multi-org, provider failure, malformed solver response, locked stops, double press, stale flag), `src/server/optimizer/*.test.ts`, `optimization-runner.test.ts`, `supabase/tests/optimizer_apply_results_test.sql` (run on a local Postgres shim, not on Supabase), and stories for every panel state plus a live optimize. Not exercised against a real VROOM/OSRM.
+- **Shots**: pending (large-file uploads are refused in the build environment).
+
 **Plan**: [Auto-assign routes](../plans/auto-assign-routes.md) (stacked on the live data plan).
 
 **Code**: `src/routes/_authed/route-builder.tsx`, `src/components/route-builder/RouteBuilder.tsx` (props-driven view), `DraftRoutesPanel.tsx` (build button and result), `RouteBuilderLive.tsx` (wiring), `RouteBuilder.stories.tsx`, `src/integrations/routes/routes.ts` (queries, optimistic mutations), `src/integrations/trpc/routes.ts`.
