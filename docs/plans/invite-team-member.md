@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `invite-team-member` / `feat/team-members` (continuing the existing branch/PR #28)
 - **Tier**: full (touches an RLS-gated tenancy table and `src/routes/**`, a security-gated path, across two layers: data + UI)
-- **Status**: audited (plan-auditor passed round 3; awaiting user approval)
+- **Status**: implemented (plan-auditor passed round 3; email and acceptance later added by `invite-email-acceptance`)
 - **Confidence**: ~97%; every material choice rests on a user answer or a verified repo fact (RLS policy, grants, `accept_invitation`'s hashing, the `toast()` tones, both `OrgRole` definitions, the default DELETE grant). The remaining uncertainty is the as-yet-unbuilt `/accept-invite` destination page, which is explicitly out of scope.
 
 ## Original request

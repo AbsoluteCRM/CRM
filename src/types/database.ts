@@ -418,6 +418,33 @@ export type Database = {
           },
         ]
       }
+      geocode_cache: {
+        Row: {
+          accuracy: string
+          fetched_at: string
+          lat: number
+          lon: number
+          normalized_address_hash: string
+          provider: string
+        }
+        Insert: {
+          accuracy: string
+          fetched_at?: string
+          lat: number
+          lon: number
+          normalized_address_hash: string
+          provider: string
+        }
+        Update: {
+          accuracy?: string
+          fetched_at?: string
+          lat?: number
+          lon?: number
+          normalized_address_hash?: string
+          provider?: string
+        }
+        Relationships: []
+      }
       invoice_line_item_taxes: {
         Row: {
           amount_cents: number
@@ -1335,6 +1362,7 @@ export type Database = {
           client_id: string
           country: string
           created_at: string
+          geocode_accuracy: string | null
           geocode_source: string | null
           geocoded_at: string | null
           id: string
@@ -1346,6 +1374,7 @@ export type Database = {
           organization_id: string
           postal_code: string | null
           region: string | null
+          service_area_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1357,6 +1386,7 @@ export type Database = {
           client_id: string
           country?: string
           created_at?: string
+          geocode_accuracy?: string | null
           geocode_source?: string | null
           geocoded_at?: string | null
           id?: string
@@ -1368,6 +1398,7 @@ export type Database = {
           organization_id: string
           postal_code?: string | null
           region?: string | null
+          service_area_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1379,6 +1410,7 @@ export type Database = {
           client_id?: string
           country?: string
           created_at?: string
+          geocode_accuracy?: string | null
           geocode_source?: string | null
           geocoded_at?: string | null
           id?: string
@@ -1390,6 +1422,7 @@ export type Database = {
           organization_id?: string
           postal_code?: string | null
           region?: string | null
+          service_area_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1406,6 +1439,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'organizations'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'properties_organization_id_service_area_id_fkey'
+            columns: ['organization_id', 'service_area_id']
+            isOneToOne: false
+            referencedRelation: 'service_areas'
+            referencedColumns: ['organization_id', 'id']
           },
         ]
       }
@@ -2049,6 +2089,122 @@ export type Database = {
           },
         ]
       }
+      service_area_rotations: {
+        Row: {
+          created_at: string
+          crew_id: string
+          organization_id: string
+          service_area_id: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          crew_id: string
+          organization_id: string
+          service_area_id: string
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          crew_id?: string
+          organization_id?: string
+          service_area_id?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'service_area_rotations_organization_id_crew_id_fkey'
+            columns: ['organization_id', 'crew_id']
+            isOneToOne: false
+            referencedRelation: 'crews'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'service_area_rotations_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'service_area_rotations_organization_id_service_area_id_fkey'
+            columns: ['organization_id', 'service_area_id']
+            isOneToOne: false
+            referencedRelation: 'service_areas'
+            referencedColumns: ['organization_id', 'id']
+          },
+        ]
+      }
+      service_areas: {
+        Row: {
+          archived_at: string | null
+          area_m2: number | null
+          boundary: unknown
+          color: string | null
+          created_at: string
+          crew_id: string | null
+          id: string
+          name: string
+          organization_id: string
+          priority: number
+          region_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          area_m2?: number | null
+          boundary: unknown
+          color?: string | null
+          created_at?: string
+          crew_id?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          priority?: number
+          region_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          area_m2?: number | null
+          boundary?: unknown
+          color?: string | null
+          created_at?: string
+          crew_id?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          priority?: number
+          region_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'service_areas_organization_id_crew_id_fkey'
+            columns: ['organization_id', 'crew_id']
+            isOneToOne: false
+            referencedRelation: 'crews'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'service_areas_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'service_areas_organization_id_region_id_fkey'
+            columns: ['organization_id', 'region_id']
+            isOneToOne: false
+            referencedRelation: 'service_regions'
+            referencedColumns: ['organization_id', 'id']
+          },
+        ]
+      }
       service_default_taxes: {
         Row: {
           organization_id: string
@@ -2089,34 +2245,41 @@ export type Database = {
           },
         ]
       }
-
       service_regions: {
         Row: {
+          bbox: unknown
           boundary: unknown
+          center: unknown
           created_at: string
-          crew_id: string | null
           id: string
           name: string
           organization_id: string
+          source: string | null
+          source_ref: string | null
           updated_at: string
         }
-        ComputedFields: never
         Insert: {
-          boundary: unknown
+          bbox?: unknown
+          boundary?: unknown
+          center: unknown
           created_at?: string
-          crew_id?: string | null
           id?: string
           name: string
           organization_id: string
+          source?: string | null
+          source_ref?: string | null
           updated_at?: string
         }
         Update: {
+          bbox?: unknown
           boundary?: unknown
+          center?: unknown
           created_at?: string
-          crew_id?: string | null
           id?: string
           name?: string
           organization_id?: string
+          source?: string | null
+          source_ref?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2136,7 +2299,6 @@ export type Database = {
           },
         ]
       }
-
       services: {
         Row: {
           archived_at: string | null
@@ -2828,6 +2990,19 @@ export type Database = {
         }[]
       }
       pull_back_quote: { Args: { p_quote_id: string }; Returns: undefined }
+      preview_service_area: {
+        Args: {
+          p_color?: string
+          p_crew_id?: string
+          p_geojson?: Json
+          p_id?: string
+          p_name?: string
+          p_organization_id: string
+          p_priority?: number
+          p_region_id?: string
+        }
+        Returns: Json
+      }
       record_quote_delivery: {
         Args: {
           p_error: string
@@ -2849,11 +3024,31 @@ export type Database = {
         Args: { p_quote_id: string; p_token_hash: string }
         Returns: string
       }
+      service_area_coverage: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      service_areas_geojson: {
+        Args: { p_include_archived?: boolean; p_organization_id: string }
+        Returns: Json
+      }
+      service_regions_geojson: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
       set_crew_lead: {
         Args: {
           p_crew_id: string
           p_member_id: string
           p_organization_id: string
+        }
+        Returns: undefined
+      }
+      set_service_area_rotations: {
+        Args: {
+          p_organization_id: string
+          p_rotations: Json
+          p_service_area_id: string
         }
         Returns: undefined
       }
@@ -2867,6 +3062,32 @@ export type Database = {
           p_phone: string
           p_service_id: string
           p_slug: string
+        }
+        Returns: string
+      }
+      upsert_service_area: {
+        Args: {
+          p_color?: string
+          p_crew_id?: string
+          p_geojson?: Json
+          p_id?: string
+          p_name?: string
+          p_organization_id: string
+          p_priority?: number
+          p_region_id?: string
+        }
+        Returns: string
+      }
+      upsert_service_region: {
+        Args: {
+          p_bbox?: number[]
+          p_boundary?: Json
+          p_center?: Json
+          p_id?: string
+          p_name?: string
+          p_organization_id: string
+          p_source?: string
+          p_source_ref?: string
         }
         Returns: string
       }
