@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `r2-image-upload` / `feat/r2-image-upload`
 - **Tier**: full; new authenticated backend and database helpers.
-- **Status**: approved
+- **Status**: implemented (deployable code prepared; draft PR retains an open local database verification gate)
 - **Confidence**: 95%; material behavior confirmed by user, membership and job RLS verified in migrations. Runtime verification remains implementation work.
 - **Plan-mode file**: this file (no native plan-mode tool available).
 
@@ -136,7 +136,29 @@ Fresh read-only auditor checked the request/decisions, workflow/template, databa
 - These clarify already-planned documentation and do not change runtime behavior or scope.
 - Git status checked after audit: only this uncommitted plan and the two pre-existing dashboard screenshot modifications.
 - Runtime uses an inherited-model fresh agent because the repo's named opus model is unavailable in this tool interface.
-- User approved implementation on 2026-11-03. Implementation/reviewer/security review pending.
+- User approved implementation on 2026-11-03. Implementation is prepared in PR [#100](https://github.com/AbsoluteCRM/CRM/pull/100); no remote database changes or deployment performed.
+
+### Implementation verification
+
+- Implementation commits: `5179156` (approved plan), `2bc1b65` (local database helpers/tests/docs), `bc53f85` (function/tests/deployment guide).
+- Main checkout at `bc53f85`: the exact Verify command passed with `pnpm dlx deno` replacing bare `deno` because no Deno binary is on PATH. TypeScript, lint and Prettier clean; Vitest 43 files / 453 tests passed; Deno entrypoint check and 11 function tests passed. `git diff --check` passed. Deno version 2.9.6; CLI help verified with Supabase 3.0.0.
+- `pnpm dlx supabase test db supabase/tests/r2_image_upload_test.sql` explicitly targeted the local stack and failed with `ECONNREFUSED 127.0.0.1:54322`. Docker WSL integration is unavailable. SQL tests were authored and inspected, not executed; no remote substitute was used.
+- No remote advisors, migration application, generated type regeneration, live R2 uploads, or deployment smoke test performed. These remain later deployment steps, as authorized.
+- PR stays draft and unmerged until the local database verification gate passes. No claim of merge readiness.
+- Minor tooling deviations: used available `pnpm dlx supabase` / `pnpm dlx deno` because devenv and binaries are absent; imperative commit titles follow the implementer contract. No runtime scope changes.
+
+### Review (`reviewer`): pass, confidence medium
+
+Fresh read-only review of the complete diff at `bc53f85`; no blocking findings, unresolved doubts, or pre-existing defects. Checked tenant/role authorization and definer grants, user-versus-service client separation, streamed multipart/image validation, cache and filename behavior, signed destination/timeout/errors, meaningful tests, dependency pins, documentation, and absence of suppressions/credentials. Non-blocking: maintain draft status until SQL tests pass; remote verification remains deferred. Git status clean after review.
+
+### Review (`security`): pass, confidence medium
+
+Fresh read-only security review at `bc53f85`; no findings or pre-existing defects. Checked existing membership helper and explicit org/job predicates, anonymous-user rejection, empty search paths and least-privilege execution grants, fixed Vault allowlist, JWT authorization ordering, trusted service boundary, safe R2 destination/keys/redirect policy, upload bounds, sanitized logs/errors, public-read decisions, and pinned dependencies. No SQL or advisors executed by reviewer. Git status clean after review.
+
+Named verification limits (`could_not_verify`):
+
+1. Local migration/pgTAP execution remains unverified after the reported local connection failure. Settle by running migration and `pnpm dlx supabase test db supabase/tests/r2_image_upload_test.sql` in a disposable local Supabase database. PR must remain draft until this gate passes.
+2. Deployed grants/advisors/generated types and live Edge/R2 behavior remain unverified because this task authorizes code preparation only. Settle during a separately authorized deployment by applying migration, regenerating types, running security advisors and smoke-testing employee uploads plus cross-organization denials. The source review pass makes no remote verification claim.
 
 ## Scope-change log
 
