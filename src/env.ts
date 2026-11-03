@@ -16,6 +16,17 @@ export const env = createEnv({
       .regex(/^\s*[a-z]+(\s*,\s*[a-z]+)*\s*$/i)
       .optional(),
     NOMINATIM_USER_AGENT: z.string().min(8).optional(),
+    // Route optimizer (server only; see src/server/optimizer). Unset or `none`
+    // keeps the straight-line order from "Build routes".
+    OPTIMIZER_PROVIDER: z.enum(['none', 'vroom']).optional(),
+    VROOM_URL: z.string().url().optional(),
+    OSRM_URL: z.string().url().optional(),
+    OPTIMIZER_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(1000)
+      .max(120000)
+      .optional(),
   },
 
   /**

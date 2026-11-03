@@ -142,6 +142,51 @@ Notes:
   `security definer` and re-check `has_org_role(org, '{owner,admin}')`.
   `properties.service_area_id` is derived by triggers and has no grant.
 
+- **Route Builder writes** ([tables/crews-routing.md](tables/crews-routing.md#route-builder-functions)):
+  `create_route`, `change_route_crew`, `add_route_stop`, `move_route_stop`,
+  `reorder_route_stops`, `remove_route_stop` and `delete_route` are
+  `security invoker`, so the office-staff policies on `routes`, `route_stops`
+  and `route_members` decide access: a worker or another org's user can't see
+  the rows, so every function raises `P0002` for them. They add no policy or
+  grant. Execute is revoked from `public`, `anon` and `service_role` and
+  granted to `authenticated`. They lock the route row first, and refuse to
+  change a route that is not `draft` or `optimized` (`55000`); the existing
+  triggers don't enforce that lock themselves.
+
+- **Auto-assignment** ([tables/crews-routing.md](tables/crews-routing.md#auto-assignment-generate_draft_routes)):
+  `generate_draft_routes(org, date)` is `security invoker`, so the office-staff
+  policies on `routes`, `route_stops`, `visits`, `jobs`, `properties`, `crews`
+  and the service-area tables decide what it can read and write. It adds no
+  policy or grant on tables. It also checks
+  `private.has_org_role(org, '{owner,admin,dispatcher}')` first and raises
+  `42501` for anyone else, so a worker or non-member gets an error rather than
+  an empty result. Execute is revoked from `public`, `anon` and `service_role`
+  and granted to `authenticated`. The helper `private.order_stops` is pure
+  (no table access) and executable by `authenticated`.
+
+- **Optimizer** ([ADR 0015](decisions/0015-optimizer-integration.md),
+  [tables/crews-routing.md](tables/crews-routing.md#route-optimizer)): two
+  functions, no new policy and no new table grant.
+  - `optimizer_inputs(org, date, route_ids)` is `security invoker` with the
+    same explicit `has_org_role` check as `generate_draft_routes`
+    (`42501` for workers and non-members). Execute: `authenticated` only.
+  - `apply_optimization_results(org, run, routes, unassigned)` is
+    `security invoker` and executable by **`service_role` only** (revoked from
+    `public`, `anon` and `authenticated`). Called as the service role, RLS is
+    bypassed, so the access check is the grant plus the trusted runner
+    (`src/server/trusted/optimization-runner.ts`), which confirms the caller
+    is an active owner, admin or dispatcher of the organization with the
+    service-role client before it calls the function. Inside, every statement
+    is scoped to `p_organization_id`; a run or route of another organization
+    is `P0002` or skipped as `not_found`. It locks each route row, refuses
+    anything not `draft` or `optimized`, and never changes `visit_id`,
+    `route_id` or `crew_id`, so the stop-date guard has nothing to re-check.
+  - The runner also creates the run (`requested_by` set explicitly: the
+    service role has no `auth.uid()`) and writes `optimization_run_payloads`.
+    Staff read runs under the existing select policy; they cannot read
+    payloads. `routes.optimized_stop_count` has no column grant to
+    `authenticated`, so only this function sets it.
+
 ## Storage
 
 Bucket `org-files` (private). Object paths are

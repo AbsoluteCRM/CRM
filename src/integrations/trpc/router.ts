@@ -9,6 +9,7 @@ import {
 } from './init'
 import { portalRouter, requestsRouter } from './requests'
 import { quotesRouter } from './quotes'
+import { routesRouter } from './routes'
 import { serviceAreasRouter } from './serviceAreas'
 import { servicesRouter } from './services'
 import { settingsRouter } from './settings'
@@ -60,6 +61,7 @@ export const trpcRouter = createTRPCRouter({
   portal: portalRouter,
   requests: requestsRouter,
   quotes: quotesRouter,
+  routes: routesRouter,
 })
 
 export type TRPCRouter = typeof trpcRouter

@@ -8,11 +8,17 @@ import type { TRPCRouter } from '#/integrations/trpc/router'
 
 export type Crew = inferRouterOutputs<TRPCRouter>['crews']['list'][number]
 
-export function useCrews() {
+export function useCrewsFor({
+  input,
+  enabled,
+}: ReturnType<typeof useOrgScope>) {
   const trpc = useTRPC()
-  const { input, enabled } = useOrgScope()
 
   return useQuery({ ...trpc.crews.list.queryOptions(input), enabled })
+}
+
+export function useCrews() {
+  return useCrewsFor(useOrgScope())
 }
 
 type CrewList = Array<Crew>

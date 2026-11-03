@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { useRole } from '#/integrations/organization/use-role'
 import PageShell from '#/components/crm/PageShell'
-import { RouteBuilder } from '#/components/route-builder/RouteBuilder'
+import { RouteBuilderLive } from '#/components/route-builder/RouteBuilderLive'
 
 export const Route = createFileRoute('/_authed/route-builder')({
   component: RouteBuilderPage,
@@ -18,7 +18,7 @@ function RouteBuilderPage() {
       allowed={access.canSee('route-builder')}
       section="Route Builder"
     >
-      <RouteBuilder />
+      <RouteBuilderLive />
     </PageShell>
   )
 }

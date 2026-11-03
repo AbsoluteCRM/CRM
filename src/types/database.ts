@@ -2017,6 +2017,7 @@ export type Database = {
           end_location: unknown
           id: string
           optimization_run_id: string | null
+          optimized_stop_count: number | null
           organization_id: string
           planned_end: string | null
           planned_start: string | null
@@ -2035,6 +2036,7 @@ export type Database = {
           end_location?: unknown
           id?: string
           optimization_run_id?: string | null
+          optimized_stop_count?: number | null
           organization_id: string
           planned_end?: string | null
           planned_start?: string | null
@@ -2053,6 +2055,7 @@ export type Database = {
           end_location?: unknown
           id?: string
           optimization_run_id?: string | null
+          optimized_stop_count?: number | null
           organization_id?: string
           planned_end?: string | null
           planned_start?: string | null
@@ -2710,9 +2713,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_route_stop: {
+        Args: {
+          p_organization_id: string
+          p_position?: number
+          p_route_id: string
+          p_visit_id: string
+        }
+        Returns: string
+      }
       approve_quote: {
         Args: { p_quote_id: string; p_selected_optional_line_ids?: string[] }
         Returns: undefined
+      }
+      apply_optimization_results: {
+        Args: {
+          p_organization_id: string
+          p_routes: Json
+          p_run_id: string
+          p_unassigned?: string[]
+        }
+        Returns: Json
+      }
+      change_route_crew: {
+        Args: {
+          p_crew_id: string
+          p_organization_id: string
+          p_route_id: string
+        }
+        Returns: string
       }
       create_invoice_for_visits: {
         Args: {
@@ -2763,9 +2792,28 @@ export type Database = {
         Args: { p_copy_from_quote_id?: string; p_request_id: string }
         Returns: string
       }
+      create_route: {
+        Args: {
+          p_crew_id: string
+          p_organization_id: string
+          p_route_date: string
+        }
+        Returns: string
+      }
       decline_quote: {
         Args: { p_quote_id: string; p_reason?: string }
         Returns: undefined
+      }
+      delete_route: {
+        Args: {
+          p_organization_id: string
+          p_route_id: string
+        }
+        Returns: undefined
+      }
+      generate_draft_routes: {
+        Args: { p_date: string; p_organization_id: string }
+        Returns: Json
       }
       generate_visits: {
         Args: { p_dates: string[]; p_job_id: string; p_through: string }
@@ -2780,6 +2828,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      move_route_stop: {
+        Args: {
+          p_organization_id: string
+          p_position: number
+          p_stop_id: string
+          p_to_route_id: string
+        }
+        Returns: undefined
+      }
       my_memberships: {
         Args: never
         Returns: {
@@ -2790,6 +2847,14 @@ export type Database = {
           role: Database['public']['Enums']['org_role']
           status: Database['public']['Enums']['member_status']
         }[]
+      }
+      optimizer_inputs: {
+        Args: {
+          p_date: string
+          p_organization_id: string
+          p_route_ids?: string[]
+        }
+        Returns: Json
       }
       portal_invoice_lines: {
         Args: { p_invoice_id: string }
@@ -2993,6 +3058,21 @@ export type Database = {
           p_message_id: string
           p_status: Database['public']['Enums']['quote_delivery_status']
           p_token_id: string
+        }
+        Returns: undefined
+      }
+      remove_route_stop: {
+        Args: {
+          p_organization_id: string
+          p_stop_id: string
+        }
+        Returns: undefined
+      }
+      reorder_route_stops: {
+        Args: {
+          p_organization_id: string
+          p_route_id: string
+          p_stop_ids: string[]
         }
         Returns: undefined
       }
