@@ -15,7 +15,6 @@ import {
 } from 'lucide-react'
 
 import PageShell from '#/components/crm/PageShell'
-import RegionMap from '#/components/regions/RegionMap'
 import { ServiceAreasSection } from '#/components/service-areas/ServiceAreasSection'
 import {
   Alert,
@@ -491,14 +490,25 @@ function HoursTab({ org }: { org: CompanyProfile }) {
                   key={a}
                   className="inline-flex items-center gap-1.5 rounded-full bg-(--lime-100) py-1.5 pr-1.5 pl-3 text-[13px] font-semibold text-(--leaf-900)"
                 >
-                  <X className="size-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="mb-5">
-            <RegionMap />
-          </div>
+                  <MapPin className="size-3.5" /> {a}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${a}`}
+                    disabled={save.saving}
+                    className="cursor-pointer rounded-full p-0.5 hover:bg-white"
+                    onClick={() =>
+                      saveAreas(
+                        areas.filter((x) => x !== a),
+                        `${a} removed`,
+                      )
+                    }
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <form
             className="mt-4 flex gap-2"
             onSubmit={(e) => {

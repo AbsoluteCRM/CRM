@@ -83,7 +83,9 @@ function OnboardingPage() {
   const { user } = useAuth()
   const { reloadAndSelectOrganization } = useOrganization()
   const [createError, setCreateError] = useState<string | null>(null)
-  const [createdOrganizationId, setCreatedOrganizationId] = useState<string | null>(null)
+  const [createdOrganizationId, setCreatedOrganizationId] = useState<
+    string | null
+  >(null)
   const [step, setStep] = useState(0)
   const [name, setName] = useState('')
   const [addr, setAddr] = useState({
@@ -145,7 +147,7 @@ function OnboardingPage() {
         })
 
         if (error) throw error
-        if (!data?.id) throw new Error('Organization creation returned no ID.')
+        if (!data.id) throw new Error('Organization creation returned no ID.')
         organizationId = data.id
         setCreatedOrganizationId(organizationId)
       }

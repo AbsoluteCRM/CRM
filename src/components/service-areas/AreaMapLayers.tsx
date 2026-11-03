@@ -18,6 +18,7 @@ import type OlMapInstance from 'ol/Map'
 import type { FeatureLike } from 'ol/Feature'
 
 import type { LonLat } from '#/lib/map/geo'
+import { multiPolygonSchema, polygonSchema } from '#/lib/map/geojson'
 import type { AreaGeometry } from '#/lib/map/geojson'
 import { DEFAULT_AREA_COLOR, round6 } from './model'
 import type { Bbox } from './model'
@@ -109,7 +110,10 @@ function readGeometry(geometry: AreaGeometry) {
 function writeGeometry(feature: Feature): AreaGeometry | null {
   const geometry = feature.getGeometry()
   if (!geometry) return null
-  return geojson.writeGeometryObject(geometry, { decimals: 7 })
+  const result = polygonSchema
+    .or(multiPolygonSchema)
+    .safeParse(geojson.writeGeometryObject(geometry, { decimals: 7 }))
+  return result.success ? result.data : null
 }
 
 export default function AreaMapLayers({
