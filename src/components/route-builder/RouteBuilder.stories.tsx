@@ -31,6 +31,9 @@ import type {
   Board,
   DayRoute,
   DraftResult,
+  OptimizationControl,
+  OptimizationRun,
+  OptimizerInfo,
   RouteStop,
 } from '#/integrations/routes/routes'
 import { TRPCProvider } from '#/integrations/trpc/react'
@@ -199,6 +202,56 @@ const seedRoutes = (): Array<DayRoute> => [
 const seedPool = (): Array<AvailableVisit> => [V.oliver, V.grace, V.noah]
 
 const noop = () => undefined
+
+const RUN: OptimizationRun = {
+  id: 'run-1',
+  date: DATE,
+  status: 'succeeded',
+  provider: 'vroom',
+  error: null,
+  crewCount: 1,
+  unassignedVisitIds: [],
+  startedAt: '2026-10-29T15:00:01Z',
+  finishedAt: '2026-10-29T15:00:05Z',
+  createdAt: '2026-10-29T15:00:00Z',
+}
+// A short road line (the documented encoded-polyline example).
+const POLYLINE = '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+
+/** The route with planned times, road figures and a polyline, as after a run. */
+function optimizedRoute(r: DayRoute, stale = false): DayRoute {
+  return {
+    ...r,
+    status: 'optimized',
+    plannedEnd: '2026-10-29T20:00:00Z',
+    stops: r.stops.map((s, i) => ({
+      ...s,
+      plannedArrival: `2026-10-29T1${5 + i}:10:00Z`,
+      plannedDeparture: `2026-10-29T1${5 + i}:40:00Z`,
+      travelDistanceM: 3200,
+      travelDurationS: 540,
+    })),
+    road: {
+      distanceM: 12400,
+      durationS: 11700,
+      polyline: POLYLINE,
+      provider: 'vroom',
+      optimizedAt: '2026-10-29T15:00:05Z',
+      stale,
+    },
+  }
+}
+
+const control = (
+  over: Partial<OptimizationControl> = {},
+): OptimizationControl => ({
+  info: { available: true, provider: 'vroom', reason: null },
+  run: null,
+  starting: false,
+  error: null,
+  onOptimize: fn(),
+  ...over,
+})
 
 const DRAFTED: DraftResult = {
   assigned: 4,
@@ -571,6 +624,8 @@ type Server = {
   board: Board
   failing: Set<string>
   calls: Array<[string, unknown]>
+  optimizer: OptimizerInfo
+  run: OptimizationRun | null
 }
 
 function newServer(failing: Array<string> = []): Server {
@@ -578,6 +633,8 @@ function newServer(failing: Array<string> = []): Server {
     board: { routes: seedRoutes(), available: seedPool() },
     failing: new Set(failing),
     calls: [],
+    optimizer: { available: true, provider: 'vroom', reason: null },
+    run: null,
   }
 }
 
@@ -613,6 +670,25 @@ function handle(server: Server, path: string, input: Record<string, string>) {
   switch (path) {
     case 'crews.list':
       return CREWS.map(crewRow)
+    case 'routes.optimizerInfo':
+      return server.optimizer
+    case 'routes.lastRun': {
+      // A queued run is finished by the next poll, as the real worker would.
+      const seen = server.run
+      if (seen?.status === 'queued') {
+        server.run = { ...seen, status: 'succeeded' }
+        server.board = {
+          ...b,
+          routes: b.routes.map((r) =>
+            r.id === 'route-north' ? optimizedRoute(r) : r,
+          ),
+        }
+      }
+      return seen
+    }
+    case 'routes.optimize':
+      server.run = { ...RUN, status: 'queued' }
+      return { run: server.run, skipped: [] }
     case 'routes.list':
       return b.routes.filter((r) => r.date === input.date)
     case 'routes.availableVisits':
@@ -1232,5 +1308,214 @@ export const LiveBuildRoutesFailureShowsAnError = liveStory(
     const alert = await c.findByRole('alert')
     await expect(alert).toHaveTextContent('Routes were not built')
     await expect(alert).toHaveTextContent('The database said no')
+  },
+)
+
+// --- Optimize routes -------------------------------------------------------
+
+const optimizeButton = (c: ReturnType<typeof within>) =>
+  c.getByRole('button', { name: /^Optimize routes$|^Optimizing…$/ })
+
+export const OptimizeIdle: Story = {
+  args: { optimization: control() },
+  play: async ({ canvasElement, args }) => {
+    const c = within(canvasElement)
+    await expect(
+      c.getByRole('region', { name: 'Optimize routes' }),
+    ).toBeVisible()
+    await expect(c.getByText(/real road travel time/)).toBeVisible()
+    await userEvent.click(optimizeButton(c))
+    await expect(args.optimization?.onOptimize).toHaveBeenCalledOnce()
+  },
+}
+
+export const OptimizeNotConfigured: Story = {
+  args: {
+    optimization: control({
+      info: {
+        available: false,
+        provider: 'none',
+        reason:
+          'No route optimizer is set up on this server. Routes keep the nearest-neighbour order from Build routes.',
+      },
+    }),
+  },
+  play: async ({ canvasElement, args }) => {
+    const c = within(canvasElement)
+    await expect(optimizeButton(c)).toBeDisabled()
+    await expect(c.getByRole('note')).toHaveTextContent(
+      'No route optimizer is set up',
+    )
+    await userEvent.click(optimizeButton(c))
+    await expect(args.optimization?.onOptimize).not.toHaveBeenCalled()
+  },
+}
+
+export const OptimizeWaitsForInfo: Story = {
+  args: { optimization: control({ info: null }) },
+  play: async ({ canvasElement }) => {
+    await expect(optimizeButton(within(canvasElement))).toBeDisabled()
+  },
+}
+
+export const OptimizeNeedsStops: Story = {
+  args: {
+    routes: [route('route-north', CREWS[0], [])],
+    optimization: control(),
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await expect(optimizeButton(c)).toBeDisabled()
+    await expect(c.getByRole('note')).toHaveTextContent('Add stops')
+  },
+}
+
+export const OptimizeQueuedAndRunning: Story = {
+  args: { optimization: control({ run: { ...RUN, status: 'queued' } }) },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    const busy = c.getByRole('button', { name: 'Optimizing…' })
+    await expect(busy).toBeDisabled()
+    await expect(busy).toHaveAttribute('aria-busy', 'true')
+    await expect(
+      c.getByRole('status', { name: 'Optimization status' }),
+    ).toHaveTextContent('Waiting for the optimizer')
+  },
+}
+
+export const OptimizeRunning: Story = {
+  args: { optimization: control({ run: { ...RUN, status: 'running' } }) },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await expect(
+      c.getByRole('status', { name: 'Optimization status' }),
+    ).toHaveTextContent('real roads')
+    await expect(c.getByRole('button', { name: 'Optimizing…' })).toBeDisabled()
+  },
+}
+
+export const OptimizeSucceeded: Story = {
+  args: {
+    routes: [
+      optimizedRoute(
+        route('route-north', CREWS[0], [
+          stop('stop-1', 1, V.eleanor),
+          stop('stop-2', 2, V.priya),
+        ]),
+      ),
+      route('route-south', CREWS[1], [stop('stop-3', 1, V.marcus)]),
+    ],
+    optimization: control({ run: { ...RUN, unassignedVisitIds: ['visit-9'] } }),
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    const status = c.getByRole('status', { name: 'Optimization status' })
+    await expect(status).toHaveTextContent('Optimized')
+    await expect(status).toHaveTextContent('1 visit could not be fit')
+    const list = within(c.getByRole('list', { name: 'Optimized routes' }))
+    await expect(list.getByText('12.4 km')).toBeVisible()
+    await expect(list.getByText('Up to date')).toBeVisible()
+    // Route card figures and per-stop times.
+    await expect(
+      c.getByLabelText('North crew: road figures'),
+    ).toHaveTextContent('12.4 km')
+    await expect(c.getAllByText(/Arrive .* · 9 min drive/).length).toBe(2)
+    // The map for the selected route shows the road line.
+    await userEvent.click(c.getByRole('button', { name: 'Select North crew' }))
+    await expect(
+      c.getByRole('region', { name: 'Map of North crew' }),
+    ).toBeVisible()
+    await expect(c.getByText(/road route from the optimizer/)).toBeVisible()
+  },
+}
+
+export const OptimizeStaleAfterEdits: Story = {
+  args: {
+    routes: [
+      optimizedRoute(
+        route('route-north', CREWS[0], [stop('stop-1', 1, V.eleanor)]),
+        true,
+      ),
+    ],
+    optimization: control({ run: RUN }),
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await expect(
+      c.getByRole('list', { name: 'Optimized routes' }),
+    ).toHaveTextContent('Out of date')
+    await expect(
+      c.getByLabelText('North crew: road figures'),
+    ).toHaveTextContent('Out of date')
+    await expect(
+      c.getAllByRole('note').some((n) => /edited after/.test(n.textContent)),
+    ).toBe(true)
+    await userEvent.click(c.getByRole('button', { name: 'Select North crew' }))
+    await expect(c.getByText(/may not match the stops/)).toBeVisible()
+  },
+}
+
+export const OptimizeFailed: Story = {
+  args: {
+    optimization: control({
+      run: {
+        ...RUN,
+        status: 'failed',
+        error: 'The route optimizer could not be reached.',
+      },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    const alert = c.getByRole('alert', { name: 'Optimization status' })
+    await expect(alert).toHaveTextContent('Routes were not optimized')
+    await expect(alert).toHaveTextContent('could not be reached')
+    await expect(alert).toHaveTextContent('Routes were not changed')
+    await expect(optimizeButton(c)).toBeEnabled()
+  },
+}
+
+export const OptimizeRefused: Story = {
+  args: {
+    optimization: control({
+      error: 'An optimization is already running for this date.',
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const alert = within(canvasElement).getByRole('alert')
+    await expect(alert).toHaveTextContent('did not start')
+    await expect(alert).toHaveTextContent('Nothing was changed')
+  },
+}
+
+export const OptimizeHiddenWithoutPermission: Story = {
+  args: { canBuild: false, optimization: control() },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).queryByRole('region', { name: 'Optimize routes' }),
+    ).toBeNull()
+  },
+}
+
+export const LiveOptimizeUpdatesTheBoard = liveStory(
+  [],
+  async ({ canvasElement }, server) => {
+    const c = within(canvasElement)
+    await loaded(c)
+    await waitFor(() => expect(optimizeButton(c)).toBeEnabled())
+    await userEvent.click(optimizeButton(c))
+    await waitFor(
+      () =>
+        expect(c.getByLabelText('North crew: road figures')).toHaveTextContent(
+          '12.4 km',
+        ),
+      { timeout: 8000 },
+    )
+    await expect(
+      c.getByRole('status', { name: 'Optimization status' }),
+    ).toHaveTextContent('Optimized')
+    await expect(server().calls.some(([p]) => p === 'routes.optimize')).toBe(
+      true,
+    )
   },
 )

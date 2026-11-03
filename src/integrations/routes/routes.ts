@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 import type { inferRouterOutputs } from '@trpc/server'
 
 import { toast } from '#/lib/toast'
@@ -13,6 +14,11 @@ export type RouteStop = DayRoute['stops'][number]
 export type AvailableVisit = Outputs['availableVisits'][number]
 /** What "Build routes from service areas" returns. */
 export type DraftResult = Outputs['generateDrafts']
+
+/** Whether an optimizer is set up, and if not why (`routes.optimizerInfo`). */
+export type OptimizerInfo = Outputs['optimizerInfo']
+/** An optimization run (`routes.lastRun`). */
+export type OptimizationRun = NonNullable<Outputs['lastRun']>
 
 /** The active organization as tRPC input, from `useOrgScope()`. */
 export type OrgScope = ReturnType<typeof useOrgScope>
@@ -293,4 +299,81 @@ export function useRouteMutations(scope: OrgScope, date: string) {
     reorderStops: (routeId: string, stopIds: Array<string>) =>
       reorder.mutate({ ...base, routeId, stopIds }),
   }
+}
+
+const POLL_MS = 2000
+export const isActiveRun = (run: OptimizationRun | null | undefined) =>
+  run?.status === 'queued' || run?.status === 'running'
+
+/** What the Optimize routes panel needs. */
+export type OptimizationControl = {
+  /** Null while it loads. */
+  info: OptimizerInfo | null
+  run: OptimizationRun | null
+  starting: boolean
+  /** The server's message when starting a run was refused. */
+  error: string | null
+  onOptimize: () => void
+}
+
+/**
+ * The optimizer for one date: whether it is set up, the date's latest run
+ * (polled every two seconds while it is queued or running), and starting a
+ * run. When a run finishes, the board is refetched so the new order and road
+ * figures appear.
+ */
+export function useOptimization(scope: OrgScope, date: string) {
+  const trpc = useTRPC()
+  const queryClient = useQueryClient()
+  const { input, enabled } = scope
+
+  const info = useQuery({
+    ...trpc.routes.optimizerInfo.queryOptions({ ...input }),
+    enabled,
+    staleTime: 5 * 60_000,
+  })
+  const lastRunKey = trpc.routes.lastRun.queryKey({ ...input, date })
+  const lastRun = useQuery({
+    ...trpc.routes.lastRun.queryOptions({ ...input, date }),
+    enabled,
+    refetchInterval: (query) =>
+      isActiveRun(query.state.data) ? POLL_MS : false,
+  })
+  const start = useMutation(
+    trpc.routes.optimize.mutationOptions({
+      onSuccess: (result) => queryClient.setQueryData(lastRunKey, result.run),
+      onSettled: () => queryClient.invalidateQueries({ queryKey: lastRunKey }),
+    }),
+  )
+
+  const { reset } = start
+  useEffect(() => {
+    reset()
+  }, [date, reset])
+
+  const status = lastRun.data?.status
+  const previous = useRef(status)
+  useEffect(() => {
+    const was = previous.current
+    previous.current = status
+    if ((was === 'queued' || was === 'running') && status && status !== was) {
+      if (status === 'succeeded' || status === 'failed') {
+        void queryClient.invalidateQueries({
+          queryKey: trpc.routes.list.queryKey({ ...input, date }),
+        })
+        void queryClient.invalidateQueries({
+          queryKey: trpc.routes.availableVisits.queryKey({ ...input, date }),
+        })
+      }
+    }
+  }, [status, queryClient, trpc, input, date])
+
+  const control: OptimizationControl = {
+    info: info.data ?? null,
+    run: lastRun.data ?? null,
+    starting: start.isPending,
+    error: start.error?.message ?? null,
+    onOptimize: () => start.mutate({ ...input, date }),
+  }
+  return control
 }

@@ -6,6 +6,7 @@ import {
   Check,
   GripVertical,
   Lock,
+  Navigation,
   Plus,
   Route,
   TriangleAlert,
@@ -28,14 +29,22 @@ import { MapView } from '#/components/map/MapView'
 import type { MapStop } from '#/components/map/MapView'
 import { UnplacedStops } from '#/components/map/UnplacedStops'
 import { DraftRoutesPanel } from '#/components/route-builder/DraftRoutesPanel'
+import { OptimizePanel } from '#/components/route-builder/OptimizePanel'
+import {
+  fmtClock,
+  fmtKm,
+  fmtSeconds,
+} from '#/components/route-builder/optimize-format'
 import type { DraftRun } from '#/components/route-builder/DraftRoutesPanel'
 import { isPendingStop } from '#/integrations/routes/routes'
 import type {
   AvailableVisit,
   DayRoute,
   DraftResult,
+  OptimizationControl,
   RouteStop,
 } from '#/integrations/routes/routes'
+import { decodePolyline } from '#/lib/map/polyline'
 import { cn } from '#/lib/utils'
 
 const DRAG_MIME = 'application/x-crm-route-item'
@@ -76,6 +85,11 @@ export type RouteBuilderProps = {
   onRetry?: () => void
   /** False for roles that cannot manage jobs: the build button is not shown. */
   canBuild?: boolean
+  /**
+   * Road-network optimization for the date. Leave out and the Optimize routes
+   * card is not shown (it needs the server).
+   */
+  optimization?: OptimizationControl
   actions: RouteBuilderActions
 }
 
@@ -115,6 +129,7 @@ export function RouteBuilder({
   errorMessage,
   onRetry,
   canBuild = true,
+  optimization,
   actions,
 }: RouteBuilderProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -348,6 +363,14 @@ export function RouteBuilder({
           disabled={status !== 'ready'}
           onBuild={buildDrafts}
           onDismiss={() => setDraftRun({ state: 'idle' })}
+        />
+      )}
+      {canBuild && optimization && (
+        <OptimizePanel
+          date={date}
+          routes={routes}
+          control={optimization}
+          disabled={status !== 'ready'}
         />
       )}
       {status === 'loading' && <BoardSkeleton />}
@@ -639,6 +662,19 @@ function RouteCard({
           on site
         </span>
       </div>
+      {route.road && (
+        <p
+          aria-label={`${name}: road figures`}
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-3 text-[11px] text-(--ink-2)"
+        >
+          <Navigation className="size-3" aria-hidden />
+          {route.road.distanceM != null && (
+            <span>{fmtKm(route.road.distanceM)}</span>
+          )}
+          <span>{fmtSeconds(route.road.durationS)} with driving</span>
+          {route.road.stale && <Badge tone="sun">Out of date</Badge>}
+        </p>
+      )}
       <ol aria-label={`Ordered stops for ${name}`} className="space-y-2">
         {route.stops.map((stop, index) => {
           const pending = isPendingStop(stop.id)
@@ -649,6 +685,7 @@ function RouteCard({
               <VisitCard
                 visit={stop}
                 sequence={stop.sequence}
+                timing={route.road ? stopTiming(stop) : null}
                 draggable={!frozen}
                 onDragStart={(e) =>
                   onDragStart(e, { kind: 'stop', id: stop.id })
@@ -714,11 +751,14 @@ function VisitCard({
   sequence,
   draggable = true,
   showOwner = false,
+  timing = null,
   onDragStart,
   children,
 }: {
   visit: AvailableVisit
   sequence?: number
+  /** Planned arrival and drive time from the last optimization. */
+  timing?: string | null
   draggable?: boolean
   /** Show the service area and crew that would own this visit. */
   showOwner?: boolean
@@ -764,9 +804,22 @@ function VisitCard({
           ? `${formatTime(visit.windowStart)}–${formatTime(visit.windowEnd)}`
           : 'Flexible arrival'}
       </p>
+      {timing && (
+        <p className="text-[10px] font-semibold text-(--leaf-700)">{timing}</p>
+      )}
       {children}
     </article>
   )
+}
+
+/** "Arrive 9:12 a.m. · 6 min drive", or null when the stop has no planned time. */
+function stopTiming(stop: RouteStop): string | null {
+  if (!stop.plannedArrival) return null
+  const drive =
+    stop.travelDurationS !== null
+      ? ` · ${fmtSeconds(stop.travelDurationS)} drive`
+      : ''
+  return `Arrive ${fmtClock(stop.plannedArrival)}${drive}`
 }
 
 /**
@@ -872,14 +925,21 @@ function RoutePreview({ route }: { route: DayRoute }) {
     title: `${s.sequence}. ${customer(s)}, ${s.address ?? 'no address'}`,
     color,
   }))
+  const decoded = route.road?.polyline
+    ? decodePolyline(route.road.polyline)
+    : null
+  const roadPath = decoded && decoded.length >= 2 ? decoded : null
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-wrap justify-between gap-2 p-4">
         <div>
           <h3 className="text-sm font-bold">{name} · Map preview</h3>
           <p className="mt-1 text-[11px] text-(--ink-3)">
-            Stops in order, joined by straight lines. No road directions or
-            travel estimates.
+            {roadPath
+              ? route.road?.stale
+                ? 'Road route from the last optimization. The route was edited since, so the line may not match the stops. Optimize again.'
+                : 'Stops in order, joined by the road route from the optimizer.'
+              : 'Stops in order, joined by straight lines. No road directions or travel estimates.'}
           </p>
         </div>
         <span className="text-xs text-(--leaf-700)">
@@ -894,7 +954,7 @@ function RoutePreview({ route }: { route: DayRoute }) {
             className="w-full border border-(--line)"
             style={{ height: 320 }}
             stops={mapStops}
-            route={{ path: mapStops.map((s) => s.position), color }}
+            route={{ path: roadPath ?? mapStops.map((s) => s.position), color }}
           />
           <UnplacedStops
             stops={unplaced.map((s) => ({

@@ -18,7 +18,11 @@ export interface MapStop {
 }
 
 export interface MapRoute {
-  /** Vertices in driving order, lon/lat. Drawn as straight segments for now. */
+  /**
+   * Vertices in driving order, lon/lat, joined by straight segments. Stop
+   * positions give a straight-line route; a decoded road polyline (see
+   * `decodePolyline`) draws the road.
+   */
   path: Array<LonLat>
   color?: string
   /** Optional label per segment, e.g. drive minutes; `legLabels[i]` sits on segment i. */

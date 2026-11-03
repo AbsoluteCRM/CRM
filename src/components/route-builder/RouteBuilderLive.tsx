@@ -8,6 +8,7 @@ import { useRole } from '#/integrations/organization/use-role'
 import {
   useAvailableVisits,
   useDayRoutes,
+  useOptimization,
   useRouteMutations,
 } from '#/integrations/routes/routes'
 import type { OrgScope } from '#/integrations/routes/routes'
@@ -35,6 +36,7 @@ export function RouteBoard({
   const pool = useAvailableVisits(scope, date)
   const crews = useCrewsFor(scope)
   const actions = useRouteMutations(scope, date)
+  const optimization = useOptimization(scope, date)
 
   const failed = routes.isError || pool.isError || crews.isError
   const ready = routes.data && pool.data && crews.data
@@ -55,6 +57,7 @@ export function RouteBoard({
         void crews.refetch()
       }}
       canBuild={canBuild}
+      optimization={optimization}
       actions={actions}
     />
   )
