@@ -164,6 +164,29 @@ Notes:
   and granted to `authenticated`. The helper `private.order_stops` is pure
   (no table access) and executable by `authenticated`.
 
+- **Optimizer** ([ADR 0015](decisions/0015-optimizer-integration.md),
+  [tables/crews-routing.md](tables/crews-routing.md#route-optimizer)): two
+  functions, no new policy and no new table grant.
+  - `optimizer_inputs(org, date, route_ids)` is `security invoker` with the
+    same explicit `has_org_role` check as `generate_draft_routes`
+    (`42501` for workers and non-members). Execute: `authenticated` only.
+  - `apply_optimization_results(org, run, routes, unassigned)` is
+    `security invoker` and executable by **`service_role` only** (revoked from
+    `public`, `anon` and `authenticated`). Called as the service role, RLS is
+    bypassed, so the access check is the grant plus the trusted runner
+    (`src/server/trusted/optimization-runner.ts`), which confirms the caller
+    is an active owner, admin or dispatcher of the organization with the
+    service-role client before it calls the function. Inside, every statement
+    is scoped to `p_organization_id`; a run or route of another organization
+    is `P0002` or skipped as `not_found`. It locks each route row, refuses
+    anything not `draft` or `optimized`, and never changes `visit_id`,
+    `route_id` or `crew_id`, so the stop-date guard has nothing to re-check.
+  - The runner also creates the run (`requested_by` set explicitly: the
+    service role has no `auth.uid()`) and writes `optimization_run_payloads`.
+    Staff read runs under the existing select policy; they cannot read
+    payloads. `routes.optimized_stop_count` has no column grant to
+    `authenticated`, so only this function sets it.
+
 ## Storage
 
 Bucket `org-files` (private). Object paths are

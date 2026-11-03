@@ -57,20 +57,21 @@ staff only) still decides access and each change commits as one unit:
 
 ## `routes`
 
-| Column                | Type                    | Null | Default   | Notes                                                  |
-| --------------------- | ----------------------- | ---- | --------- | ------------------------------------------------------ |
-| `crew_id`             | `uuid`                  | no   |           | Composite FK → `crews`, on delete restrict             |
-| `route_date`          | `date`                  | no   |           | Org timezone                                           |
-| `status`              | `route_status`          | no   | `'draft'` |                                                        |
-| `start_location`      | `geography(Point,4326)` | yes  |           | Copied from the crew default. Editable per day         |
-| `end_location`        | `geography(Point,4326)` | yes  |           |                                                        |
-| `planned_start`       | `timestamptz`           | yes  |           |                                                        |
-| `planned_end`         | `timestamptz`           | yes  |           | From the optimizer                                     |
-| `total_distance_m`    | `integer`               | yes  |           |                                                        |
-| `total_duration_s`    | `integer`               | yes  |           | Drive time plus time on site                           |
-| `polyline`            | `text`                  | yes  |           | Encoded polyline for drawing the map                   |
-| `optimization_run_id` | `uuid`                  | yes  |           | Composite FK → `optimization_runs`, on delete set null |
-| `published_at`        | `timestamptz`           | yes  |           |                                                        |
+| Column                 | Type                    | Null | Default   | Notes                                                                                                                            |
+| ---------------------- | ----------------------- | ---- | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `crew_id`              | `uuid`                  | no   |           | Composite FK → `crews`, on delete restrict                                                                                       |
+| `route_date`           | `date`                  | no   |           | Org timezone                                                                                                                     |
+| `status`               | `route_status`          | no   | `'draft'` |                                                                                                                                  |
+| `start_location`       | `geography(Point,4326)` | yes  |           | Copied from the crew default. Editable per day                                                                                   |
+| `end_location`         | `geography(Point,4326)` | yes  |           |                                                                                                                                  |
+| `planned_start`        | `timestamptz`           | yes  |           |                                                                                                                                  |
+| `planned_end`          | `timestamptz`           | yes  |           | From the optimizer                                                                                                               |
+| `total_distance_m`     | `integer`               | yes  |           |                                                                                                                                  |
+| `total_duration_s`     | `integer`               | yes  |           | Drive time plus time on site                                                                                                     |
+| `polyline`             | `text`                  | yes  |           | Encoded polyline for drawing the map                                                                                             |
+| `optimization_run_id`  | `uuid`                  | yes  |           | Composite FK → `optimization_runs`, on delete set null                                                                           |
+| `optimized_stop_count` | `integer`               | yes  |           | Stops the last optimization placed. Set only by `apply_optimization_results`; a different count later means the route was edited |
+| `published_at`         | `timestamptz`           | yes  |           |                                                                                                                                  |
 
 `unique (crew_id, route_date)`. Index `(organization_id, route_date)`.
 
@@ -125,8 +126,12 @@ for a date, and assign visits across crews.
 | `started_at`           | `timestamptz`         | yes  |            |                                                 |
 | `finished_at`          | `timestamptz`         | yes  |            |                                                 |
 
-Index `(organization_id, route_date desc)`. Office staff can read, insert,
-and update runs.
+Index `(organization_id, route_date desc)`. Partial unique index
+`optimization_runs_one_active_idx` on `(organization_id, route_date)` where
+`status in ('queued', 'running')`: one active run per organization and date.
+Office staff can read and insert runs; the trusted runner (service role)
+moves them through `running`, `succeeded` and `failed`. On a `succeeded` run,
+`error` may hold a non-fatal note (how many routes were skipped).
 
 ## `optimization_run_payloads`
 
@@ -143,6 +148,9 @@ delete cascade.
 | `response` | `jsonb` | yes  |
 
 ## Optimization flow
+
+Built: see [Route optimizer](#route-optimizer). The steps below are the design
+the build follows.
 
 1. A dispatcher picks a date and crews. The server inserts an
    `optimization_runs` row (`queued`).
@@ -269,6 +277,56 @@ everything. An advisory lock per org and date serializes runs. A second run
 finds the placed visits already routed and does nothing new (it reports the
 same unassigned visits). A manual add of the same visit at the same instant
 makes the run fail with `23505` and change nothing; retrying works.
+
+## Route optimizer
+
+[ADR 0015](../decisions/0015-optimizer-integration.md). Migration
+`optimizer_apply_results`; tests `supabase/tests/optimizer_apply_results_test.sql`.
+The solver call is made by server code (`src/server/optimizer/`), never by
+SQL. The database provides the inputs and takes the result.
+
+`optimizer_inputs(p_organization_id, p_date, p_route_ids default null)` is
+`security invoker` and requires an office role (`42501` otherwise). It returns
+`{routes, skipped}` for the date's `draft` and `optimized` routes: each
+route's depots as lon/lat, `planned_start`, the crew's `max_work_minutes`, and
+its stops in order with `is_locked`, visit duration, arrival window and
+property lon/lat (null when the property has no location). `skipped` names
+requested routes that were not returned: `not_found` or `not_editable`.
+Execute: `authenticated` only.
+
+`apply_optimization_results(p_organization_id, p_run_id, p_routes, p_unassigned)`
+is `security invoker`, executable by `service_role` only. It returns
+`{applied: [route_id], skipped: [{route_id, reason}]}`. For each route in
+`p_routes`, in id order, it locks the route and then:
+
+| Reason         | Skipped when                                                       |
+| -------------- | ------------------------------------------------------------------ |
+| `not_found`    | No such route in this org on the run's date                        |
+| `not_editable` | Status is `published`, `in_progress` or `completed`                |
+| `no_stops`     | The route has no stops                                             |
+| `changed`      | The result's stop ids are not exactly the route's current stop ids |
+| `locked_moved` | A locked stop's sequence would change                              |
+
+A skipped route is left exactly as it was. For an applied route it renumbers
+the stops (`1..n`, else `22023`) through the deferred `route_stops_sequence_key`,
+sets each stop's `planned_arrival`, `planned_departure`, `travel_distance_m`
+and `travel_duration_s`, then sets the route's `status = 'optimized'`,
+`planned_start`, `planned_end`, `total_distance_m`, `total_duration_s`,
+`polyline`, `optimized_stop_count` and `optimization_run_id`. Finally the run
+becomes `succeeded` (with `finished_at`, `unassigned_visit_ids` and a note in
+`error` when routes were skipped) or `failed` when routes were sent and none
+could be applied. A finished run raises `55000`; an unknown run, or one in
+another org, raises `P0002`. The whole call is one transaction.
+
+Stops the solver could not place (or whose property has no location) are sent
+with no planned times and listed in `p_unassigned`; they stay on their route
+after the placed stops. The optimizer reorders stops within a route; it never
+moves a visit to another crew.
+
+**Stale results.** The app treats an `optimized` route as stale when a stop
+has no planned arrival and is not in the run's unassigned list, the stops are
+out of arrival order, the stop count differs from `optimized_stop_count`, or a
+stop or the route changed after the run's `finished_at`.
 
 ## Worker access
 

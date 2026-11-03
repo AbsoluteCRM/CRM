@@ -2017,6 +2017,7 @@ export type Database = {
           end_location: unknown
           id: string
           optimization_run_id: string | null
+          optimized_stop_count: number | null
           organization_id: string
           planned_end: string | null
           planned_start: string | null
@@ -2035,6 +2036,7 @@ export type Database = {
           end_location?: unknown
           id?: string
           optimization_run_id?: string | null
+          optimized_stop_count?: number | null
           organization_id: string
           planned_end?: string | null
           planned_start?: string | null
@@ -2053,6 +2055,7 @@ export type Database = {
           end_location?: unknown
           id?: string
           optimization_run_id?: string | null
+          optimized_stop_count?: number | null
           organization_id?: string
           planned_end?: string | null
           planned_start?: string | null
@@ -2723,6 +2726,15 @@ export type Database = {
         Args: { p_quote_id: string; p_selected_optional_line_ids?: string[] }
         Returns: undefined
       }
+      apply_optimization_results: {
+        Args: {
+          p_organization_id: string
+          p_routes: Json
+          p_run_id: string
+          p_unassigned?: string[]
+        }
+        Returns: Json
+      }
       change_route_crew: {
         Args: {
           p_crew_id: string
@@ -2835,6 +2847,14 @@ export type Database = {
           role: Database['public']['Enums']['org_role']
           status: Database['public']['Enums']['member_status']
         }[]
+      }
+      optimizer_inputs: {
+        Args: {
+          p_date: string
+          p_organization_id: string
+          p_route_ids?: string[]
+        }
+        Returns: Json
       }
       portal_invoice_lines: {
         Args: { p_invoice_id: string }

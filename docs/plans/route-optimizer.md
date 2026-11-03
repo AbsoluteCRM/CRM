@@ -54,14 +54,14 @@ hosted-optimizer adapter, geocoding, service areas, and any change to
 
 ## Decisions
 
-| #   | Question                | Answer                                                                                                                                                                                                                       |
-| --- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Q1  | Which solver            | Self-hosted VROOM with OSRM. No per-request fees (Eric)                                                                                                                                                                      |
-| Q2  | Provider model          | Provider-agnostic: `optimization_runs.provider` is `vroom` here; a hosted optimizer is a new adapter, no schema change (ADR 0006, Eric)                                                                                       |
-| Q3  | Fallback                | The straight-line ordering from #98 stays, and is the default when `OPTIMIZER_PROVIDER` is `none` or unset (Eric)                                                                                                            |
-| Q4  | Hosting                 | Eric's call later. This PR ships the integration, docs and a compose example (Eric)                                                                                                                                          |
-| Q5  | Who may run it          | Office roles (`can.manageJobs`), checked in tRPC, again in the trusted runner, and by the read function                                                                                                                      |
-| Q6  | Does it call a solver here | No. No network access to solvers from the build environment; adapters are tested with fixtures                                                                                                                            |
+| #   | Question                   | Answer                                                                                                                                  |
+| --- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Which solver               | Self-hosted VROOM with OSRM. No per-request fees (Eric)                                                                                 |
+| Q2  | Provider model             | Provider-agnostic: `optimization_runs.provider` is `vroom` here; a hosted optimizer is a new adapter, no schema change (ADR 0006, Eric) |
+| Q3  | Fallback                   | The straight-line ordering from #98 stays, and is the default when `OPTIMIZER_PROVIDER` is `none` or unset (Eric)                       |
+| Q4  | Hosting                    | Eric's call later. This PR ships the integration, docs and a compose example (Eric)                                                     |
+| Q5  | Who may run it             | Office roles (`can.manageJobs`), checked in tRPC, again in the trusted runner, and by the read function                                 |
+| Q6  | Does it call a solver here | No. No network access to solvers from the build environment; adapters are tested with fixtures                                          |
 
 Agent defaults (minor; Eric may veto them):
 
@@ -124,11 +124,11 @@ Agent defaults (minor; Eric may veto them):
 
 ## Assumptions
 
-| Assumption                                                                                                         | User-confirmed? |
-| ------------------------------------------------------------------------------------------------------------------ | --------------- |
-| VROOM's `POST /` accepts the documented `vehicles`/`jobs`/`skills`/`time_windows`/`service` shapes and returns `routes[].steps[]` with `arrival`, `duration` | no (docs)       |
-| OSRM `GET /route/v1/driving/{lon,lat;...}?overview=full&geometries=polyline&steps=false` returns `routes[0].legs[]` with `distance`, `duration`, and `geometry` | no (docs)       |
-| `service_role` has table privileges on `public` (Supabase default), so a `security invoker` function granted only to it works | no (Supabase docs) |
+| Assumption                                                                                                                                                             | User-confirmed?              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| VROOM's `POST /` accepts the documented `vehicles`/`jobs`/`skills`/`time_windows`/`service` shapes and returns `routes[].steps[]` with `arrival`, `duration`           | no (docs)                    |
+| OSRM `GET /route/v1/driving/{lon,lat;...}?overview=full&geometries=polyline&steps=false` returns `routes[0].legs[]` with `distance`, `duration`, and `geometry`        | no (docs)                    |
+| `service_role` has table privileges on `public` (Supabase default), so a `security invoker` function granted only to it works                                          | no (Supabase docs)           |
 | A single process serves the app (self-hosted Nitro), so a background promise outlives the request; on a serverless host the work would be cut off, and the doc says so | yes (hosting is Eric's call) |
 
 ## Design refs
@@ -211,22 +211,22 @@ Migration `optimizer_apply_results` (timestamp after #98's `20261103150000`).
 
 ### Procedures
 
-| Procedure                   | Input                           | Output                                                                                       | Roles allowed          |
-| --------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------- |
-| `routes.optimize`           | `{ organizationId, date, routeIds? }` | The run (`id`, `status`, `provider`, `error`, ...) and `skipped` routes                   | owner, admin, dispatcher |
-| `routes.lastRun`            | `{ organizationId, date }`      | The date's most recent run or null                                                           | owner, admin, dispatcher |
-| `routes.optimizationStatus` | `{ organizationId, runId }`     | One run's state                                                                              | owner, admin, dispatcher |
-| `routes.optimizerInfo`      | `{ organizationId }`            | `{ available, provider, reason }`; no secrets, no URLs                                       | owner, admin, dispatcher |
+| Procedure                   | Input                                 | Output                                                                  | Roles allowed            |
+| --------------------------- | ------------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
+| `routes.optimize`           | `{ organizationId, date, routeIds? }` | The run (`id`, `status`, `provider`, `error`, ...) and `skipped` routes | owner, admin, dispatcher |
+| `routes.lastRun`            | `{ organizationId, date }`            | The date's most recent run or null                                      | owner, admin, dispatcher |
+| `routes.optimizationStatus` | `{ organizationId, runId }`           | One run's state                                                         | owner, admin, dispatcher |
+| `routes.optimizerInfo`      | `{ organizationId }`                  | `{ available, provider, reason }`; no secrets, no URLs                  | owner, admin, dispatcher |
 
 `routes.list` also returns each route's `plannedEnd`, totals, `polyline`,
 stale flag and each stop's planned times and travel figures.
 
 ### Routes and UI
 
-| Route            | Screen                                       | States                                                                                                          |
-| ---------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `/route-builder` | "Optimize routes" card under the build card  | not configured (disabled, reason), idle, queued, running, succeeded (per-route figures), failed (error), stale |
-| `/route-builder` | Route cards, map                             | distance / drive time, stale badge, arrival and drive per stop, road polyline instead of straight lines        |
+| Route            | Screen                                      | States                                                                                                         |
+| ---------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `/route-builder` | "Optimize routes" card under the build card | not configured (disabled, reason), idle, queued, running, succeeded (per-route figures), failed (error), stale |
+| `/route-builder` | Route cards, map                            | distance / drive time, stale badge, arrival and drive per stop, road polyline instead of straight lines        |
 
 ### Acceptance criteria
 
