@@ -199,6 +199,7 @@ lands, an applied migration is never edited; fixes go in a new migration.
 | 17  | `route_stop_race_fix`       | applied | Stop-date guard locks the visit on every write again; reschedule unroute uses NOT EXISTS (security review)                                              |
 | —   | `geocoding`                 | pending | `geocode_cache` (service role only), `properties.geocode_accuracy` ([ADR 0013](decisions/0013-geocoding-chain-and-cache.md))                            |
 | —   | `route_builder_rpcs`        | pending | `create_route`, `change_route_crew`, `add_route_stop`, `move_route_stop`, `reorder_route_stops`, `remove_route_stop`, `delete_route` (security invoker) |
+| —   | `generate_draft_routes`     | pending | `generate_draft_routes(org, date)` (security invoker) builds draft routes from service areas; `private.order_stops` straight-line ordering              |
 
 ## Out of scope (for now)
 

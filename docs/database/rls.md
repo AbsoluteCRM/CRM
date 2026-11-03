@@ -153,6 +153,17 @@ Notes:
   change a route that is not `draft` or `optimized` (`55000`); the existing
   triggers don't enforce that lock themselves.
 
+- **Auto-assignment** ([tables/crews-routing.md](tables/crews-routing.md#auto-assignment-generate_draft_routes)):
+  `generate_draft_routes(org, date)` is `security invoker`, so the office-staff
+  policies on `routes`, `route_stops`, `visits`, `jobs`, `properties`, `crews`
+  and the service-area tables decide what it can read and write. It adds no
+  policy or grant on tables. It also checks
+  `private.has_org_role(org, '{owner,admin,dispatcher}')` first and raises
+  `42501` for anyone else, so a worker or non-member gets an error rather than
+  an empty result. Execute is revoked from `public`, `anon` and `service_role`
+  and granted to `authenticated`. The helper `private.order_stops` is pure
+  (no table access) and executable by `authenticated`.
+
 ## Storage
 
 Bucket `org-files` (private). Object paths are

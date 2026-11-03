@@ -2799,6 +2799,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      generate_draft_routes: {
+        Args: { p_date: string; p_organization_id: string }
+        Returns: Json
+      }
       generate_visits: {
         Args: { p_dates: string[]; p_job_id: string; p_through: string }
         Returns: number
