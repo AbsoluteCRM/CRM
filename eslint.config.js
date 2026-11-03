@@ -23,6 +23,7 @@ export default [
       'eslint.config.js',
       'prettier.config.js',
       '.claude/worktrees/**',
+      'supabase/functions/**',
       '.output/**',
       'src/types/database.ts',
     ],

@@ -1,0 +1,3 @@
+[functions.upload-image]
+verify_jwt = true
+entrypoint = "./functions/upload-image/index.ts"
