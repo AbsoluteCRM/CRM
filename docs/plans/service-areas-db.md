@@ -65,7 +65,7 @@ Agent defaults (Eric may veto them):
 
 ## Layers touched
 
-- [x] Migration (`supabase/migrations/20261102180000_service_areas.sql`)
+- [x] Migration (`supabase/migrations/20261103030208_service_areas.sql`)
 - [x] RLS policies / pgTAP tests (`supabase/tests/service_areas_test.sql`)
 - [x] `docs/database` (tables, ERD, RLS matrix, README, ADR 0012)
 - [x] Types (hand-edited until `pnpm db:types` runs after the remote apply)
@@ -206,7 +206,7 @@ pnpm install && pnpm lint && pnpm check && pnpm exec tsc --noEmit && pnpm exec v
 Results on the PR head (2026-11-02):
 
 - All 26 migrations apply in order on the local stack, including
-  `20261102180000_service_areas.sql`.
+  `20261103030208_service_areas.sql`.
 - pgTAP: `service_areas_test.sql` 94/94; the seven existing files 158/158.
 - The seed runs twice cleanly (second run skips), and assigns Kensington and
   Crescent Heights to Downtown core, Tuscany to NW, Saddle Ridge to NE, Lake

@@ -9,7 +9,7 @@ live areas, so "which crew owns this address" never calls a map provider. See
 [ADR 0012](../decisions/0012-service-areas.md).
 
 Standard columns are described in the [README](../README.md#conventions).
-Migration: `supabase/migrations/20261102180000_service_areas.sql`.
+Migration: `supabase/migrations/20261103030208_service_areas.sql`.
 
 ## `service_regions`
 
