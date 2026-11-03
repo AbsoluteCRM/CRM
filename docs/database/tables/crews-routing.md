@@ -188,6 +188,32 @@ new route instead of moving one.
 `reset_job_schedule()` (a `security definer` function with an office-role
 check) never deletes a visit that has a route stop.
 
+## Route Builder functions
+
+The Route Builder ([UI](../../route-builder/ui.md)) writes through seven
+`security invoker` functions in `public`, so RLS (office staff only) decides
+access and each change is one transaction. Each locks the route row first
+(two routes in id order), so edits to one route serialize. A route that is
+missing, or belongs to another org, raises `P0002`. Only `draft` and
+`optimized` routes can change; a `published`, `in_progress` or `completed`
+route raises `55000`. Triggers don't enforce that lock; the functions do.
+Execute is granted to `authenticated` only.
+
+| Function                                                                   | Does                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `create_route(p_organization_id, p_route_date, p_crew_id)`                 | Inserts a draft route and returns its id. The crew must exist and not be archived (`P0002`), and have no route that date (`23505`). The insert triggers copy depots and seed `route_members`                                         |
+| `change_route_crew(p_organization_id, p_route_id, p_crew_id)`              | `crew_id` is fixed, so this builds a route for the new crew (same date and status), re-points the stops, clears their planned times, and deletes the old route and its roster. Returns the new id; the same crew returns the same id |
+| `add_route_stop(p_organization_id, p_route_id, p_visit_id, p_position)`    | The visit must be `scheduled` (`55000`) and unrouted (`23505`). The date guard rejects another date (`23514`). Inserts at the clamped 1-based position (null = last) and shifts later stops. Returns the stop id                     |
+| `move_route_stop(p_organization_id, p_stop_id, p_to_route_id, p_position)` | Moves a stop to a position on another route or its own. Both routes must be editable and on one date. Closes the gap, opens the slot, and clears the moved stop's planned times and travel                                           |
+| `reorder_route_stops(p_organization_id, p_route_id, p_stop_ids)`           | Applies a full order. The array must name every stop on the route once (`22023`)                                                                                                                                                     |
+| `remove_route_stop(p_organization_id, p_stop_id)`                          | Deletes the stop and closes the gap                                                                                                                                                                                                  |
+| `delete_route(p_organization_id, p_route_id)`                              | Deletes a `draft` route with no stops (`55000` otherwise)                                                                                                                                                                            |
+
+Renumbering uses the deferred `route_stops_sequence_key`, so no temporary
+sequence values are needed. Concurrent moves of one stop are resolved under the
+route locks: the loser raises `55000` ("that stop changed; reload"). Tests:
+`supabase/tests/route_builder_rpcs_test.sql`.
+
 ## Worker access
 
 Workers have no table policies on routes, stops, visits, jobs, properties, or

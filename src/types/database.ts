@@ -2710,9 +2710,26 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_route_stop: {
+        Args: {
+          p_organization_id: string
+          p_position?: number
+          p_route_id: string
+          p_visit_id: string
+        }
+        Returns: string
+      }
       approve_quote: {
         Args: { p_quote_id: string; p_selected_optional_line_ids?: string[] }
         Returns: undefined
+      }
+      change_route_crew: {
+        Args: {
+          p_crew_id: string
+          p_organization_id: string
+          p_route_id: string
+        }
+        Returns: string
       }
       create_invoice_for_visits: {
         Args: {
@@ -2763,8 +2780,23 @@ export type Database = {
         Args: { p_copy_from_quote_id?: string; p_request_id: string }
         Returns: string
       }
+      create_route: {
+        Args: {
+          p_crew_id: string
+          p_organization_id: string
+          p_route_date: string
+        }
+        Returns: string
+      }
       decline_quote: {
         Args: { p_quote_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      delete_route: {
+        Args: {
+          p_organization_id: string
+          p_route_id: string
+        }
         Returns: undefined
       }
       generate_visits: {
@@ -2777,6 +2809,15 @@ export type Database = {
           p_crew_id: string
           p_member_id: string
           p_organization_id: string
+        }
+        Returns: undefined
+      }
+      move_route_stop: {
+        Args: {
+          p_organization_id: string
+          p_position: number
+          p_stop_id: string
+          p_to_route_id: string
         }
         Returns: undefined
       }
@@ -2993,6 +3034,21 @@ export type Database = {
           p_message_id: string
           p_status: Database['public']['Enums']['quote_delivery_status']
           p_token_id: string
+        }
+        Returns: undefined
+      }
+      remove_route_stop: {
+        Args: {
+          p_organization_id: string
+          p_stop_id: string
+        }
+        Returns: undefined
+      }
+      reorder_route_stops: {
+        Args: {
+          p_organization_id: string
+          p_route_id: string
+          p_stop_ids: string[]
         }
         Returns: undefined
       }
