@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   ArrowLeft,
@@ -33,6 +33,8 @@ import { fmtDuration, money } from '#/components/crm/format'
 import { cn } from '#/lib/utils'
 import type { DayHours, Weekday } from '#/mocks/crm-types'
 import type { LucideIcon } from 'lucide-react'
+import { useOrganization } from '#/integrations/organization/context'
+import { createSupabaseBrowserClient } from '#/lib/supabase/client'
 
 export const Route = createFileRoute('/_authed/onboarding')({
   component: OnboardingPage,
@@ -79,6 +81,11 @@ const DAY_LABEL: Array<[Weekday, string]> = [
 
 function OnboardingPage() {
   const { user } = useAuth()
+  const { reloadAndSelectOrganization } = useOrganization()
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createdOrganizationId, setCreatedOrganizationId] = useState<
+    string | null
+  >(null)
   const [step, setStep] = useState(0)
   const [name, setName] = useState('')
   const [addr, setAddr] = useState({
@@ -111,22 +118,71 @@ function OnboardingPage() {
     setAreaInput('')
   }
 
-  const create = () => {
+  const create = async () => {
+    if (!user || phase !== 'form') return
+
+    setCreateError(null)
     setPhase('creating')
-    actions.createOrganization({
-      name: name.trim(),
-      address_line1: addr.street,
-      city: addr.city,
-      region: addr.region,
-      postal_code: addr.postal,
-      serviceAreas: areas,
-      teamSize,
-      serviceNames: services,
-      businessHours: hours,
-      ownerName:
-        user?.user_metadata.full_name ?? user?.email?.split('@')[0] ?? 'Owner',
-      ownerEmail: user?.email ?? '',
-    })
+
+    let organizationId = createdOrganizationId
+
+    try {
+      if (!organizationId) {
+        const supabase = createSupabaseBrowserClient()
+        const slugBase = name
+          .trim()
+          .toLowerCase()
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+
+        const slug = `${slugBase || 'organization'}-${crypto.randomUUID().slice(0, 8)}`
+        const { data, error } = await supabase.rpc('create_organization', {
+          p_name: name.trim(),
+          p_slug: slug,
+          p_timezone: 'America/Edmonton',
+          p_currency: 'CAD',
+          p_country: 'CA',
+        })
+
+        if (error) throw error
+        if (!data.id) throw new Error('Organization creation returned no ID.')
+        organizationId = data.id
+        setCreatedOrganizationId(organizationId)
+      }
+
+      await reloadAndSelectOrganization(organizationId)
+
+      // Other onboarding details still use the local demo store.
+      // They are not yet persisted to the hosted Supabase database.
+      actions.createOrganization({
+        name: name.trim(),
+        address_line1: addr.street,
+        city: addr.city,
+        region: addr.region,
+        postal_code: addr.postal,
+        serviceAreas: areas,
+        teamSize,
+        serviceNames: services,
+        businessHours: hours,
+        ownerName:
+          user.user_metadata.full_name ?? user.email?.split('@')[0] ?? 'Owner',
+        ownerEmail: user.email ?? '',
+      })
+
+      setPhase('done')
+    } catch (error) {
+      setCreateError(
+        organizationId
+          ? 'The organization was created, but setup could not finish. Retry to continue without creating a duplicate. Details: ' +
+              (error instanceof Error ? error.message : 'Unknown error')
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create organization.',
+      )
+      setPhase('form')
+    }
   }
 
   return (
@@ -422,6 +478,11 @@ function OnboardingPage() {
                   </div>
                 )}
               </div>
+              {createError && (
+                <p role="alert" className="mt-4 text-sm text-red-600">
+                  {createError}
+                </p>
+              )}
               <div className="mt-10 flex items-center justify-between gap-3 border-t border-(--line) pt-6">
                 <Btn
                   variant="ghost"
@@ -457,7 +518,6 @@ function OnboardingPage() {
             <Creating
               name={name}
               serviceCount={services.length}
-              onDone={() => setPhase('done')}
               done={phase === 'done'}
             />
           )}
@@ -470,12 +530,10 @@ function OnboardingPage() {
 function Creating({
   name,
   serviceCount,
-  onDone,
   done,
 }: {
   name: string
   serviceCount: number
-  onDone: () => void
   done: boolean
 }) {
   const items = [
@@ -484,15 +542,7 @@ function Creating({
     `${serviceCount} default services`,
     'CRM records: clients, jobs, crews, invoices',
   ]
-  const [shown, setShown] = useState(0)
-  useEffect(() => {
-    if (shown >= items.length) {
-      onDone()
-      return
-    }
-    const id = setTimeout(() => setShown((s) => s + 1), 550)
-    return () => clearTimeout(id)
-  }, [shown, items.length, onDone])
+  const shown = done ? items.length : 0
 
   const next: Array<{
     icon: LucideIcon

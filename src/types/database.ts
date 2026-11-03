@@ -2284,6 +2284,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: 'service_regions_organization_id_crew_id_fkey'
+            columns: ['organization_id', 'crew_id']
+            isOneToOne: false
+            referencedRelation: 'crews'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
             foreignKeyName: 'service_regions_organization_id_fkey'
             columns: ['organization_id']
             isOneToOne: false
@@ -2687,6 +2694,15 @@ export type Database = {
       }
     }
     Functions: {
+      create_service_region: {
+        Args: {
+          p_organization_id: string
+          p_name: string
+          p_crew_id: string | null
+          p_boundary: Json
+        }
+        Returns: string
+      }
       accept_invitation: {
         Args: { p_token: string }
         Returns: {
