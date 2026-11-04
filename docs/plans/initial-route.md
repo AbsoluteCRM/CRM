@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `initial-route` / `fix/initial-route`
 - **Tier**: full, because routing depends on authentication state.
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%; the requested destinations and existing auth provider are verified.
 - **Plan-mode file**: this file; native plan mode is unavailable.
 
@@ -93,6 +93,12 @@ Run the workflow Definition of done checks. Verify in the running app with Playw
 - **Blocking / non-blocking / unresolved / pre-existing**: none.
 - **Checked clean**: requested destinations; loading-first auth handling; provider coverage; dashboard route and existing guard; accessible loading component; applicable workflow and template sections; verify commands; security review gate.
 - Reviewer and security review pending implementation.
+
+### Implementation verification
+
+- Main checkout exact verify command passed: lint, formatting, 59 test files / 552 tests, and TypeScript (2026-11-04).
+- Running-app Playwright checks passed: guest landing; seeded-user sign-in; signed-in direct `/` and client navigation to `/`; loading without landing flash; replacement history and Back; public token route isolation; mobile guest landing.
+- Implemented screenshots are recorded in `docs/initial-route/ui.md`.
 
 ## Scope-change log
 

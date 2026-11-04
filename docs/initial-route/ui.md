@@ -17,4 +17,10 @@ See the [design record](../design/README.md) for conventions.
 - **Origin**: built without a mock; existing screens are reused.
 - **Code**: [index route](../../src/routes/index.tsx), [PageLoading](../../src/components/layout/PageLoading.tsx), and [LandingPage](../../src/components/landing/LandingPage.tsx).
 
-Implemented screenshots are captured during running-app verification and added to this record before the PR is completed.
+<img src="shots/initial-route-desktop-loading.png" alt="AbsoluteCRM loading screen while the initial route checks authentication" width="620">
+
+<img src="shots/landing-desktop.png" alt="Existing landscaping CRM landing page shown to a guest on desktop" width="620">
+
+<img src="shots/landing-phone.png" alt="Existing landscaping CRM landing page shown to a guest on a phone" width="195">
+
+Verified in the running app with Playwright on 2026-11-04: guest landing page, seeded-user sign-in and direct visit to `/`, loading without a landing-page flash, client navigation to `/`, replacement history and Back navigation, and public `/q/invalid-token` isolation while signed in. Screenshots use device scale factor 2.
