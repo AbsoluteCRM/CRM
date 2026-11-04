@@ -92,7 +92,15 @@ Run the workflow Definition of done checks. Verify in the running app with Playw
 
 - **Blocking / non-blocking / unresolved / pre-existing**: none.
 - **Checked clean**: requested destinations; loading-first auth handling; provider coverage; dashboard route and existing guard; accessible loading component; applicable workflow and template sections; verify commands; security review gate.
-- Reviewer and security review pending implementation.
+- Review completed below.
+
+### Review (`reviewer` and `security`): pass, confidence high
+
+- Fresh reviewer and security agents reviewed the entire diff at `f2daa2e` and returned high-confidence passes, with no blocking findings or unresolved questions.
+- Reviewer checked loading/guest/redirect behavior, provider coverage, dashboard guard, route isolation, scope, suppressions, secrets, documentation, and independently passed lint, TypeScript, and diff checks.
+- Security checked the fixed internal redirect, absence of caller-controlled inputs or data access, existing downstream authorization, RLS/data-access rules, screenshots, and absence of credentials or privileged-client changes.
+- Reviewer could not fetch within its read-only sandbox; the main agent had freshly fetched and verified the reviewed refs. No code changes followed either pass.
+- Main checkout final exact verify at `f2daa2e` passed: lint, formatting, 59 files / 552 tests, and TypeScript. Latest main was already included.
 
 ### Implementation verification
 
