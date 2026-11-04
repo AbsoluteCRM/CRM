@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `r2-image-upload` / `feat/r2-image-upload`
 - **Tier**: full; new authenticated backend and database helpers.
-- **Status**: implemented (deployable code prepared; draft PR retains an open local database verification gate)
+- **Status**: implemented (upload verification passed; draft PR retains repository database blockers)
 - **Confidence**: 95%; material behavior confirmed by user, membership and job RLS verified in migrations. Runtime verification remains implementation work.
 - **Plan-mode file**: this file (no native plan-mode tool available).
 
@@ -162,4 +162,15 @@ Named verification limits (`could_not_verify`):
 
 ## Scope-change log
 
-None.
+2026-11-04: User resumed implementation. Merged current `origin/main` (`3625d95`) in `cfcfc39`; resolved the add/add Supabase config conflict by retaining main's full configuration and appending the unchanged upload function block. No feature behavior changed. Docker is accessible outside the sandbox, so local verification was resumed without hosted changes. The user explicitly chose to leave the pre-existing migration-history repair for later; that repair is outside this PR.
+
+## Resumed verification (2026-11-04)
+
+- Main checkout at `cfcfc39`: the complete Verify command passed with `pnpm dlx deno` substitution: TypeScript, lint, Prettier, Vitest **59 files / 552 tests**, Deno check and **11 upload tests**. Dependencies synchronized with the merged lockfile.
+- Fresh read-only `reviewer_resumed` and `security_resumed` reviews both returned **pass, confidence medium**, no source findings. They reviewed the whole feature diff against current main, including the config conflict resolution. Their pending local execution limitation is now replaced by the results below; deployed/live behavior remains deliberately unverified.
+- A disposable local project `crm-r2-verify-20261104` (Postgres 17.11.0.011, port 55322) attempted the complete committed migration history. It failed before the R2 migration at `20261102180000_service_areas.sql`: `42P07 relation "service_regions" already exists`. Main's `20261030184337_create_service_regions.sql` already creates that table. No repository migrations were edited to hide this failure.
+- A separate disposable **schema fixture**, project `crm-r2-fixture-20261104` on port 55332, copied migrations/tests under `/tmp/crm-r2-fixture-rmp0pfqr`. Only `20261030184337_create_service_regions.sql` and `20261030192000_create_service_region_function.sql` were omitted from the temporary copy; the canonical `20261102180000_service_areas.sql` and all other migrations, including the unchanged R2 migration, applied successfully. This is focused schema/feature verification, **not** a successful replay of the committed history.
+- `pnpm dlx supabase --workdir /tmp/crm-r2-fixture-rmp0pfqr test db /tmp/crm-r2-fixture-rmp0pfqr/supabase/tests/r2_image_upload_test.sql`: **PASS, 43 assertions**. Employee roles, inactive/anonymous/portal rejection, cross/multi-org denial, fixed config entries and execution grants were exercised in PostgreSQL. All test writes rolled back.
+- Full fixture suite via `pnpm dlx supabase --workdir /tmp/crm-r2-fixture-rmp0pfqr test db /tmp/crm-r2-fixture-rmp0pfqr/supabase/tests`: **10 files / 311 assertions, 1 failure**. Existing `quote_request_link_test.sql` assertion 4 expected `pat@example.com` and received `NULL`. That file and the related `20261029170000_quote_client_on_approval.sql` migration are unchanged from current main; the feature adds only the upload/config RPCs. No unrelated quote fix was made.
+- `pnpm dlx supabase --workdir /tmp/crm-r2-fixture-rmp0pfqr db advisors --type security --level warn --output-format json`: no issues (`results: []`). This is local fixture advisor verification only.
+- PR #100 stays draft and unmerged because clean migration replay and the existing quote database regression do not pass. The upload's own migration and all 43 database assertions pass. No remote database changes, type regeneration, real credential access, R2 uploads or function deployment occurred.
