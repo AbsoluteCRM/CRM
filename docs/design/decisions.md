@@ -74,3 +74,11 @@ current view; no provider is called. Drawing is for desktop and tablet; phones
 and non-managers see the map and list read-only. See
 [Service area editor](../service-areas/ui.md) and
 [the plan](../plans/service-areas-editor.md).
+
+## 2026-11-04 — Initial route follows authentication
+
+The user chose the dashboard as the destination for signed-in visitors to `/`
+and kept the existing landing page for guests. Wait for authentication to
+resolve using the existing loading screen, then replace the initial route's
+history entry when redirecting to `/dashboard`. See
+[Initial route](../initial-route/ui.md).
