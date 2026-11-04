@@ -13,13 +13,14 @@ import {
 } from '#/components/crm/ui'
 import { useTRPC } from '#/integrations/trpc/react'
 import type { PortalService } from '#/server/trusted/portal'
+import Turnstile, { TURNSTILE_SITE_KEY } from './Turnstile'
+import type { AddressParts } from '#/components/address/address'
 import AddressFields from '#/components/address/AddressFields'
 import {
   EMPTY_ADDRESS,
   formatAddress,
   isComplete,
 } from '#/components/address/address'
-import type { AddressParts } from '#/components/address/address'
 
 export const UNIT_LABEL: Record<string, string> = {
   monthly: 'per month',
@@ -49,13 +50,22 @@ export default function RequestModal({
   const [address, setAddress] = useState<AddressParts>(EMPTY_ADDRESS)
   const [website, setWebsite] = useState('')
   const [touched, setTouched] = useState(false)
-  const submit = useMutation(trpc.portal.submit.mutationOptions())
+  const [captcha, setCaptcha] = useState<string | null>(null)
+  const [captchaReset, setCaptchaReset] = useState(0)
+  const submit = useMutation(
+    trpc.portal.submit.mutationOptions({
+      // A Turnstile token works once; get a fresh one before retrying.
+      onError: () => setCaptchaReset((n) => n + 1),
+    }),
+  )
+  const needsCaptcha = Boolean(TURNSTILE_SITE_KEY) && captcha === null
 
   const close = () => {
     setForm(EMPTY)
     setAddress(EMPTY_ADDRESS)
     setWebsite('')
     setTouched(false)
+    setCaptcha(null)
     submit.reset()
     onClose()
   }
@@ -71,7 +81,7 @@ export default function RequestModal({
   const onSubmit = (e: { preventDefault: () => void }) => {
     e.preventDefault()
     setTouched(true)
-    if (!valid || submit.isPending) return
+    if (!valid || needsCaptcha || submit.isPending) return
     submit.mutate({
       orgSlug,
       serviceId: service.id,
@@ -81,6 +91,7 @@ export default function RequestModal({
       address: formatAddress(address),
       notes: form.notes.trim() || null,
       website,
+      captchaToken: captcha,
     })
   }
 
@@ -129,7 +140,7 @@ export default function RequestModal({
           <Btn
             type="submit"
             form="portal-request-form"
-            disabled={submit.isPending}
+            disabled={submit.isPending || needsCaptcha}
           >
             {submit.isPending ? 'Sending…' : 'Send request'}
           </Btn>
@@ -203,6 +214,7 @@ export default function RequestModal({
             onChange={set('notes')}
           />
         </Field>
+        <Turnstile onToken={setCaptcha} resetKey={captchaReset} />
         <div
           aria-hidden
           className="absolute -left-[9999px] h-0 w-0 overflow-hidden"

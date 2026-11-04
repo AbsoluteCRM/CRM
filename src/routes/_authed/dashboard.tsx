@@ -3,6 +3,7 @@ import { skipToken, useQuery } from '@tanstack/react-query'
 import { useRole } from '#/integrations/organization/use-role'
 import { useTRPC } from '#/integrations/trpc/react'
 import { useOrganization } from '#/integrations/organization/context'
+import { useMyMember } from '#/integrations/teams/teams'
 import { WeatherBadge, WeatherCard } from '#/components/crm/DashboardWeather'
 import type { WeatherState } from '#/components/crm/DashboardWeather'
 import { Link, createFileRoute } from '@tanstack/react-router'
@@ -56,6 +57,8 @@ import {
 import type { Tenant } from '#/mocks/crm-store'
 import type { ActivityKind, Job } from '#/mocks/crm-types'
 import type { LucideIcon } from 'lucide-react'
+import { themeVars } from '#/components/crm/colors'
+import { useAppTheme } from '#/components/layout/AppTheme'
 
 export const Route = createFileRoute('/_authed/dashboard')({
   component: DashboardPage,
@@ -105,7 +108,9 @@ function Delta({ now, before }: { now: number; before: number }) {
 function DashboardPage() {
   const t = useTenant()
   const access = useRole()
-  const firstName = t.me?.display_name.split(' ')[0] ?? 'there'
+  const { me } = useMyMember()
+  // The signed-in member's own name; the greeting stays generic while loading.
+  const firstName = me?.display_name.trim().split(/\s+/)[0] || 'there'
   const today = todayISO()
   const { organization } = useOrganization()
   const trpc = useTRPC()
@@ -172,6 +177,8 @@ function DashboardPage() {
 // ---------------------------------------------------------------------------
 
 function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
+  const theme = useAppTheme()
+  const themeColors = themeVars(theme)
   const today = todayISO()
   const [range, setRange] = useState<'30d' | '12w'>('30d')
   const showRevenue = useRole().can('viewRevenue')
@@ -303,7 +310,8 @@ function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
     t.jobs
       .filter((j) => j.status === 'completed' && j.date >= since)
       .forEach((j) => {
-        const share = j.price_cents / j.service_ids.length
+        // Roles without revenue access see the share of jobs, not dollars.
+        const share = (showRevenue ? j.price_cents : 1) / j.service_ids.length
         j.service_ids.forEach((id) =>
           totals.set(id, (totals.get(id) ?? 0) + share),
         )
@@ -322,44 +330,44 @@ function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
         color: OTHER_COLOR,
       })
     return top
-  }, [t, today])
+  }, [t, today, showRevenue])
 
   const r = stats.revenue
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-      {/* Revenue hero */}
-      <section className="crm-rise relative overflow-hidden rounded-[26px] bg-(--leaf-900) p-6 text-(--cream) lg:col-span-8">
-        <div
-          className="crm-leaf-pattern pointer-events-none absolute inset-0 opacity-50"
-          aria-hidden
-        />
-        <div className="relative">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-bold tracking-[0.16em] text-(--lime) uppercase">
-                Revenue
-              </p>
-              <p className="mt-1 text-sm text-(--cream)/60">
-                Earned from completed jobs
-              </p>
-            </div>
-            <div className="rounded-full bg-white/10 p-1">
-              {(['30d', '12w'] as const).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setRange(k)}
-                  className={`h-7 cursor-pointer rounded-full px-3 text-xs font-semibold ${range === k ? 'bg-(--lime) text-(--leaf-950)' : 'text-(--cream)/70 hover:text-(--cream)'}`}
-                >
-                  {k === '30d' ? '30 days' : '12 weeks'}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Revenue hero: owners and managers only. Dispatchers never see it. */}
+      {showRevenue && (
+        <>
+          <section className="crm-rise relative overflow-hidden rounded-[26px] bg-(--leaf-900) p-6 text-(--cream) lg:col-span-8">
+            <div
+              className="crm-leaf-pattern pointer-events-none absolute inset-0 opacity-50"
+              aria-hidden
+            />
+            <div className="relative">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold tracking-[0.16em] text-(--lime) uppercase">
+                    Revenue
+                  </p>
+                  <p className="mt-1 text-sm text-(--cream)/60">
+                    Earned from completed jobs
+                  </p>
+                </div>
+                <div className="rounded-full bg-white/10 p-1">
+                  {(['30d', '12w'] as const).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setRange(k)}
+                      className={`h-7 cursor-pointer rounded-full px-3 text-xs font-semibold ${range === k ? 'bg-(--lime) text-(--leaf-950)' : 'text-(--cream)/70 hover:text-(--cream)'}`}
+                    >
+                      {k === '30d' ? '30 days' : '12 weeks'}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {showRevenue ? (
-            <>
               <div className="mt-5 grid grid-cols-3 gap-4">
                 {[
                   { label: 'Today', now: r.today, before: r.yesterday },
@@ -387,7 +395,7 @@ function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
                   <LineChart
                     data={trend}
                     height={210}
-                    color="#c6ef6a"
+                    color={theme.accent}
                     dark
                     format={compactMoney}
                     ariaLabel={`Revenue trend, ${range === '30d' ? 'last 30 days' : 'last 12 weeks'}`}
@@ -402,17 +410,11 @@ function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
                   </div>
                 )}
               </div>
-            </>
-          ) : (
-            <p className="mt-6 text-sm text-(--cream)/70">
-              Revenue is visible to owners and managers.
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* Weather */}
-      <WeatherCard weather={weather} jobs={t.jobs} />
+            </div>
+          </section>
+          <WeatherCard weather={weather} jobs={t.jobs} />
+        </>
+      )}
 
       {/* KPI groups */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:col-span-12 xl:grid-cols-4">
@@ -492,16 +494,18 @@ function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
         />
       </div>
 
+      {!showRevenue && <WeatherCard weather={weather} jobs={t.jobs} />}
+
       {/* Charts */}
-      <Card className="lg:col-span-6">
+      <Card className={showRevenue ? 'lg:col-span-6' : 'lg:col-span-4'}>
         <CardHeader title="Jobs completed" subtitle="Per week, last 8 weeks" />
         <div className="px-4 pt-3 pb-4">
           {completedWeekly.some((d) => d.value > 0) ? (
             <BarChart
               data={completedWeekly}
               highlightIndex={7}
-              color="#9cc8a8"
-              highlightColor="#1f8a4c"
+              color={themeColors['--leaf-300'] ?? '#9cc8a8'}
+              highlightColor={themeColors['--leaf-600'] ?? '#1f8a4c'}
               ariaLabel="Jobs completed per week"
             />
           ) : (
@@ -512,21 +516,31 @@ function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
           )}
         </div>
       </Card>
-      <Card className="lg:col-span-6">
+      <Card className={showRevenue ? 'lg:col-span-6' : 'lg:col-span-4'}>
         <CardHeader
           title="Services breakdown"
-          subtitle="Share of revenue, last 30 days"
+          subtitle={
+            showRevenue
+              ? 'Share of revenue, last 30 days'
+              : 'Share of completed jobs, last 30 days'
+          }
         />
         <div className="px-5 pt-4 pb-5">
           {breakdown.length ? (
             <DonutChart
               data={breakdown}
-              format={(v) => (showRevenue ? compactMoney(v) : '')}
+              format={(v) =>
+                showRevenue ? compactMoney(v) : `${Math.round(v)} jobs`
+              }
               centerLabel="30-day total"
               centerValue={
                 showRevenue
-                  ? compactMoney(breakdown.reduce((s, d) => s + d.value, 0))
-                  : '—'
+                  ? compactMoney(breakdown.reduce((sum, d) => sum + d.value, 0))
+                  : String(
+                      Math.round(
+                        breakdown.reduce((sum, d) => sum + d.value, 0),
+                      ),
+                    )
               }
             />
           ) : (
@@ -737,6 +751,7 @@ function ActivityFeed({ t }: { t: Tenant }) {
 // ---------------------------------------------------------------------------
 
 function WorkerDay({ t, weather }: { t: Tenant; weather: WeatherState }) {
+  const theme = useAppTheme()
   const today = todayISO()
   const mine = t.visibleJobs
   const todayJobs = mine
@@ -753,12 +768,14 @@ function WorkerDay({ t, weather }: { t: Tenant; weather: WeatherState }) {
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-12">
-      <section className="relative overflow-hidden rounded-[26px] bg-(--leaf-900) p-6 text-(--cream) lg:col-span-8">
+      {/* On wide screens the card takes the height of the weather and weekly
+          cards beside it, and the job list scrolls inside. */}
+      <section className="relative overflow-hidden rounded-[26px] bg-(--leaf-900) p-6 text-(--cream) lg:col-span-8 lg:min-h-[22rem] lg:self-stretch lg:p-0">
         <div
           className="crm-leaf-pattern pointer-events-none absolute inset-0 opacity-50"
           aria-hidden
         />
-        <div className="relative">
+        <div className="relative flex flex-col lg:absolute lg:inset-0 lg:p-6">
           <p className="text-[11px] font-bold tracking-[0.16em] text-(--lime) uppercase">
             My day · {t.myCrew?.name}
           </p>
@@ -768,9 +785,12 @@ function WorkerDay({ t, weather }: { t: Tenant; weather: WeatherState }) {
           <Progress
             className="mt-4 bg-white/10"
             value={todayJobs.length ? (done / todayJobs.length) * 100 : 0}
-            color="#c6ef6a"
+            color={theme.accent}
           />
-          <ol className="mt-5 space-y-2">
+          <ol
+            aria-label="Today’s jobs"
+            className="mt-5 space-y-2 [scrollbar-color:rgb(255_255_255/0.25)_transparent] [scrollbar-width:thin] lg:-mr-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3"
+          >
             {todayJobs.map((j, i) => (
               <li key={j.id}>
                 <Link

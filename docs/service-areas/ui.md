@@ -108,3 +108,12 @@ there was no signed-in session to capture from, so capture
 `shots/service-areas-desktop.png` (populated, with an overlap badge),
 `shots/service-areas-desktop-impact.png` (the review dialog) and
 `shots/service-areas-phone.png` (read-only) and commit them.
+
+## CI repair verification
+
+Crew assignment uses the service-area editor above. The duplicate legacy
+Leaflet region editor and its top-level region API were removed after merging
+the service-area model; cities remain frames, and crews belong to areas.
+Public request-area names and their removal controls remain in the second card.
+
+<img src="shots/settings-ci-repair-desktop.png" alt="Settings with the service-area map editor and public request-area controls, without the duplicate legacy map" width="620">

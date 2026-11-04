@@ -1,6 +1,8 @@
 import { TRPCError } from '@trpc/server'
 
+import { availabilityRouter } from './availability'
 import { clientsRouter } from './clients'
+import { propertiesRouter } from './properties'
 import { crewsRouter } from './crews'
 import {
   createTRPCRouter,
@@ -8,6 +10,7 @@ import {
   protectedProcedure,
 } from './init'
 import { portalRouter, requestsRouter } from './requests'
+import { quoteLinkRouter } from './quote-links'
 import { quotesRouter } from './quotes'
 import { serviceAreasRouter } from './serviceAreas'
 import { servicesRouter } from './services'
@@ -50,9 +53,11 @@ const organizationRouter = {
 export const trpcRouter = createTRPCRouter({
   weather: weatherRouter,
   teams: teamsRouter,
+  availability: availabilityRouter,
   auth: authRouter,
   organization: organizationRouter,
   clients: clientsRouter,
+  properties: propertiesRouter,
   crews: crewsRouter,
   services: servicesRouter,
   serviceAreas: serviceAreasRouter,
@@ -60,6 +65,7 @@ export const trpcRouter = createTRPCRouter({
   portal: portalRouter,
   requests: requestsRouter,
   quotes: quotesRouter,
+  quoteLink: quoteLinkRouter,
 })
 
 export type TRPCRouter = typeof trpcRouter

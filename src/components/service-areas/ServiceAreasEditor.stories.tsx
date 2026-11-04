@@ -161,8 +161,8 @@ const PREVIEW: ServiceAreaPreview = {
   geometry: rect(-114.25, 51.05, -114.05, 51.15),
 }
 
-/** Captured by `onMapReady`, so play functions can find pixels on the canvas. */
-let lastMap: OlMapInstance | null = null
+/** Resolve the map belonging to this canvas when stories run concurrently. */
+const maps = new WeakMap<HTMLElement, OlMapInstance>()
 
 const meta = {
   title: 'Settings/ServiceAreasEditor',
@@ -176,7 +176,8 @@ const meta = {
     canEdit: true,
     compact: false,
     onMapReady: (map) => {
-      lastMap = map
+      const target = map.getTargetElement()
+      if (target) maps.set(target, map)
     },
     actions: {
       preview: fn(() => Promise.resolve(PREVIEW)),
@@ -258,15 +259,21 @@ export const SelectingHighlightsTheArea: Story = {
         }>
       }
     }
-    await waitFor(() => {
-      const layer = (
-        lastMap!.getLayers().getArray() as unknown as Array<Layer>
-      ).find((l) => l.get('name') === 'service-areas')
-      const selected = (layer?.getSource().getFeatures() ?? [])
-        .filter((f) => f.get('selected') === true)
-        .map((f) => f.getId())
-      return expect(selected).toEqual([DOWNTOWN])
-    })
+    await waitFor(
+      () => {
+        const layer = (
+          maps
+            .get(region.querySelector<HTMLElement>('.crm-map')!)!
+            .getLayers()
+            .getArray() as unknown as Array<Layer>
+        ).find((l) => l.get('name') === 'service-areas')
+        const selected = (layer?.getSource().getFeatures() ?? [])
+          .filter((f) => f.get('selected') === true)
+          .map((f) => f.getId())
+        return expect(selected).toEqual([DOWNTOWN])
+      },
+      { timeout: 10_000 },
+    )
     await expect(region.querySelector('canvas')).not.toBeNull()
   },
 }

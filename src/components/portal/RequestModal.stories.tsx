@@ -121,6 +121,7 @@ export const SubmitsAndConfirms: Story = {
       orgSlug: 'test-organization',
       serviceId: service.id,
       name: 'Jane Doe',
+      address: '1 Main St, Calgary, Canada',
       website: '',
     })
   },

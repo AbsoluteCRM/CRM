@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { Pencil, Plus, Trash2, Undo2 } from 'lucide-react'
+import {
+  Mail,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Send,
+  Trash2,
+  Undo2,
+} from 'lucide-react'
 import type { FormEvent } from 'react'
 import type { inferRouterOutputs } from '@trpc/server'
 
@@ -79,6 +87,8 @@ export default function QuoteEditor({
   onSaveLine,
   onDeleteLine,
   onPullBack,
+  onSend,
+  onRetryDelivery,
 }: {
   data: QuoteData
   taxRates: Array<TaxRate>
@@ -89,8 +99,10 @@ export default function QuoteEditor({
   onSaveLine: (input: LineInput) => Promise<boolean>
   onDeleteLine: (lineId: string) => Promise<boolean>
   onPullBack: () => Promise<boolean>
+  onSend: () => Promise<boolean>
+  onRetryDelivery: () => Promise<boolean>
 }) {
-  const { quote, lines, delivery } = data
+  const { quote, lines, delivery, recipient } = data
   const editable = quote.status === 'draft'
   // 'new' adds a line, a line id edits that line.
   const [editing, setEditing] = useState<string | 'new' | null>(null)
@@ -230,6 +242,22 @@ export default function QuoteEditor({
             </div>
           </dl>
         </Card>
+        {editable && (
+          <SendCard
+            recipient={recipient}
+            busy={busy}
+            problem={
+              lines.length === 0
+                ? 'Add at least one line.'
+                : !quote.valid_until
+                  ? 'Set a “valid until” date.'
+                  : !recipient.email
+                    ? 'The client has no email address.'
+                    : null
+            }
+            onSend={onSend}
+          />
+        )}
         {delivery && (
           <Card className="p-5">
             <h3 className="text-[15px] font-bold text-(--ink)">Delivery</h3>
@@ -261,10 +289,80 @@ export default function QuoteEditor({
                 {delivery.last_delivery_error}
               </p>
             )}
+            {recipient.email && (
+              <p className="mt-2 text-xs break-all text-(--ink-3)">
+                To {recipient.email}
+              </p>
+            )}
+            {quote.status === 'sent' && (
+              <Btn
+                className="mt-3"
+                variant="outline"
+                size="sm"
+                icon={RefreshCw}
+                disabled={busy}
+                onClick={() => void onRetryDelivery()}
+              >
+                Send again
+              </Btn>
+            )}
+            {quote.status === 'sent' && (
+              <p className="mt-2 text-[11px] text-(--ink-3)">
+                Sending again emails a new link; the previous link stops
+                working.
+              </p>
+            )}
           </Card>
         )}
       </aside>
     </div>
+  )
+}
+
+function SendCard({
+  recipient,
+  busy,
+  problem,
+  onSend,
+}: {
+  recipient: QuoteData['recipient']
+  busy: boolean
+  problem: string | null
+  onSend: () => Promise<boolean>
+}) {
+  return (
+    <Card className="p-5">
+      <h3 className="text-[15px] font-bold text-(--ink)">Send to client</h3>
+      {recipient.email ? (
+        <p className="mt-2 flex items-start gap-2 text-sm">
+          <Mail className="mt-0.5 size-4 shrink-0 text-(--leaf-600)" />
+          <span className="min-w-0 break-all">
+            <span className="block font-semibold">{recipient.name}</span>
+            <span className="text-(--ink-2)">{recipient.email}</span>
+          </span>
+        </p>
+      ) : null}
+      {!recipient.isClient && (
+        <p className="mt-2 text-xs text-(--ink-3)">
+          There’s no client record yet. When they approve, the client is matched
+          by email or created from the request.
+        </p>
+      )}
+      {problem && (
+        <p className="mt-3 text-xs font-semibold text-(--clay)">{problem}</p>
+      )}
+      <Btn
+        className="mt-4 w-full justify-center"
+        icon={Send}
+        disabled={busy || problem !== null}
+        onClick={() => void onSend()}
+      >
+        Send quote
+      </Btn>
+      <p className="mt-2 text-[11px] text-(--ink-3)">
+        They get an email with a link to approve or decline. No account needed.
+      </p>
+    </Card>
   )
 }
 

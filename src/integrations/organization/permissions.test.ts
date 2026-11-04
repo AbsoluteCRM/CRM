@@ -69,11 +69,12 @@ describe('canSee', () => {
       for (const section of SECTIONS) expect(canSee(role, section)).toBe(true)
   })
 
-  it('shows workers only the dashboard, calendar and jobs', () => {
+  it('shows workers the dashboard, calendar, jobs and personal availability', () => {
     expect(SECTIONS.filter((s) => canSee('worker', s))).toEqual([
       'dashboard',
       'calendar',
       'jobs',
+      'teams',
     ])
   })
 
