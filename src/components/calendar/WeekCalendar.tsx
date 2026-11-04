@@ -10,8 +10,10 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { endTime, fmtDuration, fmtTime } from '#/components/crm/format'
-import { Btn, Card, IconBtn, Segmented, toast } from '#/components/crm/ui'
+import { Btn, Card, IconBtn, Segmented } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import { cn } from '#/lib/utils'
+import type { LonLat } from '#/lib/map/geo'
 import { RouteMap } from './RouteMap'
 import { RouteStopsGrid } from './RouteStopsGrid'
 import { STATUS_LABEL, StopUpdateModal } from './StopUpdateModal'
@@ -20,14 +22,15 @@ import { getMockWeekRoutes } from './mock-routes'
 
 export function WeekCalendar({
   initialDate,
-  mapApiKey,
+  depot,
   getWeekRoutes = getMockWeekRoutes,
   onUpdateStop,
   canReschedule = true,
   completeHint,
 }: {
   initialDate?: Date
-  mapApiKey?: string
+  /** The yard, drawn on the route map as the start and end of each route. */
+  depot?: LonLat | null
   /** Supplies the week's routes. Defaults to mock data (used by Storybook). */
   getWeekRoutes?: (weekAnchor: Date) => Array<DayRoute>
   /**
@@ -275,7 +278,7 @@ export function WeekCalendar({
           </div>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <div className="xl:sticky xl:top-4 xl:h-[560px] xl:self-start">
-              <RouteMap stops={routeStops} apiKey={mapApiKey} />
+              <RouteMap stops={routeStops} depot={depot} />
             </div>
             <RouteStopsGrid
               stops={routeStops}

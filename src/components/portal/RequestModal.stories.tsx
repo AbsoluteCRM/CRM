@@ -91,10 +91,9 @@ export const AsksForContactDetailsOnly: Story = {
     reset()
     await expect(body().getByText('From $199.98 per month')).toBeVisible()
     await expect(body().getByLabelText('Your name')).toBeVisible()
-    await expect(body().getByLabelText('Street address')).toBeVisible()
-    await expect(body().getByLabelText('City')).toBeVisible()
-    // No Geoapify key in Storybook, so the search box stays hidden.
-    await expect(body().queryByLabelText('Find your address')).toBeNull()
+    await expect(
+      body().getByRole('group', { name: 'Service address' }),
+    ).toBeVisible()
     await expect(body().queryByLabelText('How often?')).toBeNull()
   },
 }
@@ -122,7 +121,7 @@ export const SubmitsAndConfirms: Story = {
       orgSlug: 'test-organization',
       serviceId: service.id,
       name: 'Jane Doe',
-      address: '1 Main St, Calgary',
+      address: '1 Main St, Calgary, Canada',
       website: '',
     })
   },

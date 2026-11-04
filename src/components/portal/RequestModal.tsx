@@ -13,12 +13,14 @@ import {
 } from '#/components/crm/ui'
 import { useTRPC } from '#/integrations/trpc/react'
 import type { PortalService } from '#/server/trusted/portal'
-import AddressAutocomplete, {
+import Turnstile, { TURNSTILE_SITE_KEY } from './Turnstile'
+import type { AddressParts } from '#/components/address/address'
+import AddressFields from '#/components/address/AddressFields'
+import {
   EMPTY_ADDRESS,
   formatAddress,
-} from './AddressAutocomplete'
-import Turnstile, { TURNSTILE_SITE_KEY } from './Turnstile'
-import type { AddressParts } from './AddressAutocomplete'
+  isComplete,
+} from '#/components/address/address'
 
 export const UNIT_LABEL: Record<string, string> = {
   monthly: 'per month',
@@ -71,15 +73,10 @@ export default function RequestModal({
   if (!service) return null
 
   const emailOk = /^\S+@\S+\.\S+$/.test(form.email.trim())
-  const streetOk = address.line1.trim() !== ''
-  const cityOk = address.city.trim() !== ''
-  const valid = form.name.trim() !== '' && emailOk && streetOk && cityOk
+  const valid = form.name.trim() !== '' && emailOk && isComplete(address)
 
   const set = (key: keyof typeof EMPTY) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }))
-  const setPart =
-    (key: keyof AddressParts) => (e: { target: { value: string } }) =>
-      setAddress((a) => ({ ...a, [key]: e.target.value }))
 
   const onSubmit = (e: { preventDefault: () => void }) => {
     e.preventDefault()
@@ -200,67 +197,13 @@ export default function RequestModal({
         </div>
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-2 text-sm font-bold">Service address</legend>
-          <AddressAutocomplete onSelect={setAddress} />
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
-            <Field label="Street address" htmlFor="pr-line1">
-              <TextInput
-                id="pr-line1"
-                autoComplete="address-line1"
-                maxLength={200}
-                value={address.line1}
-                onChange={setPart('line1')}
-                {...invalid(!streetOk)}
-              />
-            </Field>
-            <Field label="Unit (optional)" htmlFor="pr-line2">
-              <TextInput
-                id="pr-line2"
-                autoComplete="address-line2"
-                maxLength={100}
-                value={address.line2}
-                onChange={setPart('line2')}
-              />
-            </Field>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="City" htmlFor="pr-city">
-              <TextInput
-                id="pr-city"
-                autoComplete="address-level2"
-                maxLength={100}
-                value={address.city}
-                onChange={setPart('city')}
-                {...invalid(!cityOk)}
-              />
-            </Field>
-            <Field label="Province / state" htmlFor="pr-region">
-              <TextInput
-                id="pr-region"
-                autoComplete="address-level1"
-                maxLength={60}
-                value={address.region}
-                onChange={setPart('region')}
-              />
-            </Field>
-            <Field label="Postal code" htmlFor="pr-postal">
-              <TextInput
-                id="pr-postal"
-                autoComplete="postal-code"
-                maxLength={20}
-                value={address.postalCode}
-                onChange={setPart('postalCode')}
-              />
-            </Field>
-          </div>
-          <Field label="Country" htmlFor="pr-country">
-            <TextInput
-              id="pr-country"
-              autoComplete="country-name"
-              maxLength={60}
-              value={address.country}
-              onChange={setPart('country')}
-            />
-          </Field>
+          <AddressFields
+            idPrefix="pr"
+            value={address}
+            onChange={setAddress}
+            touched={touched}
+            autoFill
+          />
         </fieldset>
         <Field label="Notes (optional)" htmlFor="pr-notes">
           <TextArea

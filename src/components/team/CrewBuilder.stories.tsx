@@ -1,4 +1,4 @@
-import { expect, fireEvent, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import type { Meta, StoryObj } from '@storybook/tanstack-react'
 
 import CrewBuilder from './CrewBuilder'
@@ -41,6 +41,20 @@ const crew = (
   updated_at: '2026-01-01T00:00:00Z',
   crew_members,
 })
+
+// Real DragEvents so React reads the same DataTransfer in dragstart and drop.
+function dragAndDrop(source: Element, target: Element) {
+  const dataTransfer = new DataTransfer()
+  for (const [el, type] of [
+    [source, 'dragstart'],
+    [target, 'dragover'],
+    [target, 'drop'],
+  ] as const) {
+    el.dispatchEvent(
+      new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }),
+    )
+  }
+}
 
 const meta = {
   title: 'Team/CrewBuilder',
@@ -157,9 +171,7 @@ export const DragToCrew: Story = {
     const column = canvas
       .getByDisplayValue('Crew B')
       .closest('[class*="w-72"]')!
-    const dataTransfer = new DataTransfer()
-    await fireEvent.dragStart(card, { dataTransfer })
-    await fireEvent.drop(column, { dataTransfer })
+    dragAndDrop(card, column)
     await expect(args.actions.moveMember).toHaveBeenCalledWith('wade', 'c2')
   },
 }
@@ -169,9 +181,7 @@ export const DragToUnassigned: Story = {
     const canvas = within(canvasElement)
     const card = canvas.getByText('Walt Worker', { selector: 'p' })
     const column = canvas.getByText('Unassigned').closest('[class*="w-72"]')!
-    const dataTransfer = new DataTransfer()
-    await fireEvent.dragStart(card, { dataTransfer })
-    await fireEvent.drop(column, { dataTransfer })
+    dragAndDrop(card, column)
     await expect(args.actions.moveMember).toHaveBeenCalledWith('walt', null)
   },
 }

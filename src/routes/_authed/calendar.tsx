@@ -8,13 +8,15 @@ import type {
   StopStatus,
   StopUpdate,
 } from '#/components/calendar/mock-routes'
+import { useRole } from '#/integrations/organization/use-role'
 import { WeekCalendar } from '#/components/calendar/WeekCalendar'
 import { addDays, startOfWeek, toISODate } from '#/components/crm/format'
 import JobFormModal from '#/components/crm/JobFormModal'
+import { depotLonLat } from '#/components/crm/route'
 import PageShell from '#/components/crm/PageShell'
-import type { Tenant } from '#/components/crm/store'
-import { actions, can, useTenant } from '#/components/crm/store'
-import type { Job } from '#/components/crm/types'
+import type { Tenant } from '#/mocks/crm-store'
+import { actions, useTenant } from '#/mocks/crm-store'
+import type { Job } from '#/mocks/crm-types'
 import { Btn } from '#/components/crm/ui'
 
 export const Route = createFileRoute('/_authed/calendar')({
@@ -56,6 +58,7 @@ function weekRoutes(t: Tenant, anchor: Date): Array<DayRoute> {
           status: toStopStatus(j.status),
           durationMinutes: j.durationMinutes,
           notes: j.notes || undefined,
+          location: property?.location ?? null,
           crew: crew
             ? { id: crew.id, name: crew.name, color: crew.color }
             : UNASSIGNED,
@@ -67,10 +70,11 @@ function weekRoutes(t: Tenant, anchor: Date): Array<DayRoute> {
 
 function RouteComponent() {
   const t = useTenant()
+  const access = useRole()
   const search = Route.useSearch()
   const navigate = useNavigate()
   const [creating, setCreating] = useState(!!search.new)
-  const manage = can.manageJobs(t.role)
+  const manage = access.can('manageJobs')
 
   const getWeekRoutes = useCallback(
     (anchor: Date) => weekRoutes(t, anchor),
@@ -119,6 +123,7 @@ function RouteComponent() {
       }
     >
       <WeekCalendar
+        depot={depotLonLat(t.org.city)}
         getWeekRoutes={getWeekRoutes}
         onUpdateStop={updateStop}
         canReschedule={manage}

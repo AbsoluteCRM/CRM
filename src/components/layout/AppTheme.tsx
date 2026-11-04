@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { themeCss, themeFor } from '#/components/crm/appThemes'
+import { themeCss, themeFor } from '#/components/crm/colors'
 import { useCompanySettings } from '#/integrations/settings/settings'
 
 const STORAGE_KEY = 'absolutecrm:brand-color'
@@ -13,11 +13,7 @@ function remembered() {
   }
 }
 
-/**
- * The active company's colour theme (Settings → Company profile). Until the
- * settings load, the last theme this browser saw is used, so pages don't
- * flash green first.
- */
+/** Falls back to the last theme this browser saw while settings load. */
 export function useAppTheme() {
   const company = useCompanySettings()
   const brand =
@@ -26,7 +22,6 @@ export function useAppTheme() {
   return themeFor(brand)
 }
 
-/** Recolours the signed-in app. Rendered by the header on every page. */
 export default function AppThemeStyles() {
   const company = useCompanySettings()
   const theme = useAppTheme()
@@ -37,7 +32,7 @@ export default function AppThemeStyles() {
     try {
       window.localStorage.setItem(STORAGE_KEY, saved)
     } catch {
-      // Private mode or storage off: the theme still applies once loaded.
+      // Storage blocked: the theme still applies once settings load.
     }
   }, [saved])
 

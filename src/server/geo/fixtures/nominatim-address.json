@@ -1,0 +1,18 @@
+[
+  {
+    "place_id": 123456,
+    "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "node",
+    "osm_id": 987654321,
+    "lat": "53.5186120",
+    "lon": "-113.5218970",
+    "category": "place",
+    "type": "house",
+    "place_rank": 30,
+    "importance": 0.00001,
+    "addresstype": "place",
+    "name": "",
+    "display_name": "11220, 83 Avenue NW, Garneau, Edmonton, Alberta, T6G 0T8, Canada",
+    "boundingbox": ["53.5185620", "53.5186620", "-113.5219470", "-113.5218470"]
+  }
+]

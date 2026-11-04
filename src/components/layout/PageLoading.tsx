@@ -1,11 +1,7 @@
 import { LogoMark } from '#/components/crm/Logo'
 import { cn } from '#/lib/utils'
 
-/**
- * Full-screen loading state. Covers the page with one solid colour so the
- * body's decorative gradient never shows through while data loads.
- * `plain` hides the AbsoluteCRM mark (public pages show a company's own brand).
- */
+/** Solid full-screen cover, so the body gradient never shows. `plain` drops the logo. */
 export default function PageLoading({
   label = 'Loading',
   plain = false,

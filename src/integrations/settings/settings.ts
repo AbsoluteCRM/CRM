@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
 
-import { toast } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import { useOrganization } from '#/integrations/organization/context'
 import { useTRPC } from '#/integrations/trpc/react'
 import { createSupabaseBrowserClient } from '#/lib/supabase/client'
@@ -45,7 +45,7 @@ export function useSettingsMutations() {
   const getKey = trpc.settings.get.queryKey({
     organizationId: organizationId!,
   })
-  // One scope so saves from different tabs apply in order.
+
   const settle = {
     scope: { id: 'settings' },
     onSettled: () => queryClient.invalidateQueries({ queryKey: getKey }),
@@ -72,7 +72,6 @@ export function useSettingsMutations() {
 
   const base = { organizationId: organizationId! }
 
-  /** Uploads to org-files/<org>/branding/ (RLS checks the folder), then saves the path. */
   const uploadLogo = async (file: File) => {
     if (!organizationId) throw new Error('No active organization.')
     if (!LOGO_TYPES.includes(file.type)) {

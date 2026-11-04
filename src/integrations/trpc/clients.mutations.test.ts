@@ -1,77 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-type State = {
-  user: { id: string } | null
-  role: string | null
-  result: { data: unknown; error: null | Record<string, string> }
-  calls: Array<[string, ...Array<unknown>]>
-}
+import { ORG, fake } from './test/fake-supabase'
 
-const state = vi.hoisted<State>(() => ({
-  user: null,
-  role: 'dispatcher',
-  result: { data: null, error: null },
-  calls: [],
-}))
-
-vi.mock('#/lib/supabase/server', () => {
-  const chain = (table: string) => {
-    const q: Record<string, unknown> = {}
-    const done = () => Promise.resolve(state.result)
-    for (const m of ['select', 'eq', 'insert', 'update']) {
-      q[m] = (...a: Array<unknown>) => (
-        state.calls.push([`${table}.${m}`, ...a]),
-        q
-      )
-    }
-    q.maybeSingle = () =>
-      Promise.resolve({
-        data: state.role
-          ? {
-              id: 'm1',
-              organization_id: ORG,
-              role: state.role,
-              status: 'active',
-            }
-          : null,
-        error: null,
-      })
-    q.single = done
-    q.then = (r: (v: unknown) => unknown) => done().then(r)
-    return q
-  }
-  return {
-    createSupabaseServerClient: () => ({
-      auth: {
-        getUser: () =>
-          Promise.resolve(
-            state.user
-              ? { data: { user: state.user }, error: null }
-              : { data: { user: null }, error: { message: 'no session' } },
-          ),
-      },
-      from: (table: string) => chain(table),
-    }),
-  }
-})
+vi.mock('#/lib/supabase/server', () => import('./test/fake-supabase'))
 
 const { createTRPCContext } = await import('./init')
 const { trpcRouter } = await import('./router')
 
-const ORG = '0198f0a0-0000-7000-8000-000000000001'
 const CLIENT = '0198f0a0-0000-7000-8000-000000000002'
 const caller = () => trpcRouter.createCaller(createTRPCContext())
 
 beforeEach(() => {
-  state.user = { id: 'u1' }
-  state.role = 'dispatcher'
-  state.result = { data: null, error: null }
-  state.calls = []
+  fake.reset()
+  fake.setRole('dispatcher')
+  fake.result = { data: null, error: null }
 })
 
 describe('clients mutations: access', () => {
   it('rejects unauthenticated callers', async () => {
-    state.user = null
+    fake.user = null
     await expect(
       caller().clients.create({
         organizationId: ORG,
@@ -82,7 +29,7 @@ describe('clients mutations: access', () => {
   })
 
   it('rejects non-members of the org', async () => {
-    state.role = null
+    fake.setRole(null)
     await expect(
       caller().clients.create({
         organizationId: ORG,
@@ -90,11 +37,11 @@ describe('clients mutations: access', () => {
         kind: 'individual',
       }),
     ).rejects.toThrow('You do not have access to this organization')
-    expect(state.calls.some(([k]) => k === 'clients.insert')).toBe(false)
+    expect(fake.calls.some(([k]) => k === 'clients.insert')).toBe(false)
   })
 
   it('rejects workers', async () => {
-    state.role = 'worker'
+    fake.setRole('worker')
     await expect(
       caller().clients.update({
         organizationId: ORG,
@@ -105,8 +52,8 @@ describe('clients mutations: access', () => {
   })
 
   it.each(['owner', 'admin', 'dispatcher'])('allows %s', async (role) => {
-    state.role = role
-    state.result = { data: { id: CLIENT }, error: null }
+    fake.setRole(role)
+    fake.result = { data: { id: CLIENT }, error: null }
     await expect(
       caller().clients.create({
         organizationId: ORG,
@@ -119,7 +66,7 @@ describe('clients mutations: access', () => {
 
 describe('clients.create', () => {
   it('inserts into the verified org', async () => {
-    state.result = { data: { id: CLIENT }, error: null }
+    fake.result = { data: { id: CLIENT }, error: null }
     await expect(
       caller().clients.create({
         organizationId: ORG,
@@ -129,7 +76,7 @@ describe('clients.create', () => {
         phone: ' (403) 555-0100 ',
       }),
     ).resolves.toEqual({ id: CLIENT })
-    expect(state.calls).toContainEqual([
+    expect(fake.calls).toContainEqual([
       'clients.insert',
       {
         organization_id: ORG,
@@ -143,13 +90,13 @@ describe('clients.create', () => {
   })
 
   it('auto-supplies company_name from display_name for a company client', async () => {
-    state.result = { data: { id: CLIENT }, error: null }
+    fake.result = { data: { id: CLIENT }, error: null }
     await caller().clients.create({
       organizationId: ORG,
       display_name: 'Acme Property Group',
       kind: 'company',
     })
-    expect(state.calls).toContainEqual([
+    expect(fake.calls).toContainEqual([
       'clients.insert',
       {
         organization_id: ORG,
@@ -184,7 +131,7 @@ describe('clients.create', () => {
   })
 
   it('maps a duplicate to CONFLICT', async () => {
-    state.result = { data: null, error: { message: 'dup', code: '23505' } }
+    fake.result = { data: null, error: { message: 'dup', code: '23505' } }
     await expect(
       caller().clients.create({
         organizationId: ORG,
@@ -197,22 +144,22 @@ describe('clients.create', () => {
 
 describe('clients.update', () => {
   it('filters by org and client id', async () => {
-    state.result = { data: [{ id: CLIENT }], error: null }
+    fake.result = { data: [{ id: CLIENT }], error: null }
     await caller().clients.update({
       organizationId: ORG,
       clientId: CLIENT,
       display_name: 'Renamed',
     })
-    expect(state.calls).toContainEqual(['clients.eq', 'organization_id', ORG])
-    expect(state.calls).toContainEqual(['clients.eq', 'id', CLIENT])
-    expect(state.calls).toContainEqual([
+    expect(fake.calls).toContainEqual(['clients.eq', 'organization_id', ORG])
+    expect(fake.calls).toContainEqual(['clients.eq', 'id', CLIENT])
+    expect(fake.calls).toContainEqual([
       'clients.update',
       { display_name: 'Renamed' },
     ])
   })
 
   it('normalizes a blank phone/email/notes to null', async () => {
-    state.result = { data: [{ id: CLIENT }], error: null }
+    fake.result = { data: [{ id: CLIENT }], error: null }
     await caller().clients.update({
       organizationId: ORG,
       clientId: CLIENT,
@@ -220,14 +167,14 @@ describe('clients.update', () => {
       email: '',
       notes: '',
     })
-    expect(state.calls).toContainEqual([
+    expect(fake.calls).toContainEqual([
       'clients.update',
       { phone: null, email: null, notes: null },
     ])
   })
 
   it('returns NOT_FOUND when RLS or the org filter hides the client', async () => {
-    state.result = { data: [], error: null }
+    fake.result = { data: [], error: null }
     await expect(
       caller().clients.update({
         organizationId: ORG,
@@ -264,10 +211,10 @@ describe('client address (billing_* columns)', () => {
     country: 'ca',
   }
   const write = (name: string) =>
-    state.calls.find((c) => c[0] === name)?.[1] as Record<string, unknown>
+    fake.calls.find((c) => c[0] === name)?.[1] as Record<string, unknown>
 
   it('saves an address with a new client', async () => {
-    state.result = { data: { id: CLIENT }, error: null }
+    fake.result = { data: { id: CLIENT }, error: null }
     await caller().clients.create({
       organizationId: ORG,
       display_name: 'Jane Smith',
@@ -285,7 +232,7 @@ describe('client address (billing_* columns)', () => {
   })
 
   it('leaves the address columns out when none is given', async () => {
-    state.result = { data: { id: CLIENT }, error: null }
+    fake.result = { data: { id: CLIENT }, error: null }
     await caller().clients.create({
       organizationId: ORG,
       display_name: 'Jane Smith',
@@ -295,7 +242,7 @@ describe('client address (billing_* columns)', () => {
   })
 
   it('updates the address on its own', async () => {
-    state.result = { data: [{ id: CLIENT }], error: null }
+    fake.result = { data: [{ id: CLIENT }], error: null }
     await caller().clients.update({
       organizationId: ORG,
       clientId: CLIENT,
@@ -312,7 +259,7 @@ describe('client address (billing_* columns)', () => {
   })
 
   it('clears every address column with null', async () => {
-    state.result = { data: [{ id: CLIENT }], error: null }
+    fake.result = { data: [{ id: CLIENT }], error: null }
     await caller().clients.update({
       organizationId: ORG,
       clientId: CLIENT,

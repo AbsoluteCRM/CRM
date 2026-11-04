@@ -13,8 +13,14 @@ import {
   X,
 } from 'lucide-react'
 
+import { useRole } from '#/integrations/organization/use-role'
+import { SampleDataBadge, SampleDataNote } from '#/mocks/SampleDataBadge'
 import { useOrganization } from '#/integrations/organization/context'
-import { can as orgCan } from '#/integrations/organization/permissions'
+import {
+  ROLE_DESCRIPTION,
+  ROLE_LABEL,
+  can as orgCan,
+} from '#/integrations/organization/permissions'
 import PageShell from '#/components/crm/PageShell'
 import {
   Avatar,
@@ -30,16 +36,9 @@ import {
   StatusBadge,
   Tabs,
   TextInput,
-  toast,
 } from '#/components/crm/ui'
-import {
-  AVAILABILITY_LABEL,
-  ROLE_DESCRIPTION,
-  ROLE_LABEL,
-  actions,
-  can,
-  useTenant,
-} from '#/components/crm/store'
+import { toast } from '#/lib/toast'
+import { AVAILABILITY_LABEL, actions, useTenant } from '#/mocks/crm-store'
 import { addDays, fmtDate, todayISO } from '#/components/crm/format'
 import InvitationDelivery from '#/components/team/InvitationDelivery'
 import CrewBuilder from '#/components/team/CrewBuilder'
@@ -62,8 +61,8 @@ import {
 } from '#/components/team/Availability'
 import type { InviteRole } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
-import type { Availability, Tenant } from '#/components/crm/store'
-import type { Member, OrgRole, Weekday } from '#/components/crm/types'
+import type { Availability, Tenant } from '#/mocks/crm-store'
+import type { Member, OrgRole, Weekday } from '#/mocks/crm-types'
 
 export const Route = createFileRoute('/_authed/teams')({
   component: TeamsPage,
@@ -112,6 +111,7 @@ function useMetrics(t: Tenant) {
 
 function TeamsPage() {
   const t = useTenant()
+  const access = useRole()
   const { organization } = useOrganization()
   const canInvite =
     organization !== null && orgCan.manageTeam(organization.role)
@@ -121,8 +121,8 @@ function TeamsPage() {
   const [tab, setTab] = useState<Tab>('members')
   const [inviting, setInviting] = useState(false)
   const [profile, setProfile] = useState<string | null>(null)
-  const editable = can.manageTeam(t.role)
-  const isWorker = t.role === 'worker'
+  const editable = access.can('manageTeam')
+  const isWorker = access.role === 'worker'
   const today = todayISO()
   const timeOff = useTimeOff(today, addDays(today, DAYS_SHOWN + 60))
   const company = useCompanySettings()
@@ -177,7 +177,7 @@ function TeamsPage() {
       kicker="Workforce"
       title="Team"
       subtitle="Manage employees, build crews, track availability, and see how everyone is performing."
-      allowed={can.viewTeam(t.role)}
+      allowed={access.can('viewTeam')}
       section="Team"
       actions={
         editable && (
@@ -218,10 +218,14 @@ function TeamsPage() {
               Math.max(1, active.filter((m) => m.rating).length)
             ).toFixed(1),
             sub: 'Customer feedback',
+            sample: true,
           },
         ].map((k) => (
           <Card key={k.label} className="p-4">
-            <p className="text-xs font-semibold text-(--ink-3)">{k.label}</p>
+            <p className="flex items-center gap-2 text-xs font-semibold text-(--ink-3)">
+              {k.label}
+              {'sample' in k && <SampleDataBadge />}
+            </p>
             <p className="crm-display mt-1 text-2xl font-semibold">{k.value}</p>
             <p className="mt-0.5 text-xs text-(--ink-3)">{k.sub}</p>
           </Card>
@@ -271,7 +275,14 @@ function TeamsPage() {
           actions={availabilityActions}
         />
       )}
-      {tab === 'performance' && <PerformanceTab t={t} onOpen={setProfile} />}
+      {tab === 'performance' && (
+        <>
+          <SampleDataNote>
+            Demo team members and ratings. Changes here are not saved.
+          </SampleDataNote>
+          <PerformanceTab t={t} onOpen={setProfile} />
+        </>
+      )}
 
       {inviting && <InviteModal onClose={() => setInviting(false)} />}
       {profile && t.member(profile) && (
@@ -490,7 +501,10 @@ function MemberProfile({
             },
           ].map((k) => (
             <Card key={k.label} className="p-4">
-              <p className="text-xs font-semibold text-(--ink-3)">{k.label}</p>
+              <p className="flex items-center gap-2 text-xs font-semibold text-(--ink-3)">
+                {k.label}
+                {'sample' in k && <SampleDataBadge />}
+              </p>
               <p className="crm-display mt-1 text-2xl font-semibold">
                 {k.value}
               </p>

@@ -34,16 +34,16 @@ A contractor business, and the tenant boundary. There's no
 
 `settings` keys (validated in the app, except `default_payment_terms_days`, which falls back to 30 when not a whole number; defaults apply when a key is absent):
 
-| Key                                              | Type    | Default               | Meaning                                                |
-| ------------------------------------------------ | ------- | --------------------- | ------------------------------------------------------ |
-| `workers_see_prices`                             | boolean | `false`               | `worker_route_stops` returns the job price to workers  |
-| `visit_horizon_weeks`                            | integer | `8`                   | How far ahead recurring visits are materialized        |
-| `default_payment_terms_days`                     | integer | `30`                  | Invoice due date = issue date + N days                 |
-| `invoice_prefix` / `quote_prefix` / `job_prefix` | text    | `INV-` / `Q-` / `J-`  | Prefixes for document numbers                          |
-| `brand_color`                                    | text    | `#2f7350`             | `#rrggbb`. Public request page and embedded form       |
-| `business_hours`                                 | object  | Every day 08:00–17:00 | `{ mon…sun: { closed, open, close } }`, `HH:MM` times  |
-| `service_areas`                                  | text[]  | `[]`                  | Up to 50 labels (≤ 80 chars) shown on the request page |
-| `online_requests`                                | object  | see below             | Public request page (`/portal/$orgSlug`) settings      |
+| Key                                              | Type    | Default               | Meaning                                                                                      |
+| ------------------------------------------------ | ------- | --------------------- | -------------------------------------------------------------------------------------------- |
+| `workers_see_prices`                             | boolean | `false`               | `worker_route_stops` returns the job price to workers                                        |
+| `visit_horizon_weeks`                            | integer | `8`                   | How far ahead recurring visits are materialized                                              |
+| `default_payment_terms_days`                     | integer | `30`                  | Invoice due date = issue date + N days                                                       |
+| `invoice_prefix` / `quote_prefix` / `job_prefix` | text    | `INV-` / `Q-` / `J-`  | Prefixes for document numbers                                                                |
+| `brand_color`                                    | text    | `#2f7350`             | `#rrggbb`. Colour theme of the signed-in app: a preset's colour, or any colour to derive one |
+| `business_hours`                                 | object  | Every day 08:00–17:00 | `{ mon…sun: { closed, open, close } }`, `HH:MM` times                                        |
+| `service_areas`                                  | text[]  | `[]`                  | Up to 50 labels (≤ 80 chars) shown on the request page                                       |
+| `online_requests`                                | object  | see below             | Public request page (`/portal/$orgSlug`) settings                                            |
 
 `online_requests` keys. They are read and written through `src/integrations/settings/schema.ts`, which applies defaults key by key, so one bad or missing key never hides the rest. `src/server/trusted/portal.ts` is the only reader for anonymous visitors, and it returns an allow-list of fields:
 

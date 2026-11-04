@@ -11,6 +11,13 @@ export const env = createEnv({
     PORTAL_IP_HMAC_KEY: z.string().min(16).optional(),
     // Cloudflare Turnstile. When set, public request forms must pass the check.
     TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
+    // Geocoding (server only; see src/server/geo).
+    MAPTILER_API_KEY: z.string().min(1).optional(),
+    GEOCODER_CHAIN: z
+      .string()
+      .regex(/^\s*[a-z]+(\s*,\s*[a-z]+)*\s*$/i)
+      .optional(),
+    NOMINATIM_USER_AGENT: z.string().min(8).optional(),
   },
 
   /**
@@ -26,6 +33,10 @@ export const env = createEnv({
     VITE_GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
     VITE_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
     VITE_GEOAPIFY_API_KEY: z.string().min(1).optional(),
+    /** Basemap tiles: 'maptiler' | 'stadia' | 'osm' (dev only). See src/lib/map/providers.ts. */
+    VITE_MAP_PROVIDER: z.enum(['maptiler', 'stadia', 'osm']).optional(),
+    /** Public tile key, shipped to the browser. Restrict it by HTTP origin. */
+    VITE_MAP_API_KEY: z.string().min(1).optional(),
   },
 
   /**

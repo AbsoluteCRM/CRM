@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check } from 'lucide-react'
 
-import { APP_THEMES, themeFor } from '#/components/crm/appThemes'
+import { APP_THEMES, themeFor } from '#/components/crm/colors'
 import { cn } from '#/lib/utils'
-import type { AppTheme } from '#/components/crm/appThemes'
+import PresetGrid from './PresetGrid'
+import type { AppTheme } from '#/components/crm/colors'
 
 /** A tiny picture of the app: menu bar, active item, and a button. */
 function Preview({ theme }: { theme: AppTheme }) {
@@ -37,10 +37,6 @@ function Preview({ theme }: { theme: AppTheme }) {
   )
 }
 
-/**
- * Colour theme for the signed-in app. Saves the theme's brand colour; any
- * other colour gets a theme derived from it.
- */
 export default function AppThemePicker({
   value,
   disabled,
@@ -55,37 +51,17 @@ export default function AppThemePicker({
   const custom = current.name === 'Custom'
   return (
     <div className="flex flex-col gap-3">
-      <div
-        role="radiogroup"
-        aria-label="Colour theme"
-        className="grid grid-cols-3 gap-2"
-      >
-        {APP_THEMES.map((t) => {
-          const active = current.name === t.name
-          return (
-            <button
-              key={t.name}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              disabled={disabled}
-              onClick={() => !active && onPick(t.brand)}
-              className={cn(
-                'flex cursor-pointer flex-col gap-1.5 rounded-lg p-1.5 text-left ring-2 transition-colors disabled:cursor-default',
-                active
-                  ? 'ring-(--leaf-600)'
-                  : 'ring-transparent hover:bg-(--cream)',
-              )}
-            >
-              <Preview theme={t} />
-              <span className="flex items-center gap-1 text-xs font-semibold">
-                {active && <Check className="size-3.5 text-(--leaf-600)" />}
-                {t.name}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      <PresetGrid
+        label="Colour theme"
+        presets={APP_THEMES.map((t) => ({
+          name: t.name,
+          value: t.brand,
+          preview: <Preview theme={t} />,
+        }))}
+        active={current.name}
+        disabled={disabled}
+        onPick={onPick}
+      />
       <label
         className={cn(
           'flex items-center gap-3 rounded-lg border px-3 py-2',
@@ -129,8 +105,7 @@ function CustomColour({
   const latest = useRef({ value, onPick })
   latest.current = { value, onPick }
 
-  // React's onChange fires while dragging; the native change event fires
-  // once, when the colour is committed.
+  // React's onChange fires while dragging; the native change event fires once.
   useEffect(() => {
     const el = input.current
     if (!el) return

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
 
-import { toast } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import { useOrganization } from '#/integrations/organization/context'
 import { useTRPC } from '#/integrations/trpc/react'
 import { teamMembersKey } from './teams'
@@ -74,7 +74,8 @@ export function useAvailabilityMutations() {
       record.mutateAsync({ ...base, ...input }).then(ok, failed),
     review: (id: string, approve: boolean, note: string | null = null) =>
       review.mutateAsync({ ...base, id, approve, note }).then(ok, failed),
-    cancel: (id: string) => cancel.mutateAsync({ ...base, id }).then(ok, failed),
+    cancel: (id: string) =>
+      cancel.mutateAsync({ ...base, id }).then(ok, failed),
     setSchedule: (input: {
       memberId: string
       workDays: Array<number>

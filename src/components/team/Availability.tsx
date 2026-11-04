@@ -29,8 +29,8 @@ import {
   Modal,
   SelectInput,
   TextInput,
-  toast,
 } from '#/components/crm/ui'
+import { toast } from '#/lib/toast'
 import { cn } from '#/lib/utils'
 import {
   DAY_STATE_LABEL,

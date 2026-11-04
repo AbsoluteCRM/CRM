@@ -1,13 +1,9 @@
 import { useState } from 'react'
-import { Check, Palette, Save } from 'lucide-react'
+import { Palette, Save } from 'lucide-react'
 
 import { Btn, Card, CardHeader } from '#/components/crm/ui'
-import {
-  PALETTE_PRESETS,
-  samePalette,
-  textOn,
-} from '#/components/portal/palettes'
-import { cn } from '#/lib/utils'
+import { PALETTE_PRESETS, samePalette, textOn } from '#/components/crm/colors'
+import PresetGrid from './PresetGrid'
 import type { PortalPalette } from '#/integrations/settings/schema'
 
 const ROLES: Array<{ key: keyof PortalPalette; label: string; hint: string }> =
@@ -44,7 +40,6 @@ function Swatch({ palette }: { palette: PortalPalette }) {
   )
 }
 
-/** Request page colours: five presets, or any three colours. */
 export default function PortalPaletteCard({
   palette,
   saving,
@@ -77,37 +72,18 @@ export default function PortalPaletteCard({
         subtitle="Pick a palette for your request page, or choose your own."
       />
       <div className="grid gap-5 p-5">
-        <div
-          role="radiogroup"
-          aria-label="Palette"
-          className="grid grid-cols-3 gap-3 sm:grid-cols-5"
-        >
-          {PALETTE_PRESETS.map((p) => {
-            const active = preset?.name === p.name
-            return (
-              <button
-                key={p.name}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                disabled={saving}
-                onClick={() => !active && save(p.palette)}
-                className={cn(
-                  'flex cursor-pointer flex-col gap-1.5 rounded-lg p-1.5 text-left ring-2 transition-colors disabled:cursor-default',
-                  active
-                    ? 'ring-(--leaf-600)'
-                    : 'ring-transparent hover:bg-(--cream)',
-                )}
-              >
-                <Swatch palette={p.palette} />
-                <span className="flex items-center gap-1 text-xs font-semibold">
-                  {active && <Check className="size-3.5 text-(--leaf-600)" />}
-                  {p.name}
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        <PresetGrid
+          label="Palette"
+          className="sm:grid-cols-5"
+          presets={PALETTE_PRESETS.map((p) => ({
+            name: p.name,
+            value: p.palette,
+            preview: <Swatch palette={p.palette} />,
+          }))}
+          active={preset?.name}
+          disabled={saving}
+          onPick={save}
+        />
 
         <fieldset className="grid gap-3 sm:grid-cols-3">
           <legend className="mb-2 text-sm font-semibold">

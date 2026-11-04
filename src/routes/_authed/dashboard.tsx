@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { skipToken, useQuery } from '@tanstack/react-query'
+import { useRole } from '#/integrations/organization/use-role'
 import { useTRPC } from '#/integrations/trpc/react'
 import { useOrganization } from '#/integrations/organization/context'
 import { useMyMember } from '#/integrations/teams/teams'
-import { can as canOrg } from '#/integrations/organization/permissions'
 import { WeatherBadge, WeatherCard } from '#/components/crm/DashboardWeather'
 import type { WeatherState } from '#/components/crm/DashboardWeather'
 import { Link, createFileRoute } from '@tanstack/react-router'
@@ -40,7 +40,8 @@ import {
   Progress,
   StatusBadge,
 } from '#/components/crm/ui'
-import { can, jobEnd, useTenant } from '#/components/crm/store'
+import { jobEnd, useTenant } from '#/mocks/crm-store'
+import { SampleDataNote } from '#/mocks/SampleDataBadge'
 import {
   addDays,
   compactMoney,
@@ -53,10 +54,10 @@ import {
   startOfWeek,
   todayISO,
 } from '#/components/crm/format'
-import type { Tenant } from '#/components/crm/store'
-import type { ActivityKind, Job } from '#/components/crm/types'
+import type { Tenant } from '#/mocks/crm-store'
+import type { ActivityKind, Job } from '#/mocks/crm-types'
 import type { LucideIcon } from 'lucide-react'
-import { themeVars } from '#/components/crm/appThemes'
+import { themeVars } from '#/components/crm/colors'
 import { useAppTheme } from '#/components/layout/AppTheme'
 
 export const Route = createFileRoute('/_authed/dashboard')({
@@ -106,6 +107,7 @@ function Delta({ now, before }: { now: number; before: number }) {
 
 function DashboardPage() {
   const t = useTenant()
+  const access = useRole()
   const { me } = useMyMember()
   // The signed-in member's own name; the greeting stays generic while loading.
   const firstName = me?.display_name.trim().split(/\s+/)[0] || 'there'
@@ -118,6 +120,8 @@ function DashboardPage() {
       { staleTime: 600_000, refetchInterval: 600_000, retry: false },
     ),
   )
+  // Until the role is known, show the crew view: it has no revenue or team data.
+  const crewView = !access.can('manageJobs')
   const weather: WeatherState = {
     data: query.data,
     isError: query.isError,
@@ -131,14 +135,14 @@ function DashboardPage() {
       kicker={fmtLongDate(today)}
       title={`${greeting()}, ${firstName}`}
       subtitle={
-        t.role === 'worker'
+        crewView
           ? `Here’s what ${t.myCrew?.name ?? 'your crew'} has on today.`
-          : `Here’s how ${t.org.name} is doing today.`
+          : `Here’s how ${organization?.name ?? 'your company'} is doing today.`
       }
       actions={
         <>
           <WeatherBadge weather={weather} />
-          {can.manageRequests(t.role) && (
+          {access.can('manageRequests') && (
             <Link
               to="/requests"
               search={{ new: true }}
@@ -147,7 +151,7 @@ function DashboardPage() {
               <MessageSquareDiff className="size-4" /> New request
             </Link>
           )}
-          {can.manageJobs(t.role) && (
+          {access.can('manageJobs') && (
             <Link to="/calendar" search={{ new: true }} className={btnClass()}>
               <CalendarPlus className="size-4" /> Schedule job
             </Link>
@@ -155,7 +159,11 @@ function DashboardPage() {
         </>
       }
     >
-      {t.role === 'worker' ? (
+      <SampleDataNote>
+        Jobs, revenue, requests, clients and crews below are demo data. The
+        weather is live.
+      </SampleDataNote>
+      {crewView ? (
         <WorkerDay t={t} weather={weather} />
       ) : (
         <OwnerDashboard t={t} weather={weather} />
@@ -173,12 +181,7 @@ function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
   const themeColors = themeVars(theme)
   const today = todayISO()
   const [range, setRange] = useState<'30d' | '12w'>('30d')
-  const { organization } = useOrganization()
-  // The signed-in role and the header's role preview must both allow it, so a
-  // real dispatcher never sees revenue whatever the preview says.
-  const showRevenue =
-    can.viewRevenue(t.role) &&
-    (!organization || canOrg.viewRevenue(organization.role))
+  const showRevenue = useRole().can('viewRevenue')
 
   const stats = useMemo(() => {
     const jobs = t.jobs
