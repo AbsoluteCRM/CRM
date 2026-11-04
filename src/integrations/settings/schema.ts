@@ -1,3 +1,9 @@
+/**
+ * Company settings kept in `organizations.settings` (jsonb). Shared by the
+ * settings tRPC router, the trusted public portal code, and the Settings page,
+ * so every reader applies the same defaults. Keys are documented in
+ * docs/database/tables/tenancy.md.
+ */
 import { z } from 'zod'
 
 export const WEEKDAYS = [
@@ -84,13 +90,16 @@ export const originSchema = z
 export const embedSchema = z.object({
   /** When false, other sites can't frame the `?embed=true` view. */
   enabled: z.boolean(),
+  /** `inline` embeds the form in an iframe; `button` links out to the page. */
   style: z.enum(['inline', 'button']),
+  /** Iframe height in pixels. */
   height: z.number().int().min(400).max(2000),
   button_label: z.string().trim().min(1).max(40),
+  /** Hide the company intro (mission, hours, areas) inside the iframe. */
   compact: z.boolean(),
   /**
    * Sites allowed to frame the form, as origins (`https://example.com`).
-   * Empty allows any site.
+   * Empty allows any site. Enforced with CSP frame-ancestors (src/start.ts).
    */
   allowed_origins: z.array(originSchema).max(20),
 })

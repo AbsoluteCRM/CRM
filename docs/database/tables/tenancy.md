@@ -90,16 +90,18 @@ This is the employee record: time, pay, and crews all hang off it. `user_id`
 is **nullable**, so crew members who never log in can still be rostered and
 have time tracked.
 
-| Column          | Type                    | Null | Default    | Notes                                |
-| --------------- | ----------------------- | ---- | ---------- | ------------------------------------ |
-| `user_id`       | `uuid`                  | yes  |            | FK → `auth.users` on delete set null |
-| `role`          | `org_role`              | no   | `'worker'` |                                      |
-| `status`        | `member_status`         | no   | `'active'` |                                      |
-| `display_name`  | `text`                  | no   |            | Shown on schedules and routes        |
-| `email`         | `text`                  | yes  |            |                                      |
-| `phone`         | `text`                  | yes  |            |                                      |
-| `color`         | `text`                  | yes  |            | Calendar colour, `#rrggbb` (check)   |
-| `home_location` | `geography(Point,4326)` | yes  |            | Optional per-worker route start      |
+| Column                   | Type                    | Null | Default          | Notes                                                     |
+| ------------------------ | ----------------------- | ---- | ---------------- | --------------------------------------------------------- |
+| `user_id`                | `uuid`                  | yes  |                  | FK → `auth.users` on delete set null                      |
+| `role`                   | `org_role`              | no   | `'worker'`       |                                                           |
+| `status`                 | `member_status`         | no   | `'active'`       |                                                           |
+| `display_name`           | `text`                  | no   |                  | Shown on schedules and routes                             |
+| `email`                  | `text`                  | yes  |                  |                                                           |
+| `phone`                  | `text`                  | yes  |                  |                                                           |
+| `color`                  | `text`                  | yes  |                  | Calendar colour, `#rrggbb` (check)                        |
+| `home_location`          | `geography(Point,4326)` | yes  |                  | Optional per-worker route start                           |
+| `work_days`              | `smallint[]`            | no   | `{1,2,3,4,5}`    | Regular work days, ISO weekdays (1 = Monday … 7 = Sunday) |
+| `work_start`, `work_end` | `time`                  | no   | `08:00`, `17:00` | Regular daily hours; start before end                     |
 
 Constraints and indexes:
 
@@ -182,3 +184,35 @@ until the caller commits, and prepends the org's prefix. `before insert`
 triggers on
 `quotes`, `jobs`, and `invoices` call it when `number` is null. There's no
 direct access through the API.
+
+## `time_off`
+
+Sick days, vacation and personal time (`20261029190000_team_availability`).
+Only `approved` rows make someone unavailable; the Team → Availability board
+combines them with each member's `work_days` and the company's
+`settings.business_hours` (a closed day is closed for everyone).
+
+| Column                                            | Type              | Notes                                                           |
+| ------------------------------------------------- | ----------------- | --------------------------------------------------------------- |
+| `member_id`                                       | `uuid`            | Composite FK → `organization_members`, cascade                  |
+| `kind`                                            | `time_off_kind`   | `sick`, `vacation`, `personal`                                  |
+| `start_date`, `end_date`                          | `date`            | Inclusive; at most 366 days                                     |
+| `note`, `review_note`                             | `text`            | ≤ 500 chars                                                     |
+| `status`                                          | `time_off_status` | `pending` → `approved` / `declined`; `cancelled` withdraws it   |
+| `requested_by_member_id`, `reviewed_by_member_id` | `uuid`            | Who asked and who reviewed (set null if that member is removed) |
+| `reviewed_at`                                     | `timestamptz`     | Set when approved or declined                                   |
+
+RLS: office staff (owner, admin, dispatcher) read the company's time off;
+everyone reads their own. There are no write grants; every change goes
+through these `security definer` functions (executable by `authenticated`):
+
+| Function                                          | Who               | Does                                                                    |
+| ------------------------------------------------- | ----------------- | ----------------------------------------------------------------------- |
+| `request_time_off(org, kind, start, end, note)`   | Any active member | Pending request for yourself. No past dates                             |
+| `record_time_off(member, kind, start, end, note)` | Owner, admin      | Approved time off for anyone in the company                             |
+| `review_time_off(id, approve, note)`              | Owner, admin      | Pending → approved / declined. Not your own request (`42501`)           |
+| `cancel_time_off(id)`                             | Member or manager | Members cancel their own pending request; managers cancel anything open |
+
+Overlapping pending or approved time off for the same member is refused
+(`55000`). Owners and admins edit `work_days`, `work_start` and `work_end`
+through the existing member update policy.

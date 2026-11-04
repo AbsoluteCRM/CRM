@@ -157,6 +157,43 @@ export function hashClientIp(headers: Headers) {
   return createHmac('sha256', env.PORTAL_IP_HMAC_KEY).update(ip).digest('hex')
 }
 
+const CAPTCHA_FAILED = {
+  code: 'BAD_REQUEST' as const,
+  message: 'Please complete the “I’m not a robot” check and try again.',
+}
+
+/**
+ * Cloudflare Turnstile check. Skipped when TURNSTILE_SECRET_KEY isn't set
+ * (local development); the honeypot and rate limit still apply.
+ */
+export async function verifyCaptcha(token: string | null, headers: Headers) {
+  const secret = env.TURNSTILE_SECRET_KEY
+  if (!secret) return
+  if (!token) throw new TRPCError(CAPTCHA_FAILED)
+  const body = new URLSearchParams({ secret, response: token })
+  const ip = headers.get('x-real-ip')?.trim()
+  if (ip) body.set('remoteip', ip)
+  let ok = false
+  try {
+    const response = await fetch(
+      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      { method: 'POST', body, signal: AbortSignal.timeout(8_000) },
+    )
+    const result: unknown = await response.json()
+    ok =
+      typeof result === 'object' &&
+      result !== null &&
+      'success' in result &&
+      result.success === true
+  } catch {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'We couldn’t verify the form. Please try again.',
+    })
+  }
+  if (!ok) throw new TRPCError(CAPTCHA_FAILED)
+}
+
 const SUBMIT_ERRORS: Partial<
   Record<string, { code: TRPCError['code']; message: string }>
 > = {

@@ -1,7 +1,12 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
-import { getPortal, hashClientIp, submitRequest } from '#/server/trusted/portal'
+import {
+  getPortal,
+  hashClientIp,
+  submitRequest,
+  verifyCaptcha,
+} from '#/server/trusted/portal'
 import { dbError } from './errors'
 import { publicProcedure, requireOrgPermission } from './init'
 
@@ -30,6 +35,8 @@ export const portalRouter = {
         notes: z.string().trim().max(4000).nullable(),
         // Honeypot: real visitors never see or fill this field.
         website: z.string().max(200),
+        // Cloudflare Turnstile token; required when the server has a secret.
+        captchaToken: z.string().max(2048).nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -39,6 +46,7 @@ export const portalRouter = {
           message: 'Invalid submission',
         })
       }
+      await verifyCaptcha(input.captchaToken ?? null, ctx.headers)
       return submitRequest({
         slug: input.orgSlug,
         serviceId: input.serviceId,

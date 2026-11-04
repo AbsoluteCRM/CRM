@@ -200,3 +200,84 @@ describe('clients.update', () => {
     ).rejects.toThrow()
   })
 })
+
+describe('client address (billing_* columns)', () => {
+  const ADDRESS = {
+    address_line1: ' 120 Crowfoot Way NW ',
+    address_line2: '',
+    city: 'Calgary',
+    region: 'AB',
+    postal_code: 't3g 2r2',
+    country: 'ca',
+  }
+  const write = (name: string) =>
+    fake.calls.find((c) => c[0] === name)?.[1] as Record<string, unknown>
+
+  it('saves an address with a new client', async () => {
+    fake.result = { data: { id: CLIENT }, error: null }
+    await caller().clients.create({
+      organizationId: ORG,
+      display_name: 'Jane Smith',
+      kind: 'individual',
+      address: ADDRESS,
+    })
+    expect(write('clients.insert')).toMatchObject({
+      billing_address_line1: '120 Crowfoot Way NW',
+      billing_address_line2: null,
+      billing_city: 'Calgary',
+      billing_region: 'AB',
+      billing_postal_code: 'T3G 2R2',
+      billing_country: 'CA',
+    })
+  })
+
+  it('leaves the address columns out when none is given', async () => {
+    fake.result = { data: { id: CLIENT }, error: null }
+    await caller().clients.create({
+      organizationId: ORG,
+      display_name: 'Jane Smith',
+      kind: 'individual',
+    })
+    expect(write('clients.insert')).not.toHaveProperty('billing_city')
+  })
+
+  it('updates the address on its own', async () => {
+    fake.result = { data: [{ id: CLIENT }], error: null }
+    await caller().clients.update({
+      organizationId: ORG,
+      clientId: CLIENT,
+      address: ADDRESS,
+    })
+    expect(Object.keys(write('clients.update')).sort()).toEqual([
+      'billing_address_line1',
+      'billing_address_line2',
+      'billing_city',
+      'billing_country',
+      'billing_postal_code',
+      'billing_region',
+    ])
+  })
+
+  it('clears every address column with null', async () => {
+    fake.result = { data: [{ id: CLIENT }], error: null }
+    await caller().clients.update({
+      organizationId: ORG,
+      clientId: CLIENT,
+      address: null,
+    })
+    expect(Object.values(write('clients.update'))).toEqual(Array(6).fill(null))
+  })
+
+  it.each([
+    ['a missing city', { ...ADDRESS, city: '' }],
+    ['a country name', { ...ADDRESS, country: 'Canada' }],
+  ])('rejects %s', async (_label, address) => {
+    await expect(
+      caller().clients.update({
+        organizationId: ORG,
+        clientId: CLIENT,
+        address,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  })
+})

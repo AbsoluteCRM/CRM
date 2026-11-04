@@ -82,7 +82,13 @@ const lines = [
   },
 ] satisfies QuoteData['lines']
 
-const draft = { quote, lines, delivery: null } satisfies QuoteData
+const recipient = {
+  email: 'pat@example.com',
+  name: 'Pat Prospect',
+  isClient: false,
+}
+
+const draft = { quote, lines, delivery: null, recipient } satisfies QuoteData
 
 const meta = {
   title: 'Quotes/QuoteEditor',
@@ -95,6 +101,8 @@ const meta = {
     onSaveLine: fn(() => Promise.resolve(true)),
     onDeleteLine: fn(() => Promise.resolve(true)),
     onPullBack: fn(() => Promise.resolve(true)),
+    onSend: fn(() => Promise.resolve(true)),
+    onRetryDelivery: fn(() => Promise.resolve(true)),
   },
 } satisfies Meta<typeof QuoteEditor>
 
@@ -142,10 +150,10 @@ export const DraftEditing: Story = {
       quantity: 1.5,
       unitPriceCents: 12000,
       isOptional: true,
-      taxRateIds: [GST],
       frequency: 'one_time',
       seasonStartMonth: null,
       seasonEndMonth: null,
+      taxRateIds: [GST],
     })
 
     await userEvent.click(
@@ -161,6 +169,7 @@ export const Empty: Story = {
       quote: { ...quote, subtotal_cents: 0, tax_cents: 0, total_cents: 0 },
       lines: [],
       delivery: null,
+      recipient,
     },
   },
   play: async ({ canvasElement }) => {
@@ -184,6 +193,7 @@ export const SentReadOnly: Story = {
         viewed_at: null,
         created_at: '2026-10-16T12:00:00.000Z',
       },
+      recipient,
     },
   },
   play: async ({ canvasElement, args }) => {
@@ -199,6 +209,41 @@ export const SentReadOnly: Story = {
       canvas.getByRole('button', { name: 'Pull back to draft' }),
     )
     await expect(args.onPullBack).toHaveBeenCalled()
+    await userEvent.click(canvas.getByRole('button', { name: 'Send again' }))
+    await expect(args.onRetryDelivery).toHaveBeenCalled()
+  },
+}
+
+export const SendsToTheRequestEmail: Story = {
+  args: {
+    data: { ...draft, quote: { ...quote, valid_until: '2026-12-01' } },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('pat@example.com')).toBeVisible()
+    await expect(
+      canvas.getByText(/no client record yet/i, { exact: false }),
+    ).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Send quote' }))
+    await expect(args.onSend).toHaveBeenCalled()
+  },
+}
+
+export const CantSendWithoutLines: Story = {
+  args: {
+    data: {
+      quote: { ...quote, subtotal_cents: 0, tax_cents: 0, total_cents: 0 },
+      lines: [],
+      delivery: null,
+      recipient,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: 'Send quote' }),
+    ).toBeDisabled()
+    await expect(canvas.getByText('Add at least one line.')).toBeVisible()
   },
 }
 

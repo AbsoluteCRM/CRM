@@ -1,20 +1,113 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ORG, fake } from './test/fake-supabase'
+type Result = {
+  data: unknown
+  error: null | { message: string; code?: string }
+}
+type State = {
+  user: { id: string } | null
+  role: string | null
+  results: Record<string, Array<Result>>
+  rpc: Result
+  rpcCalls: Array<[string, Record<string, unknown>]>
+  calls: Array<[string, ...Array<unknown>]>
+  adminRpcCalls: Array<[string, Record<string, unknown>]>
+}
+
+const state = vi.hoisted<State>(() => ({
+  user: null,
+  role: 'admin',
+  results: {},
+  rpc: { data: null, error: null },
+  rpcCalls: [],
+  calls: [],
+  adminRpcCalls: [],
+}))
 
 vi.mock('#/env', () => ({
   env: { PORTAL_IP_HMAC_KEY: 'test-key-test-key-test-key' },
 }))
 
 vi.mock('#/server/trusted/supabase-admin', () => ({
-  createSupabaseAdminClient: () => ({}),
+  createSupabaseAdminClient: () => ({
+    rpc: (name: string, args: Record<string, unknown>) => {
+      state.adminRpcCalls.push([name, args])
+      return Promise.resolve({ data: null, error: null })
+    },
+  }),
 }))
 
-vi.mock('#/lib/supabase/server', () => import('./test/fake-supabase'))
+// Each awaited query on a table consumes the next queued result for it.
+vi.mock('#/lib/supabase/server', () => {
+  const chain = (table: string) => {
+    const q: Record<string, unknown> = {}
+    const next = () =>
+      Promise.resolve(
+        (state.results[table] as Array<Result> | undefined)?.shift() ?? {
+          data: [],
+          error: null,
+        },
+      )
+    for (const m of [
+      'select',
+      'eq',
+      'update',
+      'insert',
+      'delete',
+      'order',
+      'limit',
+      'is',
+    ]) {
+      q[m] = (...a: Array<unknown>) => (
+        state.calls.push([`${table}.${m}`, ...a]),
+        q
+      )
+    }
+    const single = () =>
+      table === 'organization_members'
+        ? Promise.resolve({
+            data: state.role
+              ? {
+                  id: 'm1',
+                  organization_id: ORG,
+                  role: state.role,
+                  status: 'active',
+                }
+              : null,
+            error: null,
+          })
+        : next().then((r) => ({
+            ...r,
+            data: Array.isArray(r.data) ? (r.data[0] ?? null) : r.data,
+          }))
+    q.maybeSingle = single
+    q.single = single
+    q.then = (r: (v: unknown) => unknown) => next().then(r)
+    return q
+  }
+  return {
+    createSupabaseServerClient: () => ({
+      auth: {
+        getUser: () =>
+          Promise.resolve(
+            state.user
+              ? { data: { user: state.user }, error: null }
+              : { data: { user: null }, error: { message: 'no session' } },
+          ),
+      },
+      from: (table: string) => chain(table),
+      rpc: (name: string, args: Record<string, unknown>) => {
+        state.rpcCalls.push([name, args])
+        return Promise.resolve(state.rpc)
+      },
+    }),
+  }
+})
 
 const { createTRPCContext } = await import('./init')
 const { trpcRouter } = await import('./router')
 
+const ORG = '0198f0a0-0000-7000-8000-000000000001'
 const REQ = '0198f0a0-0000-7000-8000-000000000003'
 const QUOTE = '0198f0a0-0000-7000-8000-000000000004'
 const LINE = '0198f0a0-0000-7000-8000-000000000005'
@@ -37,8 +130,15 @@ const lineInput = {
 }
 
 beforeEach(() => {
-  fake.reset()
-  fake.rpc = { data: QUOTE, error: null }
+  state.user = { id: 'u1' }
+  state.role = 'admin'
+  state.results = {}
+  state.rpc = { data: QUOTE, error: null }
+  state.rpcCalls = []
+  state.calls = []
+  state.adminRpcCalls = []
+  vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
 })
 
 describe('quotes access', () => {
@@ -63,6 +163,8 @@ describe('quotes access', () => {
         lineId: LINE,
       }),
       caller().quotes.pullBack({ organizationId: ORG, quoteId: QUOTE }),
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+      caller().quotes.retryDelivery({ organizationId: ORG, quoteId: QUOTE }),
       caller().requests.setInfoNeeded({
         organizationId: ORG,
         id: REQ,
@@ -70,25 +172,25 @@ describe('quotes access', () => {
       }),
     ]
 
-    fake.user = null
+    state.user = null
     for (const p of calls()) await expect(p).rejects.toThrow('UNAUTHORIZED')
-    fake.user = { id: 'u1' }
-    fake.setRole('worker')
+    state.user = { id: 'u1' }
+    state.role = 'worker'
     for (const p of calls()) {
       await expect(p).rejects.toMatchObject({ code: 'FORBIDDEN' })
     }
-    fake.setRole(null)
+    state.role = null
     for (const p of calls()) {
       await expect(p).rejects.toThrow('You do not have access')
     }
-    expect(fake.called('rpc')).toBe(false)
+    expect(state.rpcCalls).toHaveLength(0)
     expect(
-      fake.calls.some(([k]) => !k.startsWith('organization_members.')),
+      state.calls.some(([k]) => !k.startsWith('organization_members.')),
     ).toBe(false)
   })
 
   it.each(['owner', 'admin', 'dispatcher'])('allows %s', async (role) => {
-    fake.setRole(role)
+    state.role = role
     await expect(
       caller().quotes.pullBack({ organizationId: ORG, quoteId: QUOTE }),
     ).resolves.toEqual({ id: QUOTE })
@@ -97,12 +199,12 @@ describe('quotes access', () => {
 
 describe('quotes reads', () => {
   it('lists only active tax rates for the org', async () => {
-    fake.results.tax_rates = [{ data: [{ id: TAX }], error: null }]
+    state.results.tax_rates = [{ data: [{ id: TAX }], error: null }]
     await expect(
       caller().quotes.taxRates({ organizationId: ORG }),
     ).resolves.toEqual([{ id: TAX }])
-    expect(fake.calls).toContainEqual(['tax_rates.eq', 'organization_id', ORG])
-    expect(fake.calls).toContainEqual(['tax_rates.is', 'archived_at', null])
+    expect(state.calls).toContainEqual(['tax_rates.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['tax_rates.is', 'archived_at', null])
   })
 
   it('scopes listForRequest to the org and request', async () => {
@@ -110,34 +212,55 @@ describe('quotes reads', () => {
       organizationId: ORG,
       requestId: REQ,
     })
-    expect(fake.calls).toContainEqual(['quotes.eq', 'organization_id', ORG])
-    expect(fake.calls).toContainEqual(['quotes.eq', 'request_id', REQ])
+    expect(state.calls).toContainEqual(['quotes.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['quotes.eq', 'request_id', REQ])
   })
 
-  it('get returns quote, lines and delivery, and never selects the token hash', async () => {
-    fake.results.quotes = [{ data: { id: QUOTE }, error: null }]
-    fake.results.quote_line_items = [{ data: [{ id: LINE }], error: null }]
-    fake.results.quote_share_tokens = [
+  it('get returns quote, lines, delivery and the recipient, and never selects the token hash', async () => {
+    state.results.quotes = [
+      { data: { id: QUOTE, client_id: null }, error: null },
+      { data: { id: QUOTE, client_id: null, request_id: REQ }, error: null },
+    ]
+    state.results.quote_line_items = [{ data: [{ id: LINE }], error: null }]
+    state.results.quote_share_tokens = [
       { data: { delivery_status: 'sent' }, error: null },
+    ]
+    state.results.requests = [
+      {
+        data: {
+          contact_name: 'Pat Prospect',
+          contact_email: 'pat@example.com',
+        },
+        error: null,
+      },
+    ]
+    state.results.organizations = [
+      { data: { name: 'Acme', currency: 'CAD' }, error: null },
     ]
     await expect(
       caller().quotes.get({ organizationId: ORG, quoteId: QUOTE }),
     ).resolves.toEqual({
-      quote: { id: QUOTE },
+      quote: { id: QUOTE, client_id: null },
       lines: [{ id: LINE }],
       delivery: { delivery_status: 'sent' },
+      recipient: {
+        email: 'pat@example.com',
+        name: 'Pat Prospect',
+        isClient: false,
+      },
     })
-    const tokenSelect = fake.calls.find(
+    const tokenSelect = state.calls.find(
       ([k]) => k === 'quote_share_tokens.select',
     )
     expect(String(tokenSelect?.[1])).not.toContain('token_hash')
     for (const t of ['quotes', 'quote_line_items', 'quote_share_tokens']) {
-      expect(fake.calls).toContainEqual([`${t}.eq`, 'organization_id', ORG])
+      expect(state.calls).toContainEqual([`${t}.eq`, 'organization_id', ORG])
     }
+    expect(state.calls).toContainEqual(['requests.eq', 'organization_id', ORG])
   })
 
   it('404s when the quote is missing', async () => {
-    fake.results.quotes = [{ data: null, error: null }]
+    state.results.quotes = [{ data: null, error: null }]
     await expect(
       caller().quotes.get({ organizationId: ORG, quoteId: QUOTE }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
@@ -153,16 +276,15 @@ describe('quotes writes', () => {
         copyFromQuoteId: QUOTE,
       }),
     ).resolves.toEqual({ id: QUOTE })
-    expect(fake.callsTo('rpc')[0]).toEqual([
-      'rpc',
+    expect(state.rpcCalls[0]).toEqual([
       'create_quote_draft',
       { p_request_id: REQ, p_copy_from_quote_id: QUOTE },
     ])
   })
 
   it('createDraft seeds one line from the requested service on a first revision', async () => {
-    fake.results.requests = [{ data: [{ service_id: 'svc-1' }], error: null }]
-    fake.results.services = [
+    state.results.requests = [{ data: [{ service_id: 'svc-1' }], error: null }]
+    state.results.services = [
       {
         data: [
           {
@@ -179,7 +301,7 @@ describe('quotes writes', () => {
       },
     ]
     await caller().quotes.createDraft({ organizationId: ORG, requestId: REQ })
-    expect(fake.calls).toContainEqual([
+    expect(state.calls).toContainEqual([
       'quote_line_items.insert',
       {
         organization_id: ORG,
@@ -203,10 +325,10 @@ describe('quotes writes', () => {
       requestId: REQ,
       copyFromQuoteId: QUOTE,
     })
-    expect(fake.calls.some(([k]) => k === 'requests.select')).toBe(false)
+    expect(state.calls.some(([k]) => k === 'requests.select')).toBe(false)
 
-    fake.results.requests = [{ data: [{ service_id: 'svc-1' }], error: null }]
-    fake.results.services = [
+    state.results.requests = [{ data: [{ service_id: 'svc-1' }], error: null }]
+    state.results.services = [
       {
         data: [
           {
@@ -223,7 +345,7 @@ describe('quotes writes', () => {
       },
     ]
     await caller().quotes.createDraft({ organizationId: ORG, requestId: REQ })
-    expect(fake.calls.some(([k]) => k === 'quote_line_items.insert')).toBe(
+    expect(state.calls.some(([k]) => k === 'quote_line_items.insert')).toBe(
       false,
     )
   })
@@ -235,14 +357,14 @@ describe('quotes writes', () => {
     ['23514', 'BAD_REQUEST'],
     [undefined, 'INTERNAL_SERVER_ERROR'],
   ])('maps database error %s to %s', async (code, trpcCode) => {
-    fake.rpc = { data: null, error: { message: 'boom', code } }
+    state.rpc = { data: null, error: { message: 'boom', code } }
     await expect(
       caller().quotes.pullBack({ organizationId: ORG, quoteId: QUOTE }),
     ).rejects.toMatchObject({ code: trpcCode })
   })
 
   it('update sends only the editable fields, scoped to the org', async () => {
-    fake.results.quotes = [{ data: [{ id: QUOTE }], error: null }]
+    state.results.quotes = [{ data: [{ id: QUOTE }], error: null }]
     await caller().quotes.update({
       organizationId: ORG,
       quoteId: QUOTE,
@@ -251,7 +373,7 @@ describe('quotes writes', () => {
       conditions: 'After site visit',
       validUntil: '2026-12-31',
     })
-    expect(fake.calls).toContainEqual([
+    expect(state.calls).toContainEqual([
       'quotes.update',
       {
         title: 'Spring',
@@ -260,12 +382,12 @@ describe('quotes writes', () => {
         valid_until: '2026-12-31',
       },
     ])
-    expect(fake.calls).toContainEqual(['quotes.eq', 'organization_id', ORG])
-    expect(fake.calls).toContainEqual(['quotes.eq', 'id', QUOTE])
+    expect(state.calls).toContainEqual(['quotes.eq', 'organization_id', ORG])
+    expect(state.calls).toContainEqual(['quotes.eq', 'id', QUOTE])
   })
 
   it('update 404s when no row matches and rejects a bad date', async () => {
-    fake.results.quotes = [{ data: [], error: null }]
+    state.results.quotes = [{ data: [], error: null }]
     const input = {
       organizationId: ORG,
       quoteId: QUOTE,
@@ -283,13 +405,13 @@ describe('quotes writes', () => {
   })
 
   it('upsertLine inserts after the last position and attaches deduped taxes, with no amounts or status', async () => {
-    fake.results.quote_line_items = [
+    state.results.quote_line_items = [
       { data: [{ position: 3 }], error: null },
       { data: { id: LINE }, error: null },
       { data: { id: LINE }, error: null },
     ]
     await caller().quotes.upsertLine(lineInput)
-    const insert = fake.calls.find(([k]) => k === 'quote_line_items.insert')
+    const insert = state.calls.find(([k]) => k === 'quote_line_items.insert')
     expect(insert?.[1]).toEqual({
       service_id: null,
       description: 'Mow',
@@ -303,14 +425,14 @@ describe('quotes writes', () => {
       quote_id: QUOTE,
       position: 4,
     })
-    expect(fake.calls).toContainEqual([
+    expect(state.calls).toContainEqual([
       'quote_line_item_taxes.insert',
       [{ organization_id: ORG, line_item_id: LINE, tax_rate_id: TAX }],
     ])
   })
 
   it('upsertLine updates an existing line scoped to its quote', async () => {
-    fake.results.quote_line_items = [
+    state.results.quote_line_items = [
       { data: [{ id: LINE }], error: null },
       { data: { id: LINE }, error: null },
     ]
@@ -319,23 +441,23 @@ describe('quotes writes', () => {
       lineId: LINE,
       taxRateIds: [],
     })
-    expect(fake.calls).toContainEqual([
+    expect(state.calls).toContainEqual([
       'quote_line_items.eq',
       'quote_id',
       QUOTE,
     ])
-    expect(fake.calls).toContainEqual(['quote_line_items.eq', 'id', LINE])
-    expect(fake.calls.some(([k]) => k === 'quote_line_items.insert')).toBe(
+    expect(state.calls).toContainEqual(['quote_line_items.eq', 'id', LINE])
+    expect(state.calls.some(([k]) => k === 'quote_line_items.insert')).toBe(
       false,
     )
-    expect(fake.calls.some(([k]) => k === 'quote_line_item_taxes.insert')).toBe(
-      false,
-    )
-    expect(fake.calls).toContainEqual(['quote_line_item_taxes.delete'])
+    expect(
+      state.calls.some(([k]) => k === 'quote_line_item_taxes.insert'),
+    ).toBe(false)
+    expect(state.calls).toContainEqual(['quote_line_item_taxes.delete'])
   })
 
   it('upsertLine 404s on a line from another quote and rejects bad numbers', async () => {
-    fake.results.quote_line_items = [{ data: [], error: null }]
+    state.results.quote_line_items = [{ data: [], error: null }]
     await expect(
       caller().quotes.upsertLine({ ...lineInput, lineId: LINE }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
@@ -358,7 +480,7 @@ describe('quotes writes', () => {
   })
 
   it('deleteLine is scoped and 404s when nothing matches', async () => {
-    fake.results.quote_line_items = [{ data: [{ id: LINE }], error: null }]
+    state.results.quote_line_items = [{ data: [{ id: LINE }], error: null }]
     await expect(
       caller().quotes.deleteLine({
         organizationId: ORG,
@@ -366,12 +488,12 @@ describe('quotes writes', () => {
         lineId: LINE,
       }),
     ).resolves.toEqual({ id: LINE })
-    expect(fake.calls).toContainEqual([
+    expect(state.calls).toContainEqual([
       'quote_line_items.eq',
       'quote_id',
       QUOTE,
     ])
-    fake.results.quote_line_items = [{ data: [], error: null }]
+    state.results.quote_line_items = [{ data: [], error: null }]
     await expect(
       caller().quotes.deleteLine({
         organizationId: ORG,
@@ -383,26 +505,25 @@ describe('quotes writes', () => {
 
   it('pullBack calls pull_back_quote', async () => {
     await caller().quotes.pullBack({ organizationId: ORG, quoteId: QUOTE })
-    expect(fake.callsTo('rpc')[0]).toEqual([
-      'rpc',
+    expect(state.rpcCalls[0]).toEqual([
       'pull_back_quote',
       { p_quote_id: QUOTE },
     ])
   })
 
   it('setInfoNeeded writes only info_needed, scoped to the org, and clears blanks', async () => {
-    fake.results.requests = [{ data: [{ id: REQ }], error: null }]
+    state.results.requests = [{ data: [{ id: REQ }], error: null }]
     await caller().requests.setInfoNeeded({
       organizationId: ORG,
       id: REQ,
       note: '  ',
     })
-    expect(fake.calls).toContainEqual([
+    expect(state.calls).toContainEqual([
       'requests.update',
       { info_needed: null },
     ])
-    expect(fake.calls).toContainEqual(['requests.eq', 'organization_id', ORG])
-    fake.results.requests = [{ data: [], error: null }]
+    expect(state.calls).toContainEqual(['requests.eq', 'organization_id', ORG])
+    state.results.requests = [{ data: [], error: null }]
     await expect(
       caller().requests.setInfoNeeded({
         organizationId: ORG,
@@ -410,5 +531,142 @@ describe('quotes writes', () => {
         note: 'sqft?',
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+})
+
+describe('quotes.send and retryDelivery', () => {
+  const TOKEN_ID = '0198f0a0-0000-7000-8000-000000000040'
+  const configure = () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test')
+    vi.stubEnv('RESEND_FROM_EMAIL', 'quotes@acme.test')
+    vi.stubEnv('SERVER_URL', 'https://app.acme.test')
+  }
+  const queueRecipient = () => {
+    state.results.quotes = [
+      {
+        data: {
+          id: QUOTE,
+          number: 'Q-0007',
+          title: 'Spring cleanup',
+          message: 'Thanks for asking!',
+          valid_until: '2026-12-01',
+          total_cents: 34900,
+          client_id: null,
+          request_id: REQ,
+          status: 'sent',
+        },
+        error: null,
+      },
+    ]
+    state.results.requests = [
+      {
+        data: {
+          contact_name: 'Pat Prospect',
+          contact_email: 'pat@example.com',
+        },
+        error: null,
+      },
+    ]
+    state.results.organizations = [
+      { data: { name: 'Acme Lawn', currency: 'CAD' }, error: null },
+    ]
+  }
+  const resend = (response: Response | Error) => {
+    const fetchMock = vi.fn((_url: string, _init: RequestInit) =>
+      response instanceof Error
+        ? Promise.reject(response)
+        : Promise.resolve(response),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('refuses to send when email isn’t configured, before touching the quote', async () => {
+    vi.stubEnv('RESEND_API_KEY', '')
+    await expect(
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' })
+    expect(state.rpcCalls).toHaveLength(0)
+  })
+
+  it('stores only the token hash, emails the request contact the link, and records delivery', async () => {
+    configure()
+    queueRecipient()
+    state.rpc = { data: TOKEN_ID, error: null }
+    const fetchMock = resend(
+      new Response(JSON.stringify({ id: 'msg_1' }), { status: 200 }),
+    )
+    await expect(
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+    ).resolves.toEqual({ id: QUOTE, delivery: 'sent', error: null })
+
+    const [name, args] = state.rpcCalls[0]
+    expect(name).toBe('send_quote')
+    expect(args.p_quote_id).toBe(QUOTE)
+    const hash = String(args.p_token_hash)
+    expect(hash).toMatch(/^[0-9a-f]{64}$/)
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.resend.com/emails')
+    const body = JSON.parse(String(init.body)) as {
+      to: Array<string>
+      subject: string
+      text: string
+    }
+    expect(body.to).toEqual(['pat@example.com'])
+    expect(body.subject).toBe('Your estimate from Acme Lawn')
+    const token = /\/q\/([0-9a-f]{64})/.exec(body.text)?.[1]
+    expect(token).toBeDefined()
+    const { createHash } = await import('node:crypto')
+    expect(createHash('sha256').update(token!).digest('hex')).toBe(hash)
+    expect(JSON.stringify(args)).not.toContain(token!)
+    expect((init.headers as Record<string, string>)['Idempotency-Key']).toBe(
+      `quote-${TOKEN_ID}`,
+    )
+    expect(state.adminRpcCalls[0]).toEqual([
+      'record_quote_delivery',
+      {
+        p_token_id: TOKEN_ID,
+        p_status: 'sent',
+        p_message_id: 'msg_1',
+        p_error: null,
+      },
+    ])
+  })
+
+  it('keeps the quote sent and records a failed delivery when the email fails', async () => {
+    configure()
+    queueRecipient()
+    state.rpc = { data: TOKEN_ID, error: null }
+    resend(new Response('nope', { status: 422 }))
+    await expect(
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+    ).resolves.toMatchObject({ delivery: 'failed' })
+    expect(state.adminRpcCalls[0][1]).toMatchObject({ p_status: 'failed' })
+  })
+
+  it('maps send_quote errors (e.g. no lines) without emailing', async () => {
+    configure()
+    const fetchMock = resend(new Response('{}'))
+    state.rpc = {
+      data: null,
+      error: { message: 'add at least one line before sending', code: '55000' },
+    }
+    await expect(
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('retryDelivery rotates the token before emailing again', async () => {
+    configure()
+    queueRecipient()
+    state.rpc = { data: TOKEN_ID, error: null }
+    resend(new Response(JSON.stringify({ id: 'msg_2' }), { status: 200 }))
+    await caller().quotes.retryDelivery({ organizationId: ORG, quoteId: QUOTE })
+    expect(state.rpcCalls[0][0]).toBe('rotate_quote_token')
+    expect(String(state.rpcCalls[0][1].p_new_token_hash)).toMatch(
+      /^[0-9a-f]{64}$/,
+    )
   })
 })

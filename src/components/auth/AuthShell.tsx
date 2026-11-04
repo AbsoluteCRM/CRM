@@ -23,6 +23,11 @@ const POINTS = [
   },
 ]
 
+/**
+ * Two-panel layout for sign-in, sign-up, and full-page status screens
+ * (errors, not found, expired links). The brand panel collapses to a band on
+ * small screens.
+ */
 export default function AuthShell({
   children,
   aside,
@@ -92,6 +97,7 @@ export default function AuthShell({
   )
 }
 
+/** The white card most auth screens sit in. */
 export function AuthCard({
   title,
   subtitle,

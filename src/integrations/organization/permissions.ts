@@ -73,7 +73,12 @@ export type Section =
 export function canSee(role: OrgRole | null, section: Section) {
   if (role === null) return false
   if (role !== 'worker') return true
-  return section === 'dashboard' || section === 'calendar' || section === 'jobs'
+  return (
+    section === 'dashboard' ||
+    section === 'calendar' ||
+    section === 'jobs' ||
+    section === 'teams'
+  )
 }
 
 export interface RoleAccess {

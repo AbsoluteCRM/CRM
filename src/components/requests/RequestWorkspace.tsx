@@ -139,6 +139,8 @@ function BuilderView({
         onSaveLine={builder.saveLine}
         onDeleteLine={builder.deleteLine}
         onPullBack={builder.pullBack}
+        onSend={builder.send}
+        onRetryDelivery={builder.retryDelivery}
       />
     </div>
   )
