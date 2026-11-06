@@ -173,13 +173,18 @@ trusted code. They are not callable by `anon`.
 
 ## Accepted advisor findings
 
-`post_quote_message` is an authenticated security-definer RPC. It requires
-`auth.uid()` and active office membership, matches the supplied organization
-and quote, locks the quote, and requires a live share link before inserting
-server-assigned attribution. Execution is revoked from PUBLIC, anon and
-service_role. The token list/post functions are service-role-only definers;
-they derive organization and quote from `private.resolve_quote_token` and
-return only safe message fields. Neither path grants direct message writes.
+R2 uploads use two narrowly granted definer RPCs ([ADR 0015](decisions/0015-r2-image-uploads.md)):
+`authorize_image_upload(uuid, text)` is executable only by `authenticated`;
+it checks the JWT user, rejects anonymous Auth users, resolves active employee
+membership and scopes the logo/job target to the explicitly selected org.
+All four employee roles may upload; jobs table RLS remains unchanged.
+`get_r2_upload_config()` is executable only by `service_role`, takes no
+caller-selected names, and returns five fixed Vault configuration entries.
+It intentionally has no user-membership check because it is a trusted-code
+configuration operation, never a user API. The `upload-image` Edge Function
+is an additional trusted service-role boundary alongside `src/server/trusted/`;
+its admin client reads this configuration only after user authorization.
+Remote advisor execution is deferred until migration deployment is authorized.
 
 The Supabase advisors report these by design. Don't "fix" them:
 
