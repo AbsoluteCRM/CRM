@@ -347,6 +347,7 @@ export type Database = {
           default_end_location: unknown
           default_start_location: unknown
           default_start_time: string
+          disabled_at: string | null
           id: string
           max_work_minutes: number | null
           name: string
@@ -361,6 +362,7 @@ export type Database = {
           default_end_location?: unknown
           default_start_location?: unknown
           default_start_time?: string
+          disabled_at?: string | null
           id?: string
           max_work_minutes?: number | null
           name: string
@@ -375,6 +377,7 @@ export type Database = {
           default_end_location?: unknown
           default_start_location?: unknown
           default_start_time?: string
+          disabled_at?: string | null
           id?: string
           max_work_minutes?: number | null
           name?: string
@@ -1136,14 +1139,18 @@ export type Database = {
       }
       organization_members: {
         Row: {
+          certifications: string[]
           color: string | null
           created_at: string
           display_name: string
           email: string | null
           home_location: unknown
+          hours_worked: number
           id: string
+          jobs_completed: number
           organization_id: string
           phone: string | null
+          rating: number | null
           role: Database['public']['Enums']['org_role']
           status: Database['public']['Enums']['member_status']
           updated_at: string
@@ -1153,14 +1160,18 @@ export type Database = {
           work_start: string
         }
         Insert: {
+          certifications?: string[]
           color?: string | null
           created_at?: string
           display_name: string
           email?: string | null
           home_location?: unknown
+          hours_worked?: number
           id?: string
+          jobs_completed?: number
           organization_id: string
           phone?: string | null
+          rating?: number | null
           role?: Database['public']['Enums']['org_role']
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
@@ -1170,14 +1181,18 @@ export type Database = {
           work_start?: string
         }
         Update: {
+          certifications?: string[]
           color?: string | null
           created_at?: string
           display_name?: string
           email?: string | null
           home_location?: unknown
+          hours_worked?: number
           id?: string
+          jobs_completed?: number
           organization_id?: string
           phone?: string | null
+          rating?: number | null
           role?: Database['public']['Enums']['org_role']
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
@@ -2293,14 +2308,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: 'service_regions_organization_id_crew_id_fkey'
-            columns: ['organization_id', 'crew_id']
-            isOneToOne: false
-            referencedRelation: 'crews'
-            referencedColumns: ['organization_id', 'id']
-          },
-          {
-            foreignKeyName: 'service_regions_organization_id_fkey'
+            foreignKeyName: 'service_regions_organization_id_fkey1'
             columns: ['organization_id']
             isOneToOne: false
             referencedRelation: 'organizations'
@@ -2574,6 +2582,27 @@ export type Database = {
             referencedRelation: 'organizations'
             referencedColumns: ['id']
           },
+          {
+            foreignKeyName: 'time_off_organization_id_member_id_fkey'
+            columns: ['organization_id', 'member_id']
+            isOneToOne: false
+            referencedRelation: 'organization_members'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'time_off_organization_id_requested_by_member_id_fkey'
+            columns: ['organization_id', 'requested_by_member_id']
+            isOneToOne: false
+            referencedRelation: 'organization_members'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'time_off_organization_id_reviewed_by_member_id_fkey'
+            columns: ['organization_id', 'reviewed_by_member_id']
+            isOneToOne: false
+            referencedRelation: 'organization_members'
+            referencedColumns: ['organization_id', 'id']
+          },
         ]
       }
       visit_time_entries: {
@@ -2762,31 +2791,28 @@ export type Database = {
       }
     }
     Functions: {
-      cancel_time_off: { Args: { p_id: string }; Returns: undefined }
-      create_service_region: {
-        Args: {
-          p_organization_id: string
-          p_name: string
-          p_crew_id: string | null
-          p_boundary: Json
-        }
-        Returns: string
-      }
       accept_invitation: {
         Args: { p_token: string }
         Returns: {
+          certifications: string[]
           color: string | null
           created_at: string
           display_name: string
           email: string | null
           home_location: unknown
+          hours_worked: number
           id: string
+          jobs_completed: number
           organization_id: string
           phone: string | null
+          rating: number | null
           role: Database['public']['Enums']['org_role']
           status: Database['public']['Enums']['member_status']
           updated_at: string
           user_id: string | null
+          work_days: number[]
+          work_end: string
+          work_start: string
         }
         SetofOptions: {
           from: '*'
@@ -2799,6 +2825,11 @@ export type Database = {
         Args: { p_quote_id: string; p_selected_optional_line_ids?: string[] }
         Returns: undefined
       }
+      authorize_image_upload: {
+        Args: { p_folder: string; p_organization_id: string }
+        Returns: string
+      }
+      cancel_time_off: { Args: { p_id: string }; Returns: undefined }
       create_invoice_for_visits: {
         Args: {
           p_client_id: string
@@ -2848,15 +2879,26 @@ export type Database = {
         Args: { p_copy_from_quote_id?: string; p_request_id: string }
         Returns: string
       }
+      crew_history: {
+        Args: { p_crew_id: string }
+        Returns: {
+          completed_visits: number
+          last_route_date: string
+          past_routes: number
+          upcoming_routes: number
+        }[]
+      }
       decline_quote: {
         Args: { p_quote_id: string; p_reason?: string }
         Returns: undefined
       }
+      delete_crew: { Args: { p_crew_id: string }; Returns: number }
       generate_visits: {
         Args: { p_dates: string[]; p_job_id: string; p_through: string }
         Returns: number
       }
       get_portal: { Args: { p_slug: string }; Returns: Json }
+      get_r2_upload_config: { Args: never; Returns: Json }
       move_crew_member: {
         Args: {
           p_crew_id: string
@@ -3058,7 +3100,6 @@ export type Database = {
           sender_kind: string
         }[]
       }
-      pull_back_quote: { Args: { p_quote_id: string }; Returns: undefined }
       preview_service_area: {
         Args: {
           p_color?: string
@@ -3072,6 +3113,7 @@ export type Database = {
         }
         Returns: Json
       }
+      pull_back_quote: { Args: { p_quote_id: string }; Returns: undefined }
       record_quote_delivery: {
         Args: {
           p_error: string
@@ -3080,10 +3122,6 @@ export type Database = {
           p_token_id: string
         }
         Returns: undefined
-      }
-      reset_job_schedule: {
-        Args: { p_from?: string; p_job_id: string }
-        Returns: number
       }
       record_time_off: {
         Args: {
@@ -3104,6 +3142,10 @@ export type Database = {
           p_start: string
         }
         Returns: string
+      }
+      reset_job_schedule: {
+        Args: { p_from?: string; p_job_id: string }
+        Returns: number
       }
       review_time_off: {
         Args: { p_approve: boolean; p_id: string; p_note?: string }
