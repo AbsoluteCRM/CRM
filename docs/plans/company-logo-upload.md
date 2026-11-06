@@ -31,7 +31,7 @@ Agent defaults (minor; user may veto):
 
 ## Open questions
 
-None affecting product behavior. Plan approval is pending.
+None affecting product behavior. User approved the original plan and the expanded database reconciliation scope below.
 
 ## Assumptions
 
@@ -134,7 +134,7 @@ Implementer works in an isolated worktree per repository workflow; only main age
 
 ## Out of scope
 
-Job attachment UI, cropping/resizing, SVG, R2 deletion/cleanup, restoring overwritten image bytes, unrelated settings changes or migration-history repairs beyond verified R2 deployment reconciliation. No frontend hosting deployment without existing authorization.
+Job attachment UI, cropping/resizing, SVG, R2 deletion/cleanup, restoring overwritten image bytes, unrelated settings changes. The explicitly authorized migration-history reconciliation below is included. No frontend hosting deployment without existing authorization.
 
 ## Dependencies not to add
 
@@ -167,4 +167,35 @@ pnpm exec tsc --noEmit && pnpm lint && pnpm check && pnpm exec vitest run && pnp
 
 ## Scope-change log
 
-2026-11-06: User approved this audited plan in chat ("Approved"). Implementation and the described database authorization change are authorized.
+2026-11-06: User approved this audited plan in chat ("Approved"). Implementation and the described database authorization change are authorized. Later, after concrete production drift was reported, the user approved "Reconcile history in this feature" and "Yes, deploy main’s pending migrations" after the client-on-approval and optional quote total behavior changes were explained. The expanded scope was independently audited before remote writes.
+
+## Authorized migration reconciliation (supersedes original narrow history scope)
+
+User settled the quote scope: "Yes, deploy main’s pending migrations" after the concrete client-on-approval/optional totals changes were explained. No business-data repair is proposed.
+
+New evidence:
+
+- Complete disposable replay at /tmp/crm-company-logo-replay succeeded, with all original files retained, canonical service_areas renamed to actual version and recovered rename/convert scripts included. No omission fixture.
+- All 12 local pgTAP files / 394 assertions (before the two additional contact/approval assertions) pass after correcting stale quote_request_link_test assertion 4 to assert quote.client_id IS NULL at draft creation, matching the accepted quote_client_on_approval migration. The remaining suite exercises subsequent send/approval. Production pgTAP never run.
+- Production and replay catalog JSON available: /tmp/crm-logo-production-catalog.json and /tmp/crm-logo-local-catalog.json (raw local JSON, production CLI wrapper rows[0].catalog). All five time-off function bodies/config/volatility/definer/ACLs match after CRLF and whitespace normalization. Enum labels, indexes, policies and base constraints match. Moddatetime trigger qualification differs only due search_path. Raw table ACLs/RLS and the 3 schedule column ACLs match exactly. information_schema grant filtering was corrected using pg_class.relacl and pg_attribute.attacl.
+- Only extra member-schema differences are four columns, their three CHECK constraints, and authenticated UPDATE(certifications). Exact inspected definitions and preserving migration source in /tmp/crm-company-logo-replay/supabase/migrations/20261106203101_reconcile_hosted_member_metrics.sql. It adds IF NOT EXISTS columns (certifications text[] NOT NULL DEFAULT '{}', jobs_completed int NOT NULL DEFAULT 0, hours_worked numeric(8,1) NOT NULL DEFAULT 0, rating numeric(2,1)), adds absent named constraints jobs_completed>=0, hours_worked>=0, rating 1..5, and grants existing UPDATE(certifications). Production definitions already match; this migration preserves data and adds no new prod behavior.
+- Historical NULL-source marker /tmp/crm-company-logo-replay/supabase/migrations/20261030120000_time_off_day_off_and_clear.sql states original SQL unavailable, no claim of recovered source; current observed effects are represented by team_availability and explicit member-fields recovery. No day_off enum or clear_time_off function exists.
+
+Repository changes after application implementer completes (one writer):
+
+1. Copy recovered rename/convert scripts using exact remote versions; rename canonical service_areas to actual 20261103030208, keep its original commented source (SQL-equivalent proof already run).
+2. Copy the documented historical marker and the new CLI-created member-metrics migration. Keep team_availability original source/version. Fix the stale draft-time-client SQL test to assert intended NULL client_id; add assertion request contact_email remains unchanged, and verify approval eventually links the client with that email (existing tests inspected and extend if not present). Record added fields/schema/history explanation in database README, tenancy and plan.
+3. Verify source-controlled chain with full replay and populated prototype transition test (both actual rename and conversion SQL applied with seeded prototype rows; verified id/org/crew/name/boundary/created_at retained). Run full database suite and catalog compare with member-metrics now included. No silent exclusion of historical marker: it is provenance-preserving history only.
+4. Re-read hosted migration inventory before writing; expected remote has 32 versions and only these four already-applied local histories missing: 20261029190000 team_availability; 20261030184337 create_service_regions; 20261030192000 create_service_region_function; 20261103162017 r2_image_upload. Verify no concurrent changes and abort if difference.
+5. CLI help for migration repair was inspected: use `pnpm exec dotenv -e .env.local -- pnpm dlx supabase@3.0.0 migration repair --remote=skygtamcakhoirlrqlnq --status applied 20261029190000 20261030184337 20261030192000 20261103162017 --yes`. This ONLY adds verified history, no DDL rerun. No revert/removal of real historical event.
+6. CLI help for db push inspected. Run `... db push --remote=skygtamcakhoirlrqlnq --include-all --skip-vault --dry-run`. Expected ONLY four actual pending migrations in order: 20261029170000_quote_client_on_approval, 20261106150625_reconcile_quote_send_optional_items, 20261106201525_restrict_company_logo_uploads, 20261106203101_reconcile_hosted_member_metrics. Abort for any other pending entry. Then same command without --dry-run and with --yes. Never --include-seed/--include-roles, never production reset/tests.
+7. Re-read inventory: exact local versions and names must match all 40 hosted entries. Verify owner/admin gate and existing grants, quote helper and send body, member schema/ACL match. Run hosted security advisors then regenerate types (source of truth), preserving client override file. No invented assigned versions: CLI applies the exact CLI-created local versions and records them; inspect returned history to verify.
+8. Finish original logo app live tests, screenshots and full reviewer/security gates. No merge on missing checks.
+
+Partial failure: migration repair can be safely re-read and only missing versions repaired; never mark actual pending quote migrations applied. db push tracks successful files; after any error re-read history and catalog, inspect the failure, and rerun only unchanged remaining expected migrations once safe. No rollback by dropping production tables or rewriting previously applied source.
+
+Authorization: original feature approved, history reconciliation and actual pending main quote deployments explicitly approved by user; obtain fresh audit pass before these expanded database writes. No additional product decisions are assumed. If any remaining proof fails, name the doubt and stop remote writes.
+
+### Reconciliation audit round 2: pass, confidence high
+
+Fresh read-only auditor verified all nine scoped availability/member catalog categories, inspected recovered SQL and preserving member-field migration, checked the 40-file inventory and exact repair/deployment allowlists, and accepted full replay, populated conversion and 394 passing assertions as verified evidence. No blockers or unresolved questions. Non-blocking notes adopted: correct the function count to five and consolidate this scope into the committed plan. These scoped catalog checks do not claim whole-database schema equality.

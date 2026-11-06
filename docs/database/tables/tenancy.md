@@ -187,6 +187,13 @@ direct access through the API.
 
 ## `time_off`
 
+The hosted member schema also contains `certifications text[]` (default empty),
+`jobs_completed integer` and `hours_worked numeric(8,1)` (both nonnegative,
+default zero), and nullable `rating numeric(2,1)` (1–5). The preserving
+`reconcile_hosted_member_metrics` migration records these pre-existing fields
+for clean replay; only `certifications` has an authenticated column UPDATE
+grant, still constrained by the existing member RLS policies.
+
 Sick days, vacation and personal time (`20261029190000_team_availability`).
 Only `approved` rows make someone unavailable; the Team → Availability board
 combines them with each member's `work_days` and the company's

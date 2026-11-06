@@ -1,0 +1,9 @@
+-- Historical production migration marker; original SQL was not retained.
+-- Production records this exact version/name with statements = NULL.
+-- This file preserves that event; it is NOT recovered executable source.
+-- Catalog comparison on 2026-11-06 found the availability effects represented
+-- by 20261029190000_team_availability.sql (including all six function bodies,
+-- ACLs, enums, policies, triggers, indexes and work-schedule columns).
+-- The four extra hosted member fields are reconstructed explicitly by
+-- 20261106203101_reconcile_hosted_member_metrics.sql. No day_off enum or
+-- clear_time_off function exists in the inspected production schema.
