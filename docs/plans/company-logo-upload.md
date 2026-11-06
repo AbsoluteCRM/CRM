@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `company-logo-upload` / `feat/company-logo-upload`
 - **Tier**: full; database authorization, backend persistence and UI.
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%; behavior is grounded in the existing settings flow and user answers. Hosted migration history and access are execution checks, not assumed verified.
 - **Plan-mode file**: this uncommitted file; no native plan-mode tool is available in this session. User approves this written plan in chat before implementation.
 
@@ -301,3 +301,30 @@ Configuration plan audit: fresh read-only auditor returned **pass, confidence hi
   `images.terraformaflow.com` as a Cloudflare R2 custom domain. No hostname was
   assumed active, and no Edge secret or DNS record was changed. Await the
   actual connected public URL/status before setting the base URL.
+
+## Completed live verification
+
+After the user confirmed public-domain/secret setup was complete, the running
+app at localhost:3001 was verified against the deployed production function
+and real R2 storage using temporary dedicated test organizations and users:
+
+- Owner selects a real PNG in Settings: HTTP 200, full versioned public URL
+  saved to that test organization's logo reference. Public image GET returns
+  HTTP 200 and byte-for-byte matches the uploaded PNG.
+- Reload preserves the URL/version and logo; company avatars refresh and the
+  public request page displays the same public image URL.
+- Admin logo upload succeeds (200); worker logo upload is denied (403),
+  foreign-organization admin upload is denied (403), missing JWT is denied
+  (401). The worker's upload to a fixture job in their own org succeeds (200).
+- Selecting the same file again replaces the logo successfully. Remove clears
+  the persisted reference and reload confirms the initial fallback, with no
+  stale Remove control.
+- Desktop (1440×900) and phone (390×844) screenshots captured at scale factor 2
+  from the implemented UI and visually inspected. See `docs/settings/ui.md`.
+- Temporary database organizations, jobs and created auth users were cleaned
+  up. No absolute-demo or real tenant logo was modified. Harmless public R2
+  test objects remain under the documented no-deletion contract.
+
+The earlier 503 attempts above are diagnostic history, not outstanding gates.
+User-managed Edge secret/public-domain correction resolved the validation
+failure; no further configuration values were changed by the agent.

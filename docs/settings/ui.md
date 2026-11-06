@@ -6,8 +6,14 @@ See the [design record](../design/README.md) for conventions.
 
 ## Company profile
 
-Screenshots: desktop (1440×900) and phone (390×844), at device scale factor 2,
-are captured during the main agent's running-app verification before merge.
+Implemented screen, captured during live verification with a dedicated test
+organization at device scale factor 2:
+
+<img src="shots/company-profile-desktop.png" alt="Desktop company profile with uploaded AC logo, Upload logo and Remove controls, colour theme and company details" width="720">
+
+<img src="shots/company-profile-phone.png" alt="Phone company profile showing the uploaded AC logo and enabled Upload logo and Remove controls above the theme picker" width="260">
+
+Desktop viewport: 1440×900. Phone viewport: 390×844.
 
 - **Route**: `/settings`, Company profile tab.
 - **Roles**: owners/admins can manage Settings, upload or replace logos, and
