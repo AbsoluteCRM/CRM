@@ -269,3 +269,35 @@ or read other environment names. Existing stored Vault contents (currently
 absent) and other function secrets are untouched. No user decision remains open.
 
 Configuration plan audit: fresh read-only auditor returned **pass, confidence high**, no findings or unresolved questions. Verified the fixed secret names, existing configuration validation, authentication/authorization ordering, preserved JWT gateway, no service-role dependency, legacy helper compatibility, tests, redeployment and remaining live/review gates. User’s explicit configuration request authorizes this audited change.
+
+### Edge configuration implementation verification
+
+- `ac35dcb` reads existing Edge secrets; `a3e0f77` adds fixed-field-only invalid
+  configuration diagnostics. Both versions were deployed to production with
+  JWT verification retained; no secret values were changed or printed.
+- Exact root Verify command passes at `a3e0f77`: **73 files / 661 tests**,
+  TypeScript, lint, formatting, Deno check and **15 Deno tests**. Helper tests
+  cover all five missing/empty values, format checks, fixed name reads, and
+  diagnostics containing only the invalid field name.
+- The live authenticated probe still receives sanitized 503. A bounded
+  Management API query of function logs returned only
+  `{"event":"upload_image_config_invalid","field":"r2_public_base_url"}`.
+  No values were logged. Production metadata shows all five secret names
+  exist; the invalid public base URL requires correction by the user or a
+  user-provided public URL before successful live smoke verification.
+- The user asked what the base URL should be and was directed to the bucket's
+  public development URL or connected custom HTTPS domain, excluding bucket
+  suffix, credentials, query strings and fragments. No domain was guessed.
+- Fresh reviewer source pass at `a3e0f77`, confidence high: no findings; ran
+  52 targeted unit tests and 15 Deno tests independently. Remaining live and
+  screenshot/status gates explicitly retained. Main agent fetched origin
+  successfully after this review; main remains an ancestor of the feature.
+- Fresh security source pass at `a3e0f77`, confidence high: no findings;
+  independently ran 52 targeted unit tests and 15 Deno tests, inspected the
+  retained scoped catalog proof and verified fixed-name-only logging. Live
+  success, public-byte, role-denial and screenshot gates remain incomplete.
+- User provided domain `terraformaflow.com` and bucket `terraformcloud`.
+  Explained the distinct bucket-name setting and recommended connecting
+  `images.terraformaflow.com` as a Cloudflare R2 custom domain. No hostname was
+  assumed active, and no Edge secret or DNS record was changed. Await the
+  actual connected public URL/status before setting the base URL.
