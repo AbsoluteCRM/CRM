@@ -65,6 +65,19 @@ describe('crews mutations: access', () => {
 })
 
 describe('crews.moveMember / setLead', () => {
+  it('passes a literal null to unassign a member', async () => {
+    await caller().crews.moveMember({
+      organizationId: ORG,
+      memberId: MEMBER,
+      crewId: null,
+    })
+    expect(fake.calls).toContainEqual([
+      'rpc',
+      'move_crew_member',
+      { p_organization_id: ORG, p_member_id: MEMBER, p_crew_id: null },
+    ])
+  })
+
   it('calls move_crew_member scoped to the verified org', async () => {
     await caller().crews.moveMember({
       organizationId: ORG,

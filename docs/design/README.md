@@ -35,6 +35,7 @@ Tailwind v4. Its tokens are in `src/styles.css`.
 | [Requests](../requests/ui.md)           | Public request portal                   | Request portal                          |
 | [Jobs](../jobs/ui.md)                   | Jobs route maps                         | Routes & dispatch, Job drawer Route tab |
 | [Service areas](../service-areas/ui.md) | Crew service areas on a map             | Service area editor                     |
+| [Quotes](../quotes/ui.md)               | Quote delivery and conversation         | Staff send dialog, customer quote       |
 
 Other existing `_authed/*` pages predate this record. Each one gets its
 `ui.md` the next time a feature changes it.

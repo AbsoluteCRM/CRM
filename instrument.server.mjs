@@ -10,15 +10,20 @@ for (const file of ['.env.local', '.env']) {
   }
 }
 
-function redactInvitationData(value) {
+export function redactInvitationData(value) {
   if (typeof value === 'string')
-    return value
-      .replace(/((?:^|[?&])(?:token|code|key)=)[^&\s"']*/gi, '$1[redacted]')
-      .replace(/\b[a-f0-9]{64}\b/gi, '[redacted]')
-      .replace(
-        /[a-z0-9.!#$%&'*+/=?^_`{|}~-]+(?:@|%40)[a-z0-9.-]+\.[a-z]{2,}/gi,
-        '[email redacted]',
-      )
+    return (
+      value
+        // The router decodes percent-encoded path credentials before validation.
+        // Redact the whole quote-link segment in telemetry, in either encoding.
+        .replace(/(\/q\/)[^/?#\s"'<>]+/gi, '$1[redacted]')
+        .replace(/((?:^|[?&])(?:token|code)=)[^&\s"']*/gi, '$1[redacted]')
+        .replace(/\b[a-f0-9]{64}\b/gi, '[redacted]')
+        .replace(
+          /[a-z0-9.!#$%&'*+/=?^_`{|}~-]+(?:@|%40)[a-z0-9.-]+\.[a-z]{2,}/gi,
+          '[email redacted]',
+        )
+    )
   if (Array.isArray(value)) return value.map(redactInvitationData)
   if (value && typeof value === 'object')
     return Object.fromEntries(

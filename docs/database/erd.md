@@ -27,6 +27,7 @@ erDiagram
     properties ||--o{ quotes : "quoted at"
     quotes |o--o| jobs : "converts to"
     quotes ||--o{ quote_share_tokens : "magic links"
+    quotes ||--o{ quote_messages : "conversation"
     properties ||--o{ jobs : "work at"
     jobs ||--o{ visits : materializes
 
@@ -155,6 +156,15 @@ erDiagram
         timestamptz expires_at
         timestamptz revoked_at
         quote_delivery_status delivery_status
+    }
+    quote_messages {
+        uuid id PK
+        uuid quote_id FK
+        text body
+        text sender_kind
+        uuid staff_user_id FK
+        uuid client_message_id
+        timestamptz created_at
     }
     quote_line_items {
         uuid id PK

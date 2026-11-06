@@ -26,7 +26,7 @@ import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
 import { Route as AuthedTeamsRouteImport } from './routes/_authed/teams'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as PortalOrgSlugRouteImport } from './routes/portal/$orgSlug'
-import { Route as QTokenRouteImport } from './routes/q.$token'
+import { Route as QTokenRouteImport } from './routes/q/$token'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 
 const IndexRoute = IndexRouteImport.update({

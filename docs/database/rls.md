@@ -173,6 +173,14 @@ trusted code. They are not callable by `anon`.
 
 ## Accepted advisor findings
 
+`post_quote_message` is an authenticated security-definer RPC. It requires
+`auth.uid()` and active office membership, matches the supplied organization
+and quote, locks the quote, and requires a live share link before inserting
+server-assigned attribution. Execution is revoked from PUBLIC, anon and
+service_role. The token list/post functions are service-role-only definers;
+they derive organization and quote from `private.resolve_quote_token` and
+return only safe message fields. Neither path grants direct message writes.
+
 The Supabase advisors report these by design. Don't "fix" them:
 
 | Finding                                                                                                                                                                                                                                                                                                                                    | Why it's intended                                                                                        |

@@ -102,7 +102,6 @@ const meta = {
     onDeleteLine: fn(() => Promise.resolve(true)),
     onPullBack: fn(() => Promise.resolve(true)),
     onSend: fn(() => Promise.resolve(true)),
-    onRetryDelivery: fn(() => Promise.resolve(true)),
   },
 } satisfies Meta<typeof QuoteEditor>
 
@@ -181,14 +180,14 @@ export const Empty: Story = {
 export const SentReadOnly: Story = {
   args: {
     data: {
-      quote: { ...quote, status: 'sent' },
+      quote: { ...quote, status: 'sent', valid_until: '2099-12-01' },
       lines,
       delivery: {
         id: '0198f0a0-0000-7000-8000-000000000030',
         delivery_status: 'failed',
         delivery_attempts: 1,
         last_delivery_error: 'Mailbox unavailable',
-        expires_at: '2026-12-01T00:00:00.000Z',
+        expires_at: '2099-12-01T00:00:00.000Z',
         revoked_at: null,
         viewed_at: null,
         created_at: '2026-10-16T12:00:00.000Z',
@@ -209,23 +208,29 @@ export const SentReadOnly: Story = {
       canvas.getByRole('button', { name: 'Pull back to draft' }),
     )
     await expect(args.onPullBack).toHaveBeenCalled()
-    await userEvent.click(canvas.getByRole('button', { name: 'Send again' }))
-    await expect(args.onRetryDelivery).toHaveBeenCalled()
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Retry delivery' }),
+    )
+    const dialog = within(canvas.getByRole('dialog'))
+    await expect(dialog.getByText(/old link stops working/i)).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: 'Send new link' }))
+    await expect(args.onSend).toHaveBeenCalledWith(true)
   },
 }
 
 export const SendsToTheRequestEmail: Story = {
   args: {
-    data: { ...draft, quote: { ...quote, valid_until: '2026-12-01' } },
+    data: { ...draft, quote: { ...quote, valid_until: '2099-12-01' } },
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('pat@example.com')).toBeVisible()
-    await expect(
-      canvas.getByText(/no client record yet/i, { exact: false }),
-    ).toBeVisible()
+    await expect(canvas.getByText(/request contact/i)).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Send quote' }))
-    await expect(args.onSend).toHaveBeenCalled()
+    const dialog = within(canvas.getByRole('dialog'))
+    await expect(dialog.getByText('pat@example.com')).toBeVisible()
+    await expect(args.onSend).not.toHaveBeenCalled()
+    await userEvent.click(dialog.getByRole('button', { name: 'Send quote' }))
+    await expect(args.onSend).toHaveBeenCalledWith(false)
   },
 }
 
@@ -240,10 +245,12 @@ export const CantSendWithoutLines: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Send quote' }))
+    const dialog = within(canvas.getByRole('dialog'))
     await expect(
-      canvas.getByRole('button', { name: 'Send quote' }),
+      dialog.getByRole('button', { name: 'Send quote' }),
     ).toBeDisabled()
-    await expect(canvas.getByText('Add at least one line.')).toBeVisible()
+    await expect(dialog.getByText('Add at least one line item.')).toBeVisible()
   },
 }
 
@@ -255,5 +262,41 @@ export const SaveFailed: Story = {
     await expect(within(canvasElement).getByRole('alert')).toHaveTextContent(
       "That didn't save",
     )
+  },
+}
+
+export const SendSavedDraft: Story = {
+  args: {
+    data: { ...draft, quote: { ...quote, valid_until: '2099-12-01' } },
+    recipient: 'alex@example.com',
+    onSend: fn(async () => true),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Title'), ' changed')
+    await userEvent.click(canvas.getByRole('button', { name: 'Send quote' }))
+    let dialog = within(canvas.getByRole('dialog'))
+    await expect(
+      dialog.getByText('Save your pending changes before sending.'),
+    ).toBeVisible()
+    await expect(
+      dialog.getByRole('button', { name: 'Send quote' }),
+    ).toBeDisabled()
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await userEvent.clear(canvas.getByLabelText('Title'))
+    await userEvent.type(canvas.getByLabelText('Title'), quote.title)
+    await userEvent.click(canvas.getByRole('button', { name: 'Add line' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Send quote' }))
+    dialog = within(canvas.getByRole('dialog'))
+    await expect(
+      dialog.getByRole('button', { name: 'Send quote' }),
+    ).toBeDisabled()
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Send quote' }))
+    dialog = within(canvas.getByRole('dialog'))
+    await expect(dialog.getByText('alex@example.com')).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: 'Send quote' }))
+    await expect(args.onSend).toHaveBeenCalledWith(false)
   },
 }
