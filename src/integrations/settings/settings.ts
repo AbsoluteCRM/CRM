@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+import { uploadCompanyLogo } from './logo'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
 
@@ -7,13 +9,12 @@ import { useTRPC } from '#/integrations/trpc/react'
 import { createSupabaseBrowserClient } from '#/lib/supabase/client'
 import type { TRPCRouter } from '#/integrations/trpc/router'
 
+export { LOGO_TYPES, LOGO_MAX_BYTES } from './logo'
+
 export type CompanyProfile = inferRouterOutputs<TRPCRouter>['settings']['get']
 type Inputs = inferRouterInputs<TRPCRouter>['settings']
 export type ProfilePatch = Omit<Inputs['updateProfile'], 'organizationId'>
 export type SettingsPatch = Omit<Inputs['updateSettings'], 'organizationId'>
-
-export const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp']
-export const LOGO_MAX_BYTES = 2 * 1024 * 1024
 
 export function useCompanySettings() {
   const trpc = useTRPC()
@@ -63,30 +64,55 @@ export function useSettingsMutations() {
       onError: (e) => toast(`Couldn't save your settings: ${e.message}`),
     }),
   )
+  const activeOrganization = useRef({ id: organizationId })
+  if (activeOrganization.current.id !== organizationId) {
+    activeOrganization.current = { id: organizationId }
+  }
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  const operation = useRef(false)
   const logo = useMutation(
     trpc.settings.setLogo.mutationOptions({
-      ...settle,
-      onError: (e) => toast(`Couldn't update the logo: ${e.message}`),
+      onSettled: (_data, _error, variables) =>
+        queryClient.invalidateQueries({
+          queryKey: trpc.settings.get.queryKey({
+            organizationId: variables.organizationId,
+          }),
+        }),
     }),
   )
-
   const base = { organizationId: organizationId! }
-
-  const uploadLogo = async (file: File) => {
+  const runLogo = async (file?: File) => {
     if (!organizationId) throw new Error('No active organization.')
-    if (!LOGO_TYPES.includes(file.type)) {
-      throw new Error('Use a PNG, JPG, or WebP image.')
+    if (operation.current) return false
+    const captured = organizationId
+    const workspace = activeOrganization.current
+    const isCurrent = () =>
+      mounted.current && activeOrganization.current === workspace
+    operation.current = true
+    try {
+      if (file)
+        return await uploadCompanyLogo(file, captured, {
+          invoke: (body) =>
+            createSupabaseBrowserClient().functions.invoke('upload-image', {
+              body,
+            }),
+          save: (path) => logo.mutateAsync({ organizationId: captured, path }),
+          isCurrent,
+        })
+      await logo.mutateAsync({ organizationId: captured, path: null })
+      return isCurrent()
+    } catch (error) {
+      if (!isCurrent()) return false
+      throw error
+    } finally {
+      operation.current = false
     }
-    if (file.size > LOGO_MAX_BYTES) {
-      throw new Error('Logos can be up to 2 MB.')
-    }
-    const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
-    const path = `${organizationId}/branding/logo-${crypto.randomUUID()}.${ext}`
-    const { error } = await createSupabaseBrowserClient()
-      .storage.from('org-files')
-      .upload(path, file, { contentType: file.type, upsert: false })
-    if (error) throw new Error(error.message)
-    await logo.mutateAsync({ ...base, path })
   }
 
   return {
@@ -94,8 +120,8 @@ export function useSettingsMutations() {
       profile.mutateAsync({ ...base, ...patch }),
     saveSettings: (patch: SettingsPatch) =>
       settings.mutateAsync({ ...base, ...patch }),
-    uploadLogo,
-    removeLogo: () => logo.mutateAsync({ ...base, path: null }),
+    uploadLogo: (file: File) => runLogo(file),
+    removeLogo: () => runLogo(),
     saving: profile.isPending || settings.isPending || logo.isPending,
   }
 }

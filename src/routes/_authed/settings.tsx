@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import CompanyLogo from '#/components/settings/CompanyLogo'
+import { useEffect, useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   Building2,
@@ -10,7 +11,6 @@ import {
   Plus,
   Save,
   ShieldCheck,
-  Upload,
   X,
 } from 'lucide-react'
 
@@ -179,8 +179,6 @@ function useNow() {
 
 function CompanyTab({ org }: { org: CompanyProfile }) {
   const save = useSave()
-  const file = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
   const brand = org.settings.brand_color
 
   const { organization, reloadAndSelectOrganization } = useOrganization()
@@ -230,78 +228,19 @@ function CompanyTab({ org }: { org: CompanyProfile }) {
     </Field>
   )
 
-  const upload = async (f: File) => {
-    setUploading(true)
-    try {
-      await save.uploadLogo(f)
-      toast('Logo updated')
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Couldn’t upload the logo')
-    } finally {
-      setUploading(false)
-      if (file.current) file.current.value = ''
-    }
-  }
-
   return (
     <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
       <Card className="p-5">
         <p className="mb-4 text-sm font-bold">Logo & brand</p>
-        <div className="flex flex-col items-center gap-4 rounded-2xl bg-(--cream) p-6">
-          <span
-            className="flex size-24 items-center justify-center overflow-hidden rounded-3xl text-4xl font-bold text-white shadow-md"
-            style={{ background: org.logo_url ? '#fff' : brand }}
-          >
-            {org.logo_url ? (
-              <img
-                src={org.logo_url}
-                alt={`${org.name} logo`}
-                className="size-full object-contain"
-              />
-            ) : (
-              org.name.charAt(0)
-            )}
-          </span>
-          <div className="flex gap-2">
-            <Btn
-              variant="outline"
-              size="sm"
-              icon={Upload}
-              disabled={uploading}
-              onClick={() => file.current?.click()}
-            >
-              {uploading ? 'Uploading…' : 'Upload logo'}
-            </Btn>
-            {org.logo_url && (
-              <Btn
-                variant="ghost"
-                size="sm"
-                disabled={uploading || save.saving}
-                onClick={() =>
-                  void save
-                    .removeLogo()
-                    .then(() => toast('Logo removed', 'info'))
-                    .catch(() => {})
-                }
-              >
-                Remove
-              </Btn>
-            )}
-          </div>
-          <p className="text-center text-xs text-(--ink-3)">
-            PNG, JPG, or WebP, up to 2 MB.
-          </p>
-          <input
-            ref={file}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void upload(f)
-            }}
-          />
-        </div>
+        <CompanyLogo
+          key={org.id}
+          name={org.name}
+          logoUrl={org.logo_url}
+          hasLogo={!!org.logo_path}
+          brand={brand}
+          upload={save.uploadLogo}
+          remove={save.removeLogo}
+        />
         <Field
           label="Colour theme"
           className="mt-4"

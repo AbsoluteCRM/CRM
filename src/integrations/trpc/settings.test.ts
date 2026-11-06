@@ -135,6 +135,7 @@ const updates = () =>
 beforeEach(() => {
   state.user = { id: 'u1' }
   state.role = 'admin'
+  state.membershipOrg = ORG
   state.orgReads = []
   state.update = { data: [{ id: ORG }], error: null }
   state.counts = {}
@@ -393,4 +394,62 @@ describe('settings.overview', () => {
       expect(state.calls).toContainEqual([`${t}.eq`, 'organization_id', ORG])
     }
   })
+})
+
+describe('public logo persistence', () => {
+  const url = `https://images.test/base/company_logos/${ORG}/logo.png?v=keep%2Fwhole&other=1`
+  it.each(['owner', 'admin'])(
+    'allows %s and retains the complete URL',
+    async (role) => {
+      state.role = role
+      state.orgReads = [{ data: { logo_path: url }, error: null }]
+      await caller().settings.setLogo({ organizationId: ORG, path: url })
+      expect(updates()).toEqual([{ logo_path: url }])
+      expect(state.removed).toEqual([])
+      state.orgReads = [{ data: orgRow({ logo_path: url }), error: null }]
+      expect(
+        (await caller().settings.get({ organizationId: ORG })).logo_url,
+      ).toBe(url)
+    },
+  )
+  it('removes the public reference without calling Storage removal', async () => {
+    state.orgReads = [{ data: { logo_path: url }, error: null }]
+    await caller().settings.setLogo({ organizationId: ORG, path: null })
+    expect(state.removed).toEqual([])
+  })
+  it('does not remove an old legacy file when saving fails', async () => {
+    state.orgReads = [
+      { data: { logo_path: `${ORG}/branding/old.png` }, error: null },
+    ]
+    state.update = { data: null, error: { code: '42501', message: 'denied' } }
+    await expect(
+      caller().settings.setLogo({ organizationId: ORG, path: url }),
+    ).rejects.toThrow()
+    expect(state.removed).toEqual([])
+  })
+  it.each(['portal', null])(
+    'denies %s membership before writes',
+    async (role) => {
+      state.role = role
+      await expect(
+        caller().settings.setLogo({ organizationId: ORG, path: url }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+      expect(updates()).toEqual([])
+    },
+  )
+})
+
+it('scopes logo writes to the selected membership for a multi-org administrator', async () => {
+  state.membershipOrg = OTHER_ORG
+  const url = `https://images.test/company_logos/${OTHER_ORG}/logo.webp?v=selected`
+  await caller().settings.setLogo({ organizationId: OTHER_ORG, path: url })
+  expect(updates()).toEqual([{ logo_path: url }])
+  expect(state.calls).toContainEqual(['organizations.eq', 'id', OTHER_ORG])
+  await expect(
+    caller().settings.setLogo({
+      organizationId: OTHER_ORG,
+      path: `https://images.test/company_logos/${ORG}/logo.png`,
+    }),
+  ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  expect(updates()).toHaveLength(1)
 })

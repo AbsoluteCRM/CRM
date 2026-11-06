@@ -1,3 +1,4 @@
+import { resolveLogoUrl } from '#/integrations/settings/logo'
 import { createHmac } from 'node:crypto'
 
 import { TRPCError } from '@trpc/server'
@@ -99,13 +100,12 @@ export async function getPortal(slug: string): Promise<Portal> {
     ).map((s) => (online.show_prices ? s : { ...s, default_price_cents: null }))
   }
 
-  let logoUrl: string | null = null
-  if (org.logo_path) {
+  const logoUrl = await resolveLogoUrl(org.logo_path, async (path) => {
     const signed = await admin.storage
       .from('org-files')
-      .createSignedUrl(org.logo_path, LOGO_URL_TTL_SECONDS)
-    logoUrl = signed.data?.signedUrl ?? null
-  }
+      .createSignedUrl(path, LOGO_URL_TTL_SECONDS)
+    return signed.data?.signedUrl ?? null
+  })
 
   const address = [
     org.address_line1,
