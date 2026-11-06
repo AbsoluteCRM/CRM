@@ -177,14 +177,21 @@ R2 uploads use two narrowly granted definer RPCs ([ADR 0015](decisions/0015-r2-i
 `authorize_image_upload(uuid, text)` is executable only by `authenticated`;
 it checks the JWT user, rejects anonymous Auth users, resolves active employee
 membership and scopes the logo/job target to the explicitly selected org.
-All four employee roles may upload; jobs table RLS remains unchanged.
+Only owners/admins may upload company logos. All four active employee roles may upload job images; jobs table RLS remains unchanged.
 `get_r2_upload_config()` is executable only by `service_role`, takes no
 caller-selected names, and returns five fixed Vault configuration entries.
 It intentionally has no user-membership check because it is a trusted-code
-configuration operation, never a user API. The `upload-image` Edge Function
-is an additional trusted service-role boundary alongside `src/server/trusted/`;
-its admin client reads this configuration only after user authorization.
-Remote advisor execution is deferred until migration deployment is authorized.
+configuration operation, never a user API. It is retained as a legacy helper;
+current uploads read the five fixed lowercase Edge Function secrets after
+caller authentication and target authorization instead. The upload entrypoint
+no longer creates a service-role client or depends on its key. Credentials
+remain server-side and never enter responses or logs.
+Production security advisors ran after the authorized 2026-11-06 deployment:
+39 authenticated-definer findings, the existing Supabase-managed
+`rls_auto_enable` anonymous-definer finding, and disabled leaked-password
+protection. These are the documented classes below; no new function-exposure
+class was introduced by the logo restriction. The upload RPC's grants remain
+authenticated-only and its logo branch now checks owner/admin membership.
 
 The Supabase advisors report these by design. Don't "fix" them:
 

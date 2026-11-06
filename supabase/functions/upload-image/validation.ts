@@ -43,8 +43,15 @@ export type UploadConfig = {
   r2_public_base_url: string
 }
 
-export function uploadConfig(value: unknown): UploadConfig | null {
-  if (!value || typeof value !== 'object') return null
+export function uploadConfig(
+  value: unknown,
+  reportInvalid?: (field: keyof UploadConfig | 'configuration') => void,
+): UploadConfig | null {
+  const invalid = (field: keyof UploadConfig | 'configuration') => {
+    reportInvalid?.(field)
+    return null
+  }
+  if (!value || typeof value !== 'object') return invalid('configuration')
   const config = value as Record<string, unknown>
   const names = [
     'r2_account_id',
@@ -53,17 +60,16 @@ export function uploadConfig(value: unknown): UploadConfig | null {
     'r2_bucket_name',
     'r2_public_base_url',
   ] as const
-  if (
-    names.some(
-      (name) =>
-        typeof config[name] !== 'string' || !(config[name] as string).trim(),
-    )
+  const missing = names.find(
+    (name) =>
+      typeof config[name] !== 'string' || !(config[name] as string).trim(),
   )
-    return null
+  if (missing) return invalid(missing)
   const result = config as UploadConfig
-  if (!/^[a-f0-9]{32}$/.test(result.r2_account_id)) return null
+  if (!/^[a-f0-9]{32}$/.test(result.r2_account_id))
+    return invalid('r2_account_id')
   if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(result.r2_bucket_name))
-    return null
+    return invalid('r2_bucket_name')
   try {
     const url = new URL(result.r2_public_base_url)
     if (
@@ -73,9 +79,9 @@ export function uploadConfig(value: unknown): UploadConfig | null {
       url.search ||
       url.hash
     )
-      return null
+      return invalid('r2_public_base_url')
   } catch {
-    return null
+    return invalid('r2_public_base_url')
   }
   return result
 }

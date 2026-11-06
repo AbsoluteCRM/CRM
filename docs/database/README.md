@@ -1,5 +1,20 @@
 # AbsoluteCRM database
 
+Migration history was reconciled on 2026-11-06 as part of company-logo settings.
+The historical prototype region migrations remain in order, followed by the
+recovered production rename/conversion scripts. Canonical `service_areas` uses
+its actual hosted version, `20261103030208`; this sequence preserves existing
+prototype rows and permits a complete clean replay.
+
+`20261030120000_time_off_day_off_and_clear.sql` is explicitly a historical
+marker: production retained its version/name but no SQL. Its current observed
+availability effects match `team_availability`; four additional hosted member
+fields are reconstructed by `reconcile_hosted_member_metrics`. The marker is
+not recovered executable source. Scoped catalog comparisons covered enum,
+column, function, constraint, index, policy, trigger and privilege definitions.
+See [the company-logo plan](../plans/company-logo-upload.md) for the exact
+history-only repair allowlist, actual pending deployments and verification.
+
 AbsoluteCRM is a multi-tenant CRM for contractor businesses (landscapers,
 snow removal, cleaning crews, and similar trades). The database runs on
 **Supabase Postgres 17** (project `skygtamcakhoirlrqlnq`).

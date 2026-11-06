@@ -1,3 +1,7 @@
+import {
+  validLogoReference,
+  resolveLogoUrl,
+} from '#/integrations/settings/logo'
 import * as Sentry from '@sentry/tanstackstart-react'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
@@ -16,20 +20,6 @@ const ORG_COLUMNS =
   'id, name, slug, timezone, currency, country, email, phone, address_line1, address_line2, city, region, postal_code, logo_path, settings, updated_at'
 
 const manageSettings = requireOrgPermission('manageSettings')
-
-/** Logos live in the private org-files bucket under `<org id>/branding/`. */
-export const LOGO_FOLDER = 'branding'
-const logoPath = (organizationId: string) =>
-  z
-    .string()
-    .max(300)
-    .refine(
-      (p) =>
-        p.startsWith(`${organizationId}/${LOGO_FOLDER}/`) &&
-        !p.includes('..') &&
-        /\.(png|jpe?g|webp)$/i.test(p),
-      'Logo must be an image in this organization’s branding folder',
-    )
 
 const nullableText = (max: number) =>
   z
@@ -100,13 +90,12 @@ export const settingsRouter = {
         })
       }
       const row = data as OrgRow
-      let logoUrl: string | null = null
-      if (row.logo_path) {
+      const logoUrl = await resolveLogoUrl(row.logo_path, async (path) => {
         const signed = await ctx.supabase.storage
           .from('org-files')
-          .createSignedUrl(row.logo_path, 60 * 60)
-        logoUrl = signed.data?.signedUrl ?? null
-      }
+          .createSignedUrl(path, 60 * 60)
+        return signed.data?.signedUrl ?? null
+      })
       const { settings, ...profile } = row
       return {
         ...profile,
@@ -183,14 +172,11 @@ export const settingsRouter = {
     .input(z.object({ path: z.string().nullable() }))
     .mutation(({ ctx, input }) =>
       Sentry.startSpan({ name: 'settings.setLogo' }, async () => {
-        const path =
-          input.path === null
-            ? null
-            : logoPath(ctx.organizationId).safeParse(input.path)
-        if (path !== null && !path.success) {
+        const path = input.path
+        if (path !== null && !validLogoReference(path, ctx.organizationId)) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
-            message: path.error.issues[0]?.message ?? 'Invalid logo path',
+            message: 'Invalid logo reference for this organization',
           })
         }
         const before = await ctx.supabase
@@ -201,7 +187,7 @@ export const settingsRouter = {
         if (before.error) throw dbError(before.error)
         const { data, error } = await ctx.supabase
           .from('organizations')
-          .update({ logo_path: path?.data ?? null })
+          .update({ logo_path: path })
           .eq('id', ctx.organizationId)
           .select('id')
         if (error) throw dbError(error)
@@ -212,7 +198,12 @@ export const settingsRouter = {
           })
         }
         const old = before.data?.logo_path
-        if (old && old !== path?.data) {
+        if (
+          old &&
+          old !== path &&
+          validLogoReference(old, ctx.organizationId) &&
+          !old.startsWith('https://')
+        ) {
           // Best effort: a leftover file is harmless, a failed save is not.
           await ctx.supabase.storage.from('org-files').remove([old])
         }

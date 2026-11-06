@@ -61,9 +61,11 @@ insert into _tap (line) select is(
   (select revision from public.quotes where id = (select id from _ids where key = 'q1')), 1,
   'the first draft is revision 1');
 insert into _tap (line) select is(
-  (select c.email from public.requests r join public.clients c on c.id = r.client_id
-   where r.id = (select id from _ids where key = 'req1')),
-  'pat@example.com', 'a request with no client gets one created from its contact details');
+  (select client_id from public.quotes where id = (select id from _ids where key = 'q1')),
+  null::uuid, 'a prospect quote defers client creation until approval');
+insert into _tap (line) select is(
+  (select contact_email from public.requests where id = (select id from _ids where key = 'req1')),
+  'pat@example.com', 'the prospect contact email is retained until approval');
 insert into _tap (line) select is(
   (select status::text from public.requests where id = (select id from _ids where key = 'req1')),
   'reviewing', 'a draft moves the request to reviewing');
@@ -203,6 +205,10 @@ select set_config('role', 'postgres', true);
 insert into _tap (line) select is(
   (select status::text from public.requests where id = (select id from _ids where key = 'req1')), 'approved',
   'approval moves the request to approved');
+insert into _tap (line) select is(
+  (select c.email from public.quotes q join public.clients c on c.id = q.client_id and c.organization_id = q.organization_id
+   where q.id = (select id from _ids where key = 'q2')),
+  'pat@example.com', 'approval creates or links the client from the original prospect email');
 select set_config('role', 'service_role', true);
 insert into _tap (line) select is(
   (public.portal_token_get_quote(repeat('c', 64)) ->> 'status'), 'approved', 'the link still shows the outcome');
