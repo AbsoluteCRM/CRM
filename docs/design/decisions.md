@@ -82,3 +82,13 @@ and kept the existing landing page for guests. Wait for authentication to
 resolve using the existing loading screen, then replace the initial route's
 history entry when redirecting to `/dashboard`. See
 [Initial route](../initial-route/ui.md).
+
+## 2026-11-06 — Company logos in Settings
+
+The user chose owner/admin-only logo uploads, enforced at the backend, and a
+10 MiB limit for JPEG, PNG and WebP images. Reuse Company profile's existing
+upload, preview and Remove controls with immediate saves and busy/error states.
+Show the saved logo in company avatars and on the public request page; preserve
+legacy logos until replaced or removed. Read existing R2 Edge Function secrets
+instead of duplicating credentials in Vault. See [Settings](../settings/ui.md)
+and [the plan](../plans/company-logo-upload.md).

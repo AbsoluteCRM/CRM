@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { AwsClient } from 'aws4fetch'
 import { corsHeaders, createUploadHandler } from './handler.ts'
+import { readEnvironmentUploadConfig } from './configuration.ts'
 
 const options = {
   auth: {
@@ -28,11 +29,10 @@ const handler = createUploadHandler({
     })
   },
   async configuration() {
-    // This service-role client is confined to the Edge Function trusted boundary.
-    const url = Deno.env.get('SUPABASE_URL')
-    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    if (!url || !key) return { data: null, error: true }
-    return await createClient(url, key, options).rpc('get_r2_upload_config')
+    return {
+      data: readEnvironmentUploadConfig((name) => Deno.env.get(name)),
+      error: null,
+    }
   },
   async put(config, key, file, cacheControl, signal) {
     const client = new AwsClient({

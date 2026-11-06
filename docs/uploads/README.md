@@ -62,10 +62,10 @@ public reads through a connected custom domain (recommended) or the bucket's
 public development `https://pub-<id>.r2.dev` URL. The S3 API endpoint is separate
 and is derived from the account ID; callers cannot choose it.
 
-Manually add these **exact names** to Supabase Vault through the dashboard. Do
+Add these **exact lowercase names** to Supabase **Edge Function secrets**. Do
 not put real values in migrations, source files, fixtures or shell history:
 
-| Vault name             | Value                                                                          |
+| Edge secret name       | Value                                                                          |
 | ---------------------- | ------------------------------------------------------------------------------ |
 | `r2_account_id`        | Cloudflare's 32-character lowercase hex account ID                             |
 | `r2_access_key_id`     | Bucket-scoped R2 access key ID                                                 |
@@ -73,13 +73,17 @@ not put real values in migrations, source files, fixtures or shell history:
 | `r2_bucket_name`       | Bucket name, lowercase letters/digits/hyphens, 3–63 characters                 |
 | `r2_public_base_url`   | Public HTTPS base URL, without a bucket suffix, credentials, query or fragment |
 
-Only the service-role-only `get_r2_upload_config()` RPC reads these fixed Vault
-entries. User and anon clients cannot retrieve them. The Edge Function uses the
-Supabase-provided runtime variables `SUPABASE_URL`, `SUPABASE_ANON_KEY` (caller
-verification/client API key), and `SUPABASE_SERVICE_ROLE_KEY` (config RPC only).
-These are normally populated by Supabase; local serving needs equivalent local
-values. Clients use their project publishable key in `apikey` and their user JWT
-in `Authorization`, never a service-role key.
+After verifying the caller and target permissions, the Edge Function reads only
+these fixed names with `Deno.env.get` and validates the configuration. Values
+never reach clients or logs. Vault entries are not required. The legacy
+service-role-only `get_r2_upload_config()` RPC remains installed but is unused
+by uploads.
+
+The function also uses Supabase-provided `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+for caller verification and caller-scoped authorization; it no longer needs a
+service-role key. Local serving needs equivalent local environment values.
+Clients use their project publishable key in `apikey` and their user JWT in
+`Authorization`, never an account access token or service-role key.
 
 Logos overwrite `company_logos/{org}/logo.jpg|png|webp` with
 `Cache-Control: no-cache, max-age=0, must-revalidate`. Keep the entire returned
@@ -119,8 +123,8 @@ For a later, separately authorized deployment:
 
 1. Review and apply the committed migration through the repository's database
    workflow. Run database tests/advisors and `pnpm db:types` after application;
-   generated application types are intentionally deferred in this code-only PR.
-2. Provision Vault entries and public bucket/domain/cache settings above.
+   regenerate types using the installed CLI's supported project-selection flags.
+2. Provision Edge Function secrets and public bucket/domain/cache settings above.
 3. Verify the project's Supabase runtime environment values and deploy the
    function with JWT gateway verification retained (`verify_jwt = true`).
 4. Smoke-test allowed employee uploads and cross-organization denials with test
@@ -134,7 +138,8 @@ pnpm dlx supabase@3.0.0 functions deploy upload-image --remote=skygtamcakhoirlrq
 
 CLI v2 uses different project-selection flags; consult that installed version's
 `functions deploy --help` instead of copying v3 syntax. Do not pass
-`--no-verify-jwt`. No deployment command was executed for this PR.
+`--no-verify-jwt`. Deployment and live verification results are recorded in
+[the company-logo plan](../plans/company-logo-upload.md).
 
 ## Company settings
 

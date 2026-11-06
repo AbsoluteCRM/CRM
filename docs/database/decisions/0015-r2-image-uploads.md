@@ -24,18 +24,19 @@ and either the matching `company_logos/{organization_id}` prefix or a
 `jobs/{job_id}` lookup scoped to that organization. This worker permission
 does not grant table access to jobs and is not restricted to assigned visits.
 
-`get_r2_upload_config()` is a service-role-only definer RPC with no parameters.
-It reads five fixed Vault names: `r2_account_id`, `r2_access_key_id`,
-`r2_secret_access_key`, `r2_bucket_name`, `r2_public_base_url`. Only trusted
-code receives this result; clients cannot choose secret names or read values.
-Both helpers use an empty search path and explicit execution grants.
+On 2026-11-06 the user chose existing Edge Function secrets instead of duplicate
+Vault entries. After caller-scoped authorization, the function reads five fixed
+lowercase environment names: `r2_account_id`, `r2_access_key_id`,
+`r2_secret_access_key`, `r2_bucket_name`, `r2_public_base_url`. Existing config
+validation and sanitized errors remain. No credential reaches clients or logs,
+and the caller cannot choose an environment name.
 
-The Edge Function is a trusted service-role boundary alongside
-`src/server/trusted/`. The caller's JWT is used for upload authorization;
-the service-role client is used only to retrieve configuration after that
-authorization succeeds. No service-role job lookup or membership decision
-occurs in the Edge Function. This extends ADR 0009 for the standalone Deno
-runtime without moving service-role access into application request code.
+The legacy `get_r2_upload_config()` service-role-only definer RPC remains
+installed, with its original fixed Vault allowlist and explicit grants, but is
+unused by current uploads. Both database helpers retain an empty search path.
+The Edge entrypoint no longer constructs a service-role client or needs the
+service-role key. Its Supabase clients carry the caller's JWT for Auth and
+authorization; R2 signing stays entirely server-side.
 
 ## Consequences
 
@@ -46,9 +47,9 @@ runtime without moving service-role access into application request code.
 - Job images use unique `jobs/{job_id}/{uuid}.{extension}` keys with public,
   immutable URLs. They do not imply an attachment or visibility flag in the
   CRM database. Existing Supabase Storage attachments are unchanged.
-- Users provision Vault entries manually; no credentials belong in SQL or Git.
+- Users provision Edge Function secrets; no credentials belong in SQL or Git.
 - Deployment must apply the migration, regenerate database types, configure
-  public R2 access/caching, then deploy the function. This feature does none
-  of those remote operations.
+  public R2 access/caching and Edge secrets, then deploy the function. See the
+  company-logo plan for authorized production deployment and verification.
 - There is no image transformation, format normalization, EXIF stripping,
   deletion or orphan cleanup. File signatures validate type, not full decode.

@@ -67,6 +67,18 @@ The company logo is `logo_path`: a complete public HTTPS URL from R2, or a legac
 and makes the caller its `owner` member. There's no direct insert policy.
 Deleting an organization is service-role only.
 
+### Company logo references
+
+`organizations.logo_path` contains either a legacy relative path in the private
+`org-files` bucket (`{organizationId}/branding/...`) or the complete public HTTPS
+URL returned by `upload-image`, including its version query. Settings and the
+public request portal sign legacy paths and return public URLs directly.
+Owners/admins may set or clear their organization's reference. New uploads use
+`company_logos/{organizationId}/logo.jpg|png|webp`; no new logos go to `org-files`.
+Replacing or removing a legacy reference cleans up that legacy file only after
+the reference update succeeds. Clearing a public reference does not delete the
+R2 object or revoke a previously shared URL.
+
 ## `profiles`
 
 One row per auth user, holding personal data that isn't tied to any org.
@@ -120,6 +132,13 @@ Constraints and indexes:
   invitation that names an owner row) and `create_organization()`.
 - `my_memberships()` returns the caller's memberships in every status; table
   policies show only active ones.
+
+The hosted member schema also contains `certifications text[]` (default empty),
+`jobs_completed integer` and `hours_worked numeric(8,1)` (both nonnegative,
+default zero), and nullable `rating numeric(2,1)` (1–5). The preserving
+`reconcile_hosted_member_metrics` migration records these pre-existing fields
+for clean replay; only `certifications` has an authenticated column UPDATE
+grant, still constrained by the existing member RLS policies.
 
 ## `organization_invitations`
 
@@ -187,13 +206,6 @@ direct access through the API.
 
 ## `time_off`
 
-The hosted member schema also contains `certifications text[]` (default empty),
-`jobs_completed integer` and `hours_worked numeric(8,1)` (both nonnegative,
-default zero), and nullable `rating numeric(2,1)` (1–5). The preserving
-`reconcile_hosted_member_metrics` migration records these pre-existing fields
-for clean replay; only `certifications` has an authenticated column UPDATE
-grant, still constrained by the existing member RLS policies.
-
 Sick days, vacation and personal time (`20261029190000_team_availability`).
 Only `approved` rows make someone unavailable; the Team → Availability board
 combines them with each member's `work_days` and the company's
@@ -223,15 +235,3 @@ through these `security definer` functions (executable by `authenticated`):
 Overlapping pending or approved time off for the same member is refused
 (`55000`). Owners and admins edit `work_days`, `work_start` and `work_end`
 through the existing member update policy.
-
-### Company logo references
-
-`organizations.logo_path` contains either a legacy relative path in the private
-`org-files` bucket (`{organizationId}/branding/...`) or the complete public HTTPS
-URL returned by `upload-image`, including its version query. Settings and the
-public request portal sign legacy paths and return public URLs directly.
-Owners/admins may set or clear their organization's reference. New uploads use
-`company_logos/{organizationId}/logo.jpg|png|webp`; no new logos go to `org-files`.
-Replacing or removing a legacy reference cleans up that legacy file only after
-the reference update succeeds. Clearing a public reference does not delete the
-R2 object or revoke a previously shared URL.

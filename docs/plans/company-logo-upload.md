@@ -14,6 +14,13 @@
 
 Use the deployed `upload-image` function from Settings → Company profile. Persist the returned public URL, including its cache version, and show it wherever the company logo already appears. Preserve legacy Supabase Storage logos. Deliver one PR including a database authorization migration, meaningful tests and the design record.
 
+**Current configuration decision (supersedes Vault instructions below):** on
+2026-11-06, the user requested reading the existing Edge Function secrets
+instead of duplicating them in Vault. Metadata inspection confirmed all five
+exact lowercase names exist in production Edge Function secrets. Follow the
+configuration addendum at the end of this plan; Vault-dependent descriptions
+below document the original implementation and failed live attempt.
+
 ## Decisions
 
 | #   | Question                              | Answer                                                                                    |
@@ -199,3 +206,66 @@ Authorization: original feature approved, history reconciliation and actual pend
 ### Reconciliation audit round 2: pass, confidence high
 
 Fresh read-only auditor verified all nine scoped availability/member catalog categories, inspected recovered SQL and preserving member-field migration, checked the 40-file inventory and exact repair/deployment allowlists, and accepted full replay, populated conversion and 394 passing assertions as verified evidence. No blockers or unresolved questions. Non-blocking notes adopted: correct the function count to five and consolidate this scope into the committed plan. These scoped catalog checks do not claim whole-database schema equality.
+
+## Implementation verification (2026-11-06)
+
+- Application commits: `4e300b5`, `65d70d4`; reconciliation: `67e87b0`; hosted types/advisors: `1fb4f6d`.
+- Root exact Verify command passed after integration and hosted type generation: **73 files / 661 tests**, Deno entrypoint check and **11 Edge Function tests**; TypeScript, ESLint and Prettier passed.
+- Complete disposable local migration replay succeeded with no omitted source files. Populated prototype transition retained id, organization, crew, name, boundary and created_at and removed the obsolete table/function. Final SQL suite: **13 files / 402 assertions PASS**, including owner/admin logos, employee job uploads, cross/multi-org boundaries, deferred client creation/contact retention/approval, and recovered member-field defaults/bounds.
+- Production history-only repair recorded exactly the four audited already-applied migrations. Dry run listed exactly the four approved pending files; all four applied successfully with Vault updates/seeding disabled. Fresh production inventory equals the branch: **40 versions and names**. No production database test fixtures or business-data repair SQL ran.
+- Production security advisors: 39 authenticated-definer findings, existing managed `rls_auto_enable`, and leaked-password protection disabled; documented accepted classes in `docs/database/rls.md`.
+- Types regenerated directly with CLI 3.0.0 (`gen types --remote=skygtamcakhoirlrqlnq --schema public`), equivalent to the repository's older CLI-based `pnpm db:types` script. Never hand-edited. Existing hosted fields, including `crews.disabled_at`, appear in the regenerated output; this feature did not add that crew column.
+- Dedicated hosted test orgs/users were created for live browser checks and removed after each attempt. Settings reached the real deployed endpoint, received **503 Upload configuration unavailable**, displayed its accessible error, and did not persist a false-success reference. Service-role RPC check returned SQLSTATE 55000 (incomplete configuration). Vault metadata counts showed **zero entries for all five required names**; no credential values printed.
+- User clarified R2 values are currently in **Edge Function secrets**, and was asked to copy them to the five exact lowercase Vault names. The existing deployed function intentionally uses Vault. Successful upload/replacement/removal, public byte checks, role-denial smoke checks and populated screenshots remain pending that setup; do not merge until completed.
+
+### Source review round 1: reviewer pass / security pass, confidence high
+
+Both fresh read-only reviewers checked the whole diff at `1fb4f6d`, independently ran 52 targeted logo/settings/portal tests, and found no source/security blockers. They checked org/role boundaries, URL validation, captured-org async handling, legacy signing/cleanup, historical provenance and preserving schema reconciliation. Both explicitly left the live-upload and screenshot gates to the main agent; neither claimed a successful deployed upload. Reviewer navigation note adopted: move recovered member-field documentation under organization_members.
+
+## User-requested configuration change (2026-11-06)
+
+User request verbatim: "can we just read them from edge function secrets instead".
+
+The user explicitly authorizes using existing Edge Function secrets rather
+than provisioning duplicate Vault values. Verified production secret names:
+`r2_account_id`, `r2_access_key_id`, `r2_secret_access_key`, `r2_bucket_name`,
+`r2_public_base_url`. Only names were printed, never values or digests.
+
+Implementation:
+
+1. Add a small `supabase/functions/upload-image/configuration.ts` helper that
+   reads only those five fixed names through an injected environment reader
+   and uses the existing `uploadConfig` validation (HTTPS URL, account/bucket
+   format, nonempty credentials). No fallback to Vault, no caller-selected
+   variable names, no browser configuration, no new SDK or dependencies.
+2. Replace the entrypoint's service-role config RPC with this helper using
+   `Deno.env.get`. Keep the handler's authentication and organization/role
+   authorization before configuration access. Caller-scoped Supabase Auth/RPC
+   clients and `verify_jwt = true` remain unchanged. No service-role client is
+   needed by the upload entrypoint afterward.
+3. Deno tests verify fixed name reads, valid configuration, missing/empty and
+   invalid formats. Existing handler tests verify authorization-before-config,
+   sanitized 503, upstream errors and no credential leakage. Include new tests
+   in the unchanged exact Verify command through its directory test target.
+4. Keep the legacy service-only `get_r2_upload_config` database helper and its
+   existing grants; do not drop schema objects or change migration history.
+   Document that it is unused by current uploads. Update uploads guide, RLS and
+   ADR 0015 to describe current Edge environment configuration and lack of a
+   service-role dependency in the entrypoint. Update design decisions for the
+   user-confirmed size/roles/configuration choices.
+5. Run fresh read-only plan audit of this addendum before implementation.
+   User's explicit request is the scope authorization; do not ask them to
+   approve the same configuration choice again. Commit code/tests/docs, deploy
+   only `upload-image` with the previously verified CLI command and JWT gateway
+   retained, then rerun dedicated-org live upload/public-bytes/persistence/
+   reload/avatar/portal/replacement/removal and role/tenant denials. Do not claim
+   deployment alone proves the actual configured values work.
+6. Fresh reviewer and security audits cover the whole updated diff before
+   merge. All original verification, screenshot and merge gates remain.
+
+Unhappy paths: missing/invalid environment values return the existing sanitized
+503 after auth/authorization; R2 errors return existing 502. Never print values
+or read other environment names. Existing stored Vault contents (currently
+absent) and other function secrets are untouched. No user decision remains open.
+
+Configuration plan audit: fresh read-only auditor returned **pass, confidence high**, no findings or unresolved questions. Verified the fixed secret names, existing configuration validation, authentication/authorization ordering, preserved JWT gateway, no service-role dependency, legacy helper compatibility, tests, redeployment and remaining live/review gates. User’s explicit configuration request authorizes this audited change.
