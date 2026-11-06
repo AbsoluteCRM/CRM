@@ -12,6 +12,7 @@ type State = {
   rpc: Result
   rpcCalls: Array<[string, Record<string, unknown>]>
   calls: Array<[string, ...Array<unknown>]>
+  adminRpcCalls: Array<[string, Record<string, unknown>]>
 }
 
 const state = vi.hoisted<State>(() => ({
@@ -21,6 +22,7 @@ const state = vi.hoisted<State>(() => ({
   rpc: { data: null, error: null },
   rpcCalls: [],
   calls: [],
+  adminRpcCalls: [],
 }))
 
 const delivery = vi.hoisted(() => ({
@@ -46,7 +48,12 @@ vi.mock('#/env', () => ({
 }))
 
 vi.mock('#/server/trusted/supabase-admin', () => ({
-  createSupabaseAdminClient: () => ({}),
+  createSupabaseAdminClient: () => ({
+    rpc: (name: string, args: Record<string, unknown>) => {
+      state.adminRpcCalls.push([name, args])
+      return Promise.resolve({ data: null, error: null })
+    },
+  }),
 }))
 
 // Each awaited query on a table consumes the next queued result for it.
@@ -149,7 +156,11 @@ beforeEach(() => {
   state.rpc = { data: QUOTE, error: null }
   state.rpcCalls = []
   state.calls = []
-  delivery.config.mockClear()
+  delivery.config.mockReset().mockReturnValue({
+    key: 'test',
+    sender: 'office@example.com',
+    origin: 'https://example.com',
+  })
   delivery.send
     .mockReset()
     .mockResolvedValue({ status: 'sent', messageId: 'provider-1' })
@@ -240,6 +251,31 @@ describe('quote delivery and conversation boundaries', () => {
     })
     expect(state.rpcCalls).toEqual([])
   })
+  it.each(['send', 'retryDelivery'] as const)(
+    '%s refuses an archived linked client even with a valid request fallback',
+    async (operation) => {
+      ready()
+      const quote = state.results.quotes[0].data as Record<string, unknown>
+      quote.request_id = REQ
+      state.results.clients = [
+        {
+          data: { email: 'archived@example.com', archived_at: '2026-10-01' },
+          error: null,
+        },
+      ]
+      state.results.requests = [
+        {
+          data: { contact_email: 'valid@example.com', contact_name: 'Pat' },
+          error: null,
+        },
+      ]
+      await expect(caller().quotes[operation](input)).rejects.toMatchObject({
+        code: 'PRECONDITION_FAILED',
+      })
+      expect(state.rpcCalls).toEqual([])
+      expect(delivery.send).not.toHaveBeenCalled()
+    },
+  )
   it('records a transport failure and reports pending when recording fails', async () => {
     ready()
     delivery.send.mockResolvedValue({ status: 'failed', messageId: null })
@@ -323,6 +359,8 @@ describe('quotes access', () => {
         lineId: LINE,
       }),
       caller().quotes.pullBack({ organizationId: ORG, quoteId: QUOTE }),
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+      caller().quotes.retryDelivery({ organizationId: ORG, quoteId: QUOTE }),
       caller().requests.setInfoNeeded({
         organizationId: ORG,
         id: REQ,
@@ -374,18 +412,37 @@ describe('quotes reads', () => {
     expect(state.calls).toContainEqual(['quotes.eq', 'request_id', REQ])
   })
 
-  it('get returns quote, lines and delivery, and never selects the token hash', async () => {
-    state.results.quotes = [{ data: { id: QUOTE }, error: null }]
+  it('get returns quote, lines, delivery and the recipient, and never selects the token hash', async () => {
+    state.results.quotes = [
+      { data: { id: QUOTE, client_id: null, request_id: REQ }, error: null },
+    ]
     state.results.quote_line_items = [{ data: [{ id: LINE }], error: null }]
     state.results.quote_share_tokens = [
       { data: { delivery_status: 'sent' }, error: null },
     ]
+    state.results.requests = [
+      {
+        data: {
+          contact_name: 'Pat Prospect',
+          contact_email: 'pat@example.com',
+        },
+        error: null,
+      },
+    ]
+    state.results.organizations = [
+      { data: { name: 'Acme', currency: 'CAD' }, error: null },
+    ]
     await expect(
       caller().quotes.get({ organizationId: ORG, quoteId: QUOTE }),
     ).resolves.toEqual({
-      quote: { id: QUOTE },
+      quote: { id: QUOTE, client_id: null, request_id: REQ },
       lines: [{ id: LINE }],
       delivery: { delivery_status: 'sent' },
+      recipient: {
+        email: 'pat@example.com',
+        name: 'Pat Prospect',
+        isClient: false,
+      },
     })
     const tokenSelect = state.calls.find(
       ([k]) => k === 'quote_share_tokens.select',
@@ -394,6 +451,7 @@ describe('quotes reads', () => {
     for (const t of ['quotes', 'quote_line_items', 'quote_share_tokens']) {
       expect(state.calls).toContainEqual([`${t}.eq`, 'organization_id', ORG])
     }
+    expect(state.calls).toContainEqual(['requests.eq', 'organization_id', ORG])
   })
 
   it('404s when the quote is missing', async () => {
@@ -669,4 +727,165 @@ describe('quotes writes', () => {
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
+})
+
+describe('quotes.send and retryDelivery', () => {
+  const TOKEN_ID = '0198f0a0-0000-7000-8000-000000000040'
+  const configure = async () => {
+    const actual = await vi.importActual<typeof QuoteEmail>(
+      '#/server/quote-email',
+    )
+    delivery.config.mockImplementation(actual.quoteEmailConfig)
+    delivery.send.mockImplementation(actual.sendQuoteEmail)
+    vi.stubEnv('RESEND_API_KEY', 're_test')
+    vi.stubEnv('RESEND_FROM_EMAIL', 'quotes@acme.test')
+    vi.stubEnv('SERVER_URL', 'https://app.acme.test')
+  }
+  const queueRecipient = () => {
+    state.results.quotes = [
+      {
+        data: {
+          id: QUOTE,
+          number: 'Q-0007',
+          title: 'Spring cleanup',
+          message: 'Thanks for asking!',
+          valid_until: '2026-12-01',
+          total_cents: 34900,
+          client_id: null,
+          request_id: REQ,
+          status: 'sent',
+        },
+        error: null,
+      },
+    ]
+    state.results.requests = [
+      {
+        data: {
+          contact_name: 'Pat Prospect',
+          contact_email: 'pat@example.com',
+        },
+        error: null,
+      },
+    ]
+    state.results.organizations = [
+      { data: { name: 'Acme Lawn', currency: 'CAD' }, error: null },
+    ]
+  }
+  const resend = (response: Response | Error) => {
+    const fetchMock = vi.fn((_url: string, _init: RequestInit) =>
+      response instanceof Error
+        ? Promise.reject(response)
+        : Promise.resolve(response),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('refuses to send when email isn’t configured, before touching the quote', async () => {
+    await configure()
+    queueRecipient()
+    vi.stubEnv('RESEND_API_KEY', '')
+    await expect(
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' })
+    expect(state.rpcCalls).toHaveLength(0)
+  })
+
+  it('stores only the token hash, emails the request contact the link, and records delivery', async () => {
+    await configure()
+    queueRecipient()
+    state.rpc = { data: TOKEN_ID, error: null }
+    const fetchMock = resend(
+      new Response(JSON.stringify({ id: 'msg_1' }), { status: 200 }),
+    )
+    await expect(
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+    ).resolves.toEqual({ id: QUOTE, deliveryStatus: 'sent' })
+
+    const [name, args] = state.rpcCalls[0]
+    expect(name).toBe('send_quote')
+    expect(args.p_quote_id).toBe(QUOTE)
+    const hash = String(args.p_token_hash)
+    expect(hash).toMatch(/^[0-9a-f]{64}$/)
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.resend.com/emails')
+    const body = JSON.parse(String(init.body)) as {
+      to: Array<string>
+      subject: string
+      text: string
+    }
+    expect(body.to).toEqual(['pat@example.com'])
+    expect(body.subject).toBe('Your quote is ready to review')
+    const token = /\/q\/([0-9a-f]{64})/.exec(body.text)?.[1]
+    expect(token).toBeDefined()
+    const { createHash } = await import('node:crypto')
+    expect(createHash('sha256').update(token!).digest('hex')).toBe(hash)
+    expect(JSON.stringify(args)).not.toContain(token!)
+    expect((init.headers as Record<string, string>)['Idempotency-Key']).toBe(
+      `quote-delivery-${TOKEN_ID}`,
+    )
+    expect(delivery.record).toHaveBeenCalledWith(TOKEN_ID, {
+      status: 'sent',
+      messageId: 'msg_1',
+    })
+  })
+
+  it('keeps the quote sent and records a failed delivery when the email fails', async () => {
+    await configure()
+    queueRecipient()
+    state.rpc = { data: TOKEN_ID, error: null }
+    resend(new Response('nope', { status: 422 }))
+    await expect(
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+    ).resolves.toMatchObject({ deliveryStatus: 'failed' })
+    expect(delivery.record).toHaveBeenCalledWith(TOKEN_ID, {
+      status: 'failed',
+      messageId: null,
+    })
+  })
+
+  it('maps send_quote errors (e.g. no lines) without emailing', async () => {
+    await configure()
+    queueRecipient()
+    const fetchMock = resend(new Response('{}'))
+    state.rpc = {
+      data: null,
+      error: { message: 'add at least one line before sending', code: '55000' },
+    }
+    await expect(
+      caller().quotes.send({ organizationId: ORG, quoteId: QUOTE }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('retryDelivery rotates the token before emailing again', async () => {
+    await configure()
+    queueRecipient()
+    state.rpc = { data: TOKEN_ID, error: null }
+    resend(new Response(JSON.stringify({ id: 'msg_2' }), { status: 200 }))
+    await caller().quotes.retryDelivery({ organizationId: ORG, quoteId: QUOTE })
+    expect(state.rpcCalls[0][0]).toBe('rotate_quote_token')
+    expect(String(state.rpcCalls[0][1].p_new_token_hash)).toMatch(
+      /^[0-9a-f]{64}$/,
+    )
+  })
+  it.each(['send', 'retryDelivery'] as const)(
+    '%s rejects invalid request email before mutating the quote or token',
+    async (operation) => {
+      await configure()
+      queueRecipient()
+      state.results.requests = [
+        {
+          data: { contact_name: 'Pat', contact_email: 'invalid' },
+          error: null,
+        },
+      ]
+      await expect(
+        caller().quotes[operation]({ organizationId: ORG, quoteId: QUOTE }),
+      ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' })
+      expect(state.rpcCalls).toEqual([])
+      expect(delivery.send).not.toHaveBeenCalled()
+    },
+  )
 })

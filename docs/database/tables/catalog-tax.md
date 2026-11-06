@@ -4,10 +4,18 @@ Standard columns are described in the [README](../README.md#conventions).
 
 ## Enums
 
-| Enum                | Values                                                      |
-| ------------------- | ----------------------------------------------------------- |
-| `service_unit`      | `each`, `hour`, `visit`, `sqft`, `linear_ft`, `yard`, `bag` |
-| `service_frequency` | `one_time`, `weekly`, `biweekly`, `monthly`                 |
+| Enum                           | Values                                                         |
+| ------------------------------ | -------------------------------------------------------------- |
+| `service_unit`                 | `monthly`, `hour`, `visit`, `sqft`, `linear_ft`, `yard`, `bag` |
+| `service_frequency`            | `one_time`, `weekly`, `biweekly`, `monthly`                    |
+| `service_precipitation_type`   | `none`, `rain`, `snow`, `any`                                  |
+| `service_precipitation_action` | `none`, `schedule`, `reschedule`                               |
+
+`monthly` is displayed as “per month”. It replaces the former `each` pricing
+unit (displayed as “per job”), including existing and archived services and
+the database default. This is a pricing unit only: it does not create a
+subscription or change the service's visit frequencies. The Services form
+continues to initially select `visit` for new services.
 
 ## `services`
 
@@ -15,19 +23,35 @@ The org's price list. Quote, job, and invoice lines copy `description` and
 price from a service when the line is created, so later price changes never
 rewrite history.
 
-| Column                     | Type                  | Null | Default        | Notes                                                                                      |
-| -------------------------- | --------------------- | ---- | -------------- | ------------------------------------------------------------------------------------------ |
-| `name`                     | `text`                | no   |                | Unique per org among non-archived rows                                                     |
-| `description`              | `text`                | yes  |                | Default line description                                                                   |
-| `unit`                     | `service_unit`        | no   | `'each'`       |                                                                                            |
-| `default_price_cents`      | `bigint`              | no   | `0`            | Check `>= 0`                                                                               |
-| `default_duration_minutes` | `integer`             | yes  |                | Check `> 0`. Seeds the visit duration                                                      |
-| `archived_at`              | `timestamptz`         | yes  |                | Archived services are hidden from pickers (not enforced by the database on new lines)      |
-| `season_start_month`       | `smallint`            | yes  |                | 1-12. First month offered. Null (with the end month) = year-round                          |
-| `season_end_month`         | `smallint`            | yes  |                | 1-12. A start after the end wraps over new year (11 to 3 = Nov-Mar). Both set or both null |
-| `color`                    | `text`                | no   | `'#7fb547'`    | Hex `#rrggbb`. Shown on the services page                                                  |
-| `equipment`                | `text[]`              | no   | `'{}'`         | Equipment the service needs                                                                |
-| `frequencies`              | `service_frequency[]` | no   | `'{one_time}'` | Visit frequencies offered. At least one                                                    |
+| Column                     | Type                           | Null | Default        | Notes                                                                                      |
+| -------------------------- | ------------------------------ | ---- | -------------- | ------------------------------------------------------------------------------------------ |
+| `name`                     | `text`                         | no   |                | Unique per org among non-archived rows                                                     |
+| `description`              | `text`                         | yes  |                | Default line description                                                                   |
+| `unit`                     | `service_unit`                 | no   | `'monthly'`    |                                                                                            |
+| `default_price_cents`      | `bigint`                       | no   | `0`            | Check `>= 0`                                                                               |
+| `default_duration_minutes` | `integer`                      | yes  |                | Check `> 0`. Seeds the visit duration                                                      |
+| `archived_at`              | `timestamptz`                  | yes  |                | Archived services are hidden from pickers (not enforced by the database on new lines)      |
+| `season_start_month`       | `smallint`                     | yes  |                | 1-12. First month offered. Null (with the end month) = year-round                          |
+| `season_end_month`         | `smallint`                     | yes  |                | 1-12. A start after the end wraps over new year (11 to 3 = Nov-Mar). Both set or both null |
+| `color`                    | `text`                         | no   | `'#7fb547'`    | Hex `#rrggbb`. Shown on the services page                                                  |
+| `equipment`                | `text[]`                       | no   | `'{}'`         | Equipment the service needs                                                                |
+| `frequencies`              | `service_frequency[]`          | no   | `'{one_time}'` | Visit frequencies offered. At least one                                                    |
+| `precipitation_type`       | `service_precipitation_type`   | no   | `'none'`       | Precipitation relevant to this service; `any` means rain or snow                           |
+| `precipitation_action`     | `service_precipitation_action` | no   | `'none'`       | Suggested admin action for a future weather recommendation                                 |
+
+Precipitation settings are one optional rule per service. Both fields must be
+`none`, or the type must be `rain`, `snow`, or `any` and the action must be
+`schedule` or `reschedule`. Existing services default to `none`/`none`.
+Owner/admin service create and update permissions apply to these columns.
+These preferences do not currently generate flags or change schedules.
+
+Future WeatherAPI integration can map separate rain/snow indicators and
+probabilities to these business preferences. Daily forecast fields include
+`daily_will_it_rain`, `daily_will_it_snow`, `daily_chance_of_rain`, and
+`daily_chance_of_snow`; hourly equivalents omit `daily_`. Precipitation and
+snowfall amounts use different units (`totalprecip_mm` and `totalsnow_cm`, or
+hourly `precip_mm` and `snow_cm`). No thresholds or provider response data are
+stored here. See [WeatherAPI forecast documentation](https://www.weatherapi.com/docs/forecast-api/).
 
 Indexes: `unique (organization_id, id)`,
 `unique (organization_id, lower(name)) where archived_at is null`.

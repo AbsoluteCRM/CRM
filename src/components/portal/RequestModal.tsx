@@ -13,9 +13,17 @@ import {
 } from '#/components/crm/ui'
 import { useTRPC } from '#/integrations/trpc/react'
 import type { PortalService } from '#/server/trusted/portal'
+import Turnstile, { TURNSTILE_SITE_KEY } from './Turnstile'
+import type { AddressParts } from '#/components/address/address'
+import AddressFields from '#/components/address/AddressFields'
+import {
+  EMPTY_ADDRESS,
+  formatAddress,
+  isComplete,
+} from '#/components/address/address'
 
 export const UNIT_LABEL: Record<string, string> = {
-  each: 'per job',
+  monthly: 'per month',
   visit: 'per visit',
   hour: 'per hour',
   sqft: 'per sq ft',
@@ -24,7 +32,7 @@ export const UNIT_LABEL: Record<string, string> = {
   bag: 'per bag',
 }
 
-const EMPTY = { name: '', email: '', phone: '', address: '', notes: '' }
+const EMPTY = { name: '', email: '', phone: '', notes: '' }
 
 export default function RequestModal({
   orgSlug,
@@ -39,14 +47,25 @@ export default function RequestModal({
 }) {
   const trpc = useTRPC()
   const [form, setForm] = useState(EMPTY)
+  const [address, setAddress] = useState<AddressParts>(EMPTY_ADDRESS)
   const [website, setWebsite] = useState('')
   const [touched, setTouched] = useState(false)
-  const submit = useMutation(trpc.portal.submit.mutationOptions())
+  const [captcha, setCaptcha] = useState<string | null>(null)
+  const [captchaReset, setCaptchaReset] = useState(0)
+  const submit = useMutation(
+    trpc.portal.submit.mutationOptions({
+      // A Turnstile token works once; get a fresh one before retrying.
+      onError: () => setCaptchaReset((n) => n + 1),
+    }),
+  )
+  const needsCaptcha = Boolean(TURNSTILE_SITE_KEY) && captcha === null
 
   const close = () => {
     setForm(EMPTY)
+    setAddress(EMPTY_ADDRESS)
     setWebsite('')
     setTouched(false)
+    setCaptcha(null)
     submit.reset()
     onClose()
   }
@@ -54,7 +73,7 @@ export default function RequestModal({
   if (!service) return null
 
   const emailOk = /^\S+@\S+\.\S+$/.test(form.email.trim())
-  const valid = form.name.trim() !== '' && emailOk && form.address.trim() !== ''
+  const valid = form.name.trim() !== '' && emailOk && isComplete(address)
 
   const set = (key: keyof typeof EMPTY) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }))
@@ -62,16 +81,17 @@ export default function RequestModal({
   const onSubmit = (e: { preventDefault: () => void }) => {
     e.preventDefault()
     setTouched(true)
-    if (!valid || submit.isPending) return
+    if (!valid || needsCaptcha || submit.isPending) return
     submit.mutate({
       orgSlug,
       serviceId: service.id,
       name: form.name,
       email: form.email,
       phone: form.phone.trim() || null,
-      address: form.address,
+      address: formatAddress(address),
       notes: form.notes.trim() || null,
       website,
+      captchaToken: captcha,
     })
   }
 
@@ -90,6 +110,10 @@ export default function RequestModal({
             <strong>{service.name}</strong> and will be in touch at{' '}
             {form.email.trim()}.
           </p>
+          <p className="max-w-sm text-xs text-(--ink-3)">
+            Next, the team reviews your request and emails you an estimate. When
+            you approve it, they add you as a client and schedule the work.
+          </p>
         </div>
       </Modal>
     )
@@ -103,7 +127,11 @@ export default function RequestModal({
       open
       onClose={close}
       title={`Request ${service.name}`}
-      subtitle={`From ${money(service.default_price_cents)} ${UNIT_LABEL[service.unit] ?? ''}`}
+      subtitle={
+        service.default_price_cents === null
+          ? 'Tell us about the job and we’ll send you an estimate.'
+          : `From ${money(service.default_price_cents)} ${UNIT_LABEL[service.unit] ?? ''}`
+      }
       footer={
         <>
           <Btn variant="ghost" onClick={close}>
@@ -112,7 +140,7 @@ export default function RequestModal({
           <Btn
             type="submit"
             form="portal-request-form"
-            disabled={submit.isPending}
+            disabled={submit.isPending || needsCaptcha}
           >
             {submit.isPending ? 'Sending…' : 'Send request'}
           </Btn>
@@ -167,16 +195,16 @@ export default function RequestModal({
             />
           </Field>
         </div>
-        <Field label="Service address" htmlFor="pr-address">
-          <TextInput
-            id="pr-address"
-            autoComplete="street-address"
-            maxLength={500}
-            value={form.address}
-            onChange={set('address')}
-            {...invalid(form.address.trim() === '')}
+        <fieldset className="flex flex-col gap-3">
+          <legend className="mb-2 text-sm font-bold">Service address</legend>
+          <AddressFields
+            idPrefix="pr"
+            value={address}
+            onChange={setAddress}
+            touched={touched}
+            autoFill
           />
-        </Field>
+        </fieldset>
         <Field label="Notes (optional)" htmlFor="pr-notes">
           <TextArea
             id="pr-notes"
@@ -186,6 +214,7 @@ export default function RequestModal({
             onChange={set('notes')}
           />
         </Field>
+        <Turnstile onToken={setCaptcha} resetKey={captchaReset} />
         <div
           aria-hidden
           className="absolute -left-[9999px] h-0 w-0 overflow-hidden"

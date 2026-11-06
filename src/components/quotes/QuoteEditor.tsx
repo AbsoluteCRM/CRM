@@ -96,6 +96,7 @@ export default function QuoteEditor({
   onSend?: (retry: boolean) => Promise<boolean>
 }) {
   const { quote, lines, delivery } = data
+  const emailRecipient = recipient ?? data.recipient.email
   const editable = quote.status === 'draft'
   // 'new' adds a line, a line id edits that line.
   const [editing, setEditing] = useState<string | 'new' | null>(null)
@@ -235,12 +236,18 @@ export default function QuoteEditor({
                 : 'Retry delivery'}
           </Btn>
         )}
+        {onSend && editable && !data.recipient.isClient && (
+          <p className="text-xs text-(--ink-3)">
+            This quote goes to the request contact. Approval creates or links
+            the client record.
+          </p>
+        )}
         {onSend && (
           <SendQuoteDialog
             key={`${quote.id}:${sending}`}
             open={sending}
             onOpenChange={setSending}
-            recipient={recipient}
+            recipient={emailRecipient}
             title={quote.title}
             validUntil={quote.valid_until}
             lineCount={lines.length}
@@ -302,6 +309,11 @@ export default function QuoteEditor({
             {delivery.last_delivery_error && (
               <p className="mt-2 text-xs text-(--clay)">
                 {delivery.last_delivery_error}
+              </p>
+            )}
+            {emailRecipient && (
+              <p className="mt-2 text-xs break-all text-(--ink-3)">
+                To {emailRecipient}
               </p>
             )}
           </Card>

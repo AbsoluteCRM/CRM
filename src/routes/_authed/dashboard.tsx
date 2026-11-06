@@ -1,4 +1,11 @@
 import { useMemo, useState } from 'react'
+import { skipToken, useQuery } from '@tanstack/react-query'
+import { useRole } from '#/integrations/organization/use-role'
+import { useTRPC } from '#/integrations/trpc/react'
+import { useOrganization } from '#/integrations/organization/context'
+import { useMyMember } from '#/integrations/teams/teams'
+import { WeatherBadge, WeatherCard } from '#/components/crm/DashboardWeather'
+import type { WeatherState } from '#/components/crm/DashboardWeather'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   ArrowDownRight,
@@ -33,30 +40,25 @@ import {
   Progress,
   StatusBadge,
 } from '#/components/crm/ui'
-import {
-  WEATHER_LABEL,
-  can,
-  forecastFor,
-  jobEnd,
-  useTenant,
-} from '#/components/crm/store'
+import { jobEnd, useTenant } from '#/mocks/crm-store'
+import { SampleDataNote } from '#/mocks/SampleDataBadge'
 import {
   addDays,
   compactMoney,
   fmtDate,
   fmtLongDate,
   fmtTime,
-  fmtWeekday,
   money,
   relativeTime,
   startOfMonth,
   startOfWeek,
   todayISO,
 } from '#/components/crm/format'
-import type { Tenant } from '#/components/crm/store'
-import { WEATHER_ICON } from '#/components/crm/weatherIcons'
-import type { ActivityKind, Job } from '#/components/crm/types'
+import type { Tenant } from '#/mocks/crm-store'
+import type { ActivityKind, Job } from '#/mocks/crm-types'
 import type { LucideIcon } from 'lucide-react'
+import { themeVars } from '#/components/crm/colors'
+import { useAppTheme } from '#/components/layout/AppTheme'
 
 export const Route = createFileRoute('/_authed/dashboard')({
   component: DashboardPage,
@@ -105,27 +107,42 @@ function Delta({ now, before }: { now: number; before: number }) {
 
 function DashboardPage() {
   const t = useTenant()
-  const firstName = t.me?.display_name.split(' ')[0] ?? 'there'
+  const access = useRole()
+  const { me } = useMyMember()
+  // The signed-in member's own name; the greeting stays generic while loading.
+  const firstName = me?.display_name.trim().split(/\s+/)[0] || 'there'
   const today = todayISO()
-  const wx = forecastFor(today, t.org.city)
-  const WxIcon = WEATHER_ICON[wx.condition]
+  const { organization } = useOrganization()
+  const trpc = useTRPC()
+  const query = useQuery(
+    trpc.weather.forecast.queryOptions(
+      organization ? { organizationId: organization.id } : skipToken,
+      { staleTime: 600_000, refetchInterval: 600_000, retry: false },
+    ),
+  )
+  // Until the role is known, show the crew view: it has no revenue or team data.
+  const crewView = !access.can('manageJobs')
+  const weather: WeatherState = {
+    data: query.data,
+    isError: query.isError,
+    retry: () => {
+      void query.refetch()
+    },
+  }
 
   return (
     <PageShell
       kicker={fmtLongDate(today)}
       title={`${greeting()}, ${firstName}`}
       subtitle={
-        t.role === 'worker'
+        crewView
           ? `Here’s what ${t.myCrew?.name ?? 'your crew'} has on today.`
-          : `Here’s how ${t.org.name} is doing today.`
+          : `Here’s how ${organization?.name ?? 'your company'} is doing today.`
       }
       actions={
         <>
-          <span className="hidden items-center gap-2 rounded-full border border-(--line) bg-(--paper) px-3 py-2 text-[13px] font-semibold text-(--ink-2) sm:inline-flex">
-            <WxIcon className="size-4 text-(--sky)" /> {wx.high}° ·{' '}
-            {WEATHER_LABEL[wx.condition]}
-          </span>
-          {can.manageRequests(t.role) && (
+          <WeatherBadge weather={weather} />
+          {access.can('manageRequests') && (
             <Link
               to="/requests"
               search={{ new: true }}
@@ -134,7 +151,7 @@ function DashboardPage() {
               <MessageSquareDiff className="size-4" /> New request
             </Link>
           )}
-          {can.manageJobs(t.role) && (
+          {access.can('manageJobs') && (
             <Link to="/calendar" search={{ new: true }} className={btnClass()}>
               <CalendarPlus className="size-4" /> Schedule job
             </Link>
@@ -142,7 +159,15 @@ function DashboardPage() {
         </>
       }
     >
-      {t.role === 'worker' ? <WorkerDay t={t} /> : <OwnerDashboard t={t} />}
+      <SampleDataNote>
+        Jobs, revenue, requests, clients and crews below are demo data. The
+        weather is live.
+      </SampleDataNote>
+      {crewView ? (
+        <WorkerDay t={t} weather={weather} />
+      ) : (
+        <OwnerDashboard t={t} weather={weather} />
+      )}
     </PageShell>
   )
 }
@@ -151,10 +176,12 @@ function DashboardPage() {
 // Owner / manager dashboard
 // ---------------------------------------------------------------------------
 
-function OwnerDashboard({ t }: { t: Tenant }) {
+function OwnerDashboard({ t, weather }: { t: Tenant; weather: WeatherState }) {
+  const theme = useAppTheme()
+  const themeColors = themeVars(theme)
   const today = todayISO()
   const [range, setRange] = useState<'30d' | '12w'>('30d')
-  const showRevenue = can.viewRevenue(t.role)
+  const showRevenue = useRole().can('viewRevenue')
 
   const stats = useMemo(() => {
     const jobs = t.jobs
@@ -283,7 +310,8 @@ function OwnerDashboard({ t }: { t: Tenant }) {
     t.jobs
       .filter((j) => j.status === 'completed' && j.date >= since)
       .forEach((j) => {
-        const share = j.price_cents / j.service_ids.length
+        // Roles without revenue access see the share of jobs, not dollars.
+        const share = (showRevenue ? j.price_cents : 1) / j.service_ids.length
         j.service_ids.forEach((id) =>
           totals.set(id, (totals.get(id) ?? 0) + share),
         )
@@ -302,44 +330,44 @@ function OwnerDashboard({ t }: { t: Tenant }) {
         color: OTHER_COLOR,
       })
     return top
-  }, [t, today])
+  }, [t, today, showRevenue])
 
   const r = stats.revenue
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-      {/* Revenue hero */}
-      <section className="crm-rise relative overflow-hidden rounded-[26px] bg-(--leaf-900) p-6 text-(--cream) lg:col-span-8">
-        <div
-          className="crm-leaf-pattern pointer-events-none absolute inset-0 opacity-50"
-          aria-hidden
-        />
-        <div className="relative">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-bold tracking-[0.16em] text-(--lime) uppercase">
-                Revenue
-              </p>
-              <p className="mt-1 text-sm text-(--cream)/60">
-                Earned from completed jobs
-              </p>
-            </div>
-            <div className="rounded-full bg-white/10 p-1">
-              {(['30d', '12w'] as const).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setRange(k)}
-                  className={`h-7 cursor-pointer rounded-full px-3 text-xs font-semibold ${range === k ? 'bg-(--lime) text-(--leaf-950)' : 'text-(--cream)/70 hover:text-(--cream)'}`}
-                >
-                  {k === '30d' ? '30 days' : '12 weeks'}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Revenue hero: owners and managers only. Dispatchers never see it. */}
+      {showRevenue && (
+        <>
+          <section className="crm-rise relative overflow-hidden rounded-[26px] bg-(--leaf-900) p-6 text-(--cream) lg:col-span-8">
+            <div
+              className="crm-leaf-pattern pointer-events-none absolute inset-0 opacity-50"
+              aria-hidden
+            />
+            <div className="relative">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold tracking-[0.16em] text-(--lime) uppercase">
+                    Revenue
+                  </p>
+                  <p className="mt-1 text-sm text-(--cream)/60">
+                    Earned from completed jobs
+                  </p>
+                </div>
+                <div className="rounded-full bg-white/10 p-1">
+                  {(['30d', '12w'] as const).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setRange(k)}
+                      className={`h-7 cursor-pointer rounded-full px-3 text-xs font-semibold ${range === k ? 'bg-(--lime) text-(--leaf-950)' : 'text-(--cream)/70 hover:text-(--cream)'}`}
+                    >
+                      {k === '30d' ? '30 days' : '12 weeks'}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {showRevenue ? (
-            <>
               <div className="mt-5 grid grid-cols-3 gap-4">
                 {[
                   { label: 'Today', now: r.today, before: r.yesterday },
@@ -367,7 +395,7 @@ function OwnerDashboard({ t }: { t: Tenant }) {
                   <LineChart
                     data={trend}
                     height={210}
-                    color="#c6ef6a"
+                    color={theme.accent}
                     dark
                     format={compactMoney}
                     ariaLabel={`Revenue trend, ${range === '30d' ? 'last 30 days' : 'last 12 weeks'}`}
@@ -382,17 +410,11 @@ function OwnerDashboard({ t }: { t: Tenant }) {
                   </div>
                 )}
               </div>
-            </>
-          ) : (
-            <p className="mt-6 text-sm text-(--cream)/70">
-              Revenue is visible to owners and managers.
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* Weather */}
-      <WeatherCard t={t} />
+            </div>
+          </section>
+          <WeatherCard weather={weather} jobs={t.jobs} />
+        </>
+      )}
 
       {/* KPI groups */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:col-span-12 xl:grid-cols-4">
@@ -472,16 +494,18 @@ function OwnerDashboard({ t }: { t: Tenant }) {
         />
       </div>
 
+      {!showRevenue && <WeatherCard weather={weather} jobs={t.jobs} />}
+
       {/* Charts */}
-      <Card className="lg:col-span-6">
+      <Card className={showRevenue ? 'lg:col-span-6' : 'lg:col-span-4'}>
         <CardHeader title="Jobs completed" subtitle="Per week, last 8 weeks" />
         <div className="px-4 pt-3 pb-4">
           {completedWeekly.some((d) => d.value > 0) ? (
             <BarChart
               data={completedWeekly}
               highlightIndex={7}
-              color="#9cc8a8"
-              highlightColor="#1f8a4c"
+              color={themeColors['--leaf-300'] ?? '#9cc8a8'}
+              highlightColor={themeColors['--leaf-600'] ?? '#1f8a4c'}
               ariaLabel="Jobs completed per week"
             />
           ) : (
@@ -492,21 +516,31 @@ function OwnerDashboard({ t }: { t: Tenant }) {
           )}
         </div>
       </Card>
-      <Card className="lg:col-span-6">
+      <Card className={showRevenue ? 'lg:col-span-6' : 'lg:col-span-4'}>
         <CardHeader
           title="Services breakdown"
-          subtitle="Share of revenue, last 30 days"
+          subtitle={
+            showRevenue
+              ? 'Share of revenue, last 30 days'
+              : 'Share of completed jobs, last 30 days'
+          }
         />
         <div className="px-5 pt-4 pb-5">
           {breakdown.length ? (
             <DonutChart
               data={breakdown}
-              format={(v) => (showRevenue ? compactMoney(v) : '')}
+              format={(v) =>
+                showRevenue ? compactMoney(v) : `${Math.round(v)} jobs`
+              }
               centerLabel="30-day total"
               centerValue={
                 showRevenue
-                  ? compactMoney(breakdown.reduce((s, d) => s + d.value, 0))
-                  : '—'
+                  ? compactMoney(breakdown.reduce((sum, d) => sum + d.value, 0))
+                  : String(
+                      Math.round(
+                        breakdown.reduce((sum, d) => sum + d.value, 0),
+                      ),
+                    )
               }
             />
           ) : (
@@ -572,96 +606,6 @@ function KpiGroup({
         ))}
       </div>
       {footer && <div className="mt-auto pt-4">{footer}</div>}
-    </Card>
-  )
-}
-
-function WeatherCard({ t }: { t: Tenant }) {
-  const today = todayISO()
-  const days = Array.from({ length: 5 }, (_, i) =>
-    forecastFor(addDays(today, i), t.org.city),
-  )
-  const now = days[0]
-  const NowIcon = WEATHER_ICON[now.condition]
-  return (
-    <Card className="crm-rise flex flex-col overflow-hidden lg:col-span-4">
-      <div className="bg-gradient-to-br from-(--sky-100) to-(--paper) p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-[11px] font-bold tracking-[0.16em] text-(--sky) uppercase">
-              Weather · {t.org.city}
-            </p>
-            <p className="crm-display mt-2 text-5xl font-semibold">
-              {now.high}°
-            </p>
-            <p className="mt-1 text-sm text-(--ink-2)">
-              {WEATHER_LABEL[now.condition]} · Low {now.low}° · Wind {now.wind}{' '}
-              km/h
-            </p>
-          </div>
-          <NowIcon className="size-14 text-(--sky)" strokeWidth={1.4} />
-        </div>
-        <div className="mt-5 grid grid-cols-4 gap-2">
-          {days.slice(1).map((d) => {
-            const I = WEATHER_ICON[d.condition]
-            const alert = d.condition === 'rain' || d.condition === 'snow'
-            return (
-              <div
-                key={d.date}
-                className={`rounded-2xl px-2 py-2.5 text-center ${alert ? 'bg-(--paper) ring-1 ring-(--sky)/30' : 'bg-white/60'}`}
-              >
-                <p className="text-[11px] font-semibold text-(--ink-3)">
-                  {fmtWeekday(d.date)}
-                </p>
-                <I className="mx-auto my-1.5 size-5 text-(--sky)" />
-                <p className="text-[13px] font-bold">{d.high}°</p>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      <div className="flex flex-1 flex-col p-4">
-        <p className="mb-2 text-[11px] font-bold tracking-wider text-(--ink-3) uppercase">
-          Outdoor work ahead
-        </p>
-        <ul className="space-y-1.5">
-          {days.slice(1).map((d) => {
-            const I = WEATHER_ICON[d.condition]
-            const count = t.jobs.filter(
-              (j) =>
-                j.date === d.date &&
-                (j.status === 'assigned' || j.status === 'scheduled'),
-            ).length
-            const alert = d.condition === 'rain' || d.condition === 'snow'
-            return (
-              <li
-                key={d.date}
-                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-[13px] hover:bg-(--cream)"
-              >
-                <I className="size-4 shrink-0 text-(--sky)" />
-                <span className="w-10 font-semibold">{fmtWeekday(d.date)}</span>
-                <span className="w-12 text-xs text-(--ink-3)">{d.precip}%</span>
-                <span className="flex-1 text-(--ink-2)">
-                  {count} job{count === 1 ? '' : 's'}
-                </span>
-                {alert && count > 0 && (
-                  <Badge tone="sky">
-                    {d.condition === 'snow'
-                      ? 'Offer snow removal'
-                      : 'Review lawn jobs'}
-                  </Badge>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-        <Link
-          to="/calendar"
-          className="mt-auto inline-flex items-center gap-1 pt-3 text-[13px] font-semibold text-(--leaf-700) no-underline"
-        >
-          Open calendar <ArrowRight className="size-3.5" />
-        </Link>
-      </div>
     </Card>
   )
 }
@@ -806,7 +750,8 @@ function ActivityFeed({ t }: { t: Tenant }) {
 // Contractor view
 // ---------------------------------------------------------------------------
 
-function WorkerDay({ t }: { t: Tenant }) {
+function WorkerDay({ t, weather }: { t: Tenant; weather: WeatherState }) {
+  const theme = useAppTheme()
   const today = todayISO()
   const mine = t.visibleJobs
   const todayJobs = mine
@@ -823,12 +768,14 @@ function WorkerDay({ t }: { t: Tenant }) {
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-12">
-      <section className="relative overflow-hidden rounded-[26px] bg-(--leaf-900) p-6 text-(--cream) lg:col-span-8">
+      {/* On wide screens the card takes the height of the weather and weekly
+          cards beside it, and the job list scrolls inside. */}
+      <section className="relative overflow-hidden rounded-[26px] bg-(--leaf-900) p-6 text-(--cream) lg:col-span-8 lg:min-h-[22rem] lg:self-stretch lg:p-0">
         <div
           className="crm-leaf-pattern pointer-events-none absolute inset-0 opacity-50"
           aria-hidden
         />
-        <div className="relative">
+        <div className="relative flex flex-col lg:absolute lg:inset-0 lg:p-6">
           <p className="text-[11px] font-bold tracking-[0.16em] text-(--lime) uppercase">
             My day · {t.myCrew?.name}
           </p>
@@ -838,9 +785,12 @@ function WorkerDay({ t }: { t: Tenant }) {
           <Progress
             className="mt-4 bg-white/10"
             value={todayJobs.length ? (done / todayJobs.length) * 100 : 0}
-            color="#c6ef6a"
+            color={theme.accent}
           />
-          <ol className="mt-5 space-y-2">
+          <ol
+            aria-label="Today’s jobs"
+            className="mt-5 space-y-2 [scrollbar-color:rgb(255_255_255/0.25)_transparent] [scrollbar-width:thin] lg:-mr-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3"
+          >
             {todayJobs.map((j, i) => (
               <li key={j.id}>
                 <Link
@@ -877,7 +827,7 @@ function WorkerDay({ t }: { t: Tenant }) {
         </div>
       </section>
       <div className="flex flex-col gap-5 lg:col-span-4">
-        <WeatherCard t={t} />
+        <WeatherCard weather={weather} jobs={t.jobs} />
         <Card className="p-5">
           <p className="text-xs font-semibold text-(--ink-3)">
             Completed this week

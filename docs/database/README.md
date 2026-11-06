@@ -18,7 +18,7 @@ This folder is the design record for the schema:
 | #   | Domain               | Tables                                                                                                        | Reference                                   |
 | --- | -------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | 1   | Tenancy & identity   | organizations, profiles, organization_members, organization_invitations, member_pay_rates, document_sequences | [tenancy.md](tables/tenancy.md)             |
-| 2   | Clients & properties | clients, client_contacts, properties, client_portal_users                                                     | [clients.md](tables/clients.md)             |
+| 2   | Clients & properties | clients, client_contacts, properties, client_portal_users, geocode_cache                                      | [clients.md](tables/clients.md)             |
 | 3   | Catalog & tax        | services, tax_rates, service_default_taxes                                                                    | [catalog-tax.md](tables/catalog-tax.md)     |
 | 4   | Quotes               | quotes, quote_line_items, quote_line_item_taxes, quote_share_tokens, quote_messages                           | [quotes.md](tables/quotes.md)               |
 | 5   | Jobs & visits        | jobs, job_line_items, visits, attachments                                                                     | [jobs-visits.md](tables/jobs-visits.md)     |
@@ -26,6 +26,7 @@ This folder is the design record for the schema:
 | 7   | Invoicing & payments | invoices, invoice_line_items, invoice_visits, invoice_line_item_taxes, payments, stripe_events                | [billing.md](tables/billing.md)             |
 | 8   | Time tracking        | shifts, visit_time_entries                                                                                    | [time.md](tables/time.md)                   |
 | 9   | Requests             | requests, request_submission_log                                                                              | [requests.md](tables/requests.md)           |
+| 10  | Service areas        | service_regions, service_areas, service_area_rotations (and the derived `properties.service_area_id`)         | [service-areas.md](tables/service-areas.md) |
 
 The core business flow is:
 
@@ -87,10 +88,15 @@ These rules apply to every table unless its reference doc says otherwise.
 - **Document numbers**: quotes, jobs, and invoices get a per-organization,
   gap-free, human-facing `number` (`Q-1001`, `J-1001`, `INV-1001`) from
   `private.next_document_number(org, kind)`.
-- **Geo**: `location geography(Point, 4326)` with a GiST index. Stored
-  generated `latitude` / `longitude` columns exist so clients that can't read
-  PostGIS types, such as the generated TypeScript types, still see usable
-  fields.
+- **Geo**: points are `location geography(Point, 4326)` with a GiST index.
+  Stored generated `latitude` / `longitude` columns exist so clients that
+  can't read PostGIS types, such as the generated TypeScript types, still see
+  usable fields. Points are geocoded on save with `geocode_source` and
+  `geocode_accuracy`, through a provider chain and service-role-only
+  `geocode_cache` ([ADR 0013](decisions/0013-geocoding-chain-and-cache.md)).
+  Service area and region polygons are `geometry(MultiPolygon, 4326)`, read
+  and written only as GeoJSON through RPCs
+  ([ADR 0012](decisions/0012-service-areas.md)).
 - **Extensions** (installed in schema `extensions`, except `pg_cron`): `postgis`,
   `btree_gist`, `btree_gin`, `moddatetime`, `pg_trgm`, `pgcrypto`, `pgtap`,
   `pg_cron`. There is no `citext`: emails are `text` with a
@@ -156,10 +162,14 @@ below, and the remote was reset and rebuilt from them. Files are named
 assigned. Before running `pnpm db:types`, compare `list_migrations` with
 `supabase/migrations/`.
 
-**Demo data**: `supabase/seed.sql` is idempotent and creates the
-`absolute-demo` org (Edmonton, GST only), owned by the first auth user, with
-a crew, 3 clients, recurring and one-off jobs, visits for the next 8 weeks,
-and a draft quote. Run it with `execute_sql` or psql. Run it after the migrations are applied.
+**Demo data**: `supabase/seed.sql` is idempotent and creates two demo orgs
+owned by the first auth user: `absolute-demo` (a full Edmonton landscaping
+company) and a small `northside-demo` for checking tenant isolation.
+`supabase/seed/teardown.sql` removes them. See [seed.md](seed.md) for what it
+creates and how to run it after the migrations are applied. The
+`absolute-demo` org also contains a Calgary region, four service areas
+(including unassigned and overlapping areas), and Calgary properties both
+inside and outside those areas.
 
 ## Migration plan
 
@@ -187,6 +197,7 @@ lands, an applied migration is never edited; fixes go in a new migration.
 | 15  | `route_stop_guard_lock_fix` | applied | Route-stop date guard locks the visit only on insert or visit change (avoids a deadlock)                                                         |
 | 16  | `void_payment_refund_fix`   | applied | On a void invoice, settled payments can still be refunded                                                                                        |
 | 17  | `route_stop_race_fix`       | applied | Stop-date guard locks the visit on every write again; reschedule unroute uses NOT EXISTS (security review)                                       |
+| —   | `geocoding`                 | pending | `geocode_cache` (service role only), `properties.geocode_accuracy` ([ADR 0013](decisions/0013-geocoding-chain-and-cache.md))                     |
 
 ## Out of scope (for now)
 

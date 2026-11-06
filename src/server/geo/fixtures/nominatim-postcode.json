@@ -1,0 +1,16 @@
+[
+  {
+    "place_id": 222,
+    "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "lat": "51.0458",
+    "lon": "-114.0575",
+    "category": "place",
+    "type": "postcode",
+    "place_rank": 21,
+    "importance": 0.12,
+    "addresstype": "postcode",
+    "name": "T2P 1J9",
+    "display_name": "T2P 1J9, Calgary, Alberta, Canada",
+    "boundingbox": ["51.0", "51.1", "-114.1", "-114.0"]
+  }
+]

@@ -19,6 +19,9 @@ const member = (
   color: null,
   role,
   status,
+  work_days: [1, 2, 3, 4, 5],
+  work_start: '08:00:00',
+  work_end: '17:00:00',
 })
 
 const crew = (
@@ -59,6 +62,8 @@ const meta = {
       member('wendy', 'Wendy Worker', 'worker'),
       member('wade', 'Wade Worker', 'worker'),
       member('dee', 'Dee Disabled', 'worker', 'disabled'),
+      member('ivy', 'Ivy Invited', 'worker', 'invited'),
+      member('dan', 'Dan Dispatcher', 'dispatcher'),
     ],
     crews: [
       crew('c1', 'Crew A', [
@@ -87,10 +92,15 @@ export const Populated: Story = {
     await expect(
       canvas.getByText('Wendy Worker', { selector: 'p' }),
     ).toBeInTheDocument()
-    // Every non-disabled member without a crew is unassigned, whatever their role.
+    // Unassigned lists only active contractors without a crew.
     await expect(canvas.getByText('Wade Worker')).toBeInTheDocument()
-    await expect(canvas.getByText('Ava Owner')).toBeInTheDocument()
+    await expect(canvas.queryByText('Ava Owner')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Dan Dispatcher')).not.toBeInTheDocument()
     await expect(canvas.queryByText('Dee Disabled')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Ivy Invited')).not.toBeInTheDocument()
+    // No role or status pills on contractor cards.
+    await expect(canvas.queryByText('Contractor')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Active')).not.toBeInTheDocument()
     await expect(
       canvas.getByLabelText('Crew lead', { selector: 'svg' }),
     ).toBeInTheDocument()

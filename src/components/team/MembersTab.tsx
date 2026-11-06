@@ -11,7 +11,7 @@ import {
   StatusBadge,
 } from '#/components/crm/ui'
 import type { TeamMember } from '#/integrations/teams/teams'
-import type { OrgRole } from '#/components/crm/types'
+import type { OrgRole } from '#/integrations/organization/permissions'
 
 // Kept local so the component (and its story) doesn't pull in the env-validating org context via the mock store.
 const ROLE_LABEL: Record<OrgRole, string> = {

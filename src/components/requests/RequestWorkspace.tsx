@@ -150,11 +150,7 @@ function BuilderView({
       </div>
       <QuoteEditor
         key={`${organizationId}:${quoteId}`}
-        recipient={
-          builder.queries.clients.data?.find(
-            (client) => client.id === quote.data.quote.client_id,
-          )?.email ?? null
-        }
+        recipient={quote.data.recipient.email}
         onSend={builder.send}
         data={quote.data}
         taxRates={taxRates.data}

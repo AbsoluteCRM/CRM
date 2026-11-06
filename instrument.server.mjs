@@ -29,7 +29,9 @@ export function redactInvitationData(value) {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
-        /^(token|code)$/i.test(key) ? '[redacted]' : redactInvitationData(item),
+        /^(token|code|key)$/i.test(key)
+          ? '[redacted]'
+          : redactInvitationData(item),
       ]),
     )
   return value
