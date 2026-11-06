@@ -30,7 +30,13 @@ const handler = createUploadHandler({
   },
   async configuration() {
     return {
-      data: readEnvironmentUploadConfig((name) => Deno.env.get(name)),
+      data: readEnvironmentUploadConfig(
+        (name) => Deno.env.get(name),
+        (field) =>
+          console.error(
+            JSON.stringify({ event: 'upload_image_config_invalid', field }),
+          ),
+      ),
       error: null,
     }
   },

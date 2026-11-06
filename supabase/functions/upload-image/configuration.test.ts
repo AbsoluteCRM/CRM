@@ -60,3 +60,23 @@ Deno.test(
     }
   },
 )
+
+Deno.test(
+  'invalid configuration diagnostics report only a fixed field name',
+  () => {
+    const events: string[] = []
+    const secretValue = 'fake-secret-must-not-appear'
+    readEnvironmentUploadConfig(
+      (name) => (name === 'r2_account_id' ? secretValue : valid[name]),
+      (field) => events.push(field),
+    )
+    assert(
+      JSON.stringify(events) === '["r2_account_id"]',
+      'Diagnostic must contain only the invalid field name',
+    )
+    assert(
+      !JSON.stringify(events).includes(secretValue),
+      'Diagnostic leaked a value',
+    )
+  },
+)
