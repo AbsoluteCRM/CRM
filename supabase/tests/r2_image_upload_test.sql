@@ -25,6 +25,8 @@ from (values (1, 'owner', 'active'), (2, 'admin', 'active'),
 -- Worker is also an employee in B: active-org mismatches must still fail.
 insert into public.organization_members (organization_id, user_id, role, display_name)
 values ((select id from _ids where key = 'b'), '00000000-0000-0000-0000-00000000b204', 'worker', 'Multi-org employee');
+insert into public.organization_members (organization_id, user_id, role, display_name)
+values ((select id from _ids where key = 'b'), '00000000-0000-0000-0000-00000000b202', 'admin', 'Multi-org admin');
 insert into public.clients (organization_id, display_name)
 select id, 'R2 test client' from _ids;
 insert into public.properties (organization_id, client_id, address_line1, city)
@@ -50,9 +52,16 @@ begin
       'role', 'authenticated', 'is_anonymous', n = 8)::text, true);
     perform set_config('role', 'authenticated', true);
     if n <= 4 then
-      insert into _tap(line) select is(
-        public.authorize_image_upload(i.id, 'company_logos/' || i.id), i.id,
-        'active employee ' || n || ' can upload logo') from _ids i where key = 'a';
+      if n <= 2 then
+        insert into _tap(line) select is(
+          public.authorize_image_upload(i.id, 'company_logos/' || i.id), i.id,
+          'owner/admin ' || n || ' can upload logo') from _ids i where key = 'a';
+      else
+        insert into _tap(line) select throws_ok(
+          $$select public.authorize_image_upload((select id from _ids where key = 'a'),
+            'company_logos/' || (select id from _ids where key = 'a'))$$,
+          '42501', 'Upload target is not permitted', 'dispatcher/worker logo denied: ' || n);
+      end if;
       insert into _tap(line) select is(
         public.authorize_image_upload((select id from _ids where key = 'a'), 'jobs/' || i.id),
         (select id from _ids where key = 'a'), 'active employee ' || n || ' can upload job photo')
@@ -77,9 +86,10 @@ $test$;
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000b204","role":"authenticated"}', true),
        set_config('role', 'authenticated', true);
-insert into _tap(line) select is(
-  public.authorize_image_upload(i.id, 'company_logos/' || i.id), i.id,
-  'multi-org worker can explicitly select B') from _ids i where key = 'b';
+insert into _tap(line) select throws_ok(
+  $$select public.authorize_image_upload((select id from _ids where key = 'b'),
+    'company_logos/' || (select id from _ids where key = 'b'))$$,
+  '42501', 'Upload target is not permitted', 'multi-org worker cannot upload logo in B');
 insert into _tap(line) select throws_ok(
   $$select public.authorize_image_upload((select id from _ids where key = 'a'),
     'jobs/' || (select id from _ids where key = 'job_b'))$$,
@@ -97,6 +107,13 @@ insert into _tap(line) select throws_ok(
     (select id from _ids where key = 'a'), folder),
   '42501', 'Upload target is not permitted', 'invalid folder denied: ' || folder)
 from (values (''), ('jobs/../x'), ('jobs/%2f'), ('arbitrary/folder')) as f(folder);
+
+select set_config('role', 'postgres', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000b202","role":"authenticated"}', true),
+       set_config('role', 'authenticated', true);
+insert into _tap(line) select is(
+  public.authorize_image_upload(i.id, 'company_logos/' || i.id), i.id,
+  'multi-org admin can explicitly select B') from _ids i where key = 'b';
 
 select set_config('role', 'anon', true);
 insert into _tap(line) select throws_ok($$select public.get_r2_upload_config()$$,

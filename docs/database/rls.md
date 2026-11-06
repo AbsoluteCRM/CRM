@@ -177,7 +177,7 @@ R2 uploads use two narrowly granted definer RPCs ([ADR 0015](decisions/0015-r2-i
 `authorize_image_upload(uuid, text)` is executable only by `authenticated`;
 it checks the JWT user, rejects anonymous Auth users, resolves active employee
 membership and scopes the logo/job target to the explicitly selected org.
-All four employee roles may upload; jobs table RLS remains unchanged.
+Only owners/admins may upload company logos. All four active employee roles may upload job images; jobs table RLS remains unchanged.
 `get_r2_upload_config()` is executable only by `service_role`, takes no
 caller-selected names, and returns five fixed Vault configuration entries.
 It intentionally has no user-membership check because it is a trusted-code

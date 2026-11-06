@@ -14,7 +14,7 @@ attachment rows and deployment are separate work.
 
 `upload-image` accepts a user JWT, explicit organization ID, a validated folder,
 and one JPEG, PNG or WebP image up to 10 MiB. All active employees can upload,
-including workers. Portal-only users, anonymous Auth users, invited/disabled
+including workers, to job folders. Company logo folders require an active owner/admin membership (2026-11-06 settings integration decision). Portal-only users, anonymous Auth users, invited/disabled
 members and nonmembers cannot. The public bucket allows anyone with an image
 URL to read it, including clients receiving job photos.
 
