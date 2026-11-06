@@ -1,4 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+
+import { quotePolling } from './polling'
 
 import { useTRPC } from '#/integrations/trpc/react'
 
@@ -54,7 +61,7 @@ export function useQuoteBuilder(organizationId: string, quoteId: string) {
 
   const quote = useQuery({
     ...trpc.quotes.get.queryOptions({ ...org, quoteId }),
-    retry: false,
+    ...quotePolling,
   })
   const taxRates = useQuery({
     ...trpc.quotes.taxRates.queryOptions(org),
@@ -77,6 +84,20 @@ export function useQuoteBuilder(organizationId: string, quoteId: string) {
   const pullBack = useMutation(trpc.quotes.pullBack.mutationOptions())
   const send = useMutation(trpc.quotes.send.mutationOptions())
   const retryDelivery = useMutation(trpc.quotes.retryDelivery.mutationOptions())
+  const clients = useQuery({
+    ...trpc.clients.list.queryOptions(org),
+    retry: false,
+  })
+  const messages = useInfiniteQuery(
+    trpc.quotes.listMessages.infiniteQueryOptions(
+      { ...org, quoteId },
+      {
+        getNextPageParam: (page) => page.olderCursor ?? undefined,
+        ...quotePolling,
+      },
+    ),
+  )
+  const post = useMutation(trpc.quotes.postMessage.mutationOptions())
   const mutations = [
     update,
     upsertLine,
@@ -84,15 +105,25 @@ export function useQuoteBuilder(organizationId: string, quoteId: string) {
     pullBack,
     send,
     retryDelivery,
+    post,
   ]
-  // A send can succeed while the email fails; the delivery card shows that.
-  const delivered = (r: {
-    delivery: 'sent' | 'failed'
-    error: string | null
-  }) => refresh().then(() => r.delivery === 'sent')
 
   return {
-    queries: { quote, taxRates, services },
+    queries: { quote, taxRates, services, clients },
+    messages,
+    history: messages.isError
+      ? []
+      : (messages.data?.pages.flatMap((page) => page.messages) ?? []),
+    send: (retry: boolean) =>
+      (retry ? retryDelivery : send)
+        .mutateAsync({ ...org, quoteId })
+        .then(refresh)
+        .then(ok, failed),
+    postMessage: (input: { body: string; clientMessageId: string }) =>
+      post
+        .mutateAsync({ ...org, quoteId, ...input })
+        .then(refresh)
+        .then(ok, failed),
     busy: mutations.some((m) => m.isPending),
     error: mutations.find((m) => m.error)?.error?.message ?? null,
     saveDetails: (input: {
@@ -131,8 +162,5 @@ export function useQuoteBuilder(organizationId: string, quoteId: string) {
         .mutateAsync({ ...org, quoteId })
         .then(refresh)
         .then(ok, failed),
-    send: () => send.mutateAsync({ ...org, quoteId }).then(delivered, failed),
-    retryDelivery: () =>
-      retryDelivery.mutateAsync({ ...org, quoteId }).then(delivered, failed),
   }
 }

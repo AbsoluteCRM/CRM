@@ -20,7 +20,7 @@ This folder is the design record for the schema:
 | 1   | Tenancy & identity   | organizations, profiles, organization_members, organization_invitations, member_pay_rates, document_sequences | [tenancy.md](tables/tenancy.md)             |
 | 2   | Clients & properties | clients, client_contacts, properties, client_portal_users, geocode_cache                                      | [clients.md](tables/clients.md)             |
 | 3   | Catalog & tax        | services, tax_rates, service_default_taxes                                                                    | [catalog-tax.md](tables/catalog-tax.md)     |
-| 4   | Quotes               | quotes, quote_line_items, quote_line_item_taxes                                                               | [quotes.md](tables/quotes.md)               |
+| 4   | Quotes               | quotes, quote_line_items, quote_line_item_taxes, quote_share_tokens, quote_messages                           | [quotes.md](tables/quotes.md)               |
 | 5   | Jobs & visits        | jobs, job_line_items, visits, attachments                                                                     | [jobs-visits.md](tables/jobs-visits.md)     |
 | 6   | Crews & routing      | crews, crew_members, routes, route_members, route_stops, optimization_runs                                    | [crews-routing.md](tables/crews-routing.md) |
 | 7   | Invoicing & payments | invoices, invoice_line_items, invoice_visits, invoice_line_item_taxes, payments, stripe_events                | [billing.md](tables/billing.md)             |

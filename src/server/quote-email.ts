@@ -1,31 +1,49 @@
 import '@tanstack/react-start/server-only'
+import { createHash, randomBytes } from 'node:crypto'
 import { TRPCError } from '@trpc/server'
+import { z } from 'zod'
 
-import { generateInviteToken, invitationConfig } from './invitations'
-
-export type EmailConfig = ReturnType<typeof invitationConfig>
-
-/** Same Resend settings as team invitations, with a quote-specific error. */
-export function quoteEmailConfig(): EmailConfig {
+export function quoteEmailConfig() {
+  const key = process.env.RESEND_API_KEY?.trim()
+  const sender = z.email().safeParse(process.env.RESEND_FROM_EMAIL?.trim())
+  let origin: URL
   try {
-    return invitationConfig()
-  } catch (error) {
-    if (error instanceof TRPCError) {
-      throw new TRPCError({
-        code: 'PRECONDITION_FAILED',
-        message:
-          'Quote email is not configured. Ask your administrator to check SERVER_URL, RESEND_FROM_EMAIL and RESEND_API_KEY.',
-      })
-    }
-    throw error
+    origin = new URL(process.env.SERVER_URL ?? '')
+    if (
+      origin.username ||
+      origin.password ||
+      origin.search ||
+      origin.hash ||
+      origin.pathname !== '/' ||
+      !(
+        origin.protocol === 'https:' ||
+        (process.env.NODE_ENV !== 'production' &&
+          origin.protocol === 'http:' &&
+          origin.hostname === 'localhost')
+      )
+    )
+      throw new Error('Invalid origin')
+  } catch {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message:
+        'Quote email is not configured. Ask your administrator to check SERVER_URL, RESEND_FROM_EMAIL and RESEND_API_KEY.',
+    })
   }
+  if (!key || !sender.success) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message:
+        'Quote email is not configured. Ask your administrator to check SERVER_URL, RESEND_FROM_EMAIL and RESEND_API_KEY.',
+    })
+  }
+  return { key, sender: sender.data, origin: origin.origin }
 }
 
-/** A 256-bit link token and its SHA-256 hash. Only the hash is stored. */
-export const generateQuoteToken = generateInviteToken
-
-export const quoteLink = (origin: string, token: string) =>
-  `${origin}/q/${token}`
+export function generateQuoteToken() {
+  const token = randomBytes(32).toString('hex')
+  return { token, tokenHash: createHash('sha256').update(token).digest('hex') }
+}
 
 function escapeHtml(value: string) {
   return value.replace(
@@ -37,112 +55,79 @@ function escapeHtml(value: string) {
   )
 }
 
-export type QuoteEmailInput = {
+export function quoteEmailMessage(input: {
   organization: string
-  recipientName: string
-  title: string
   number: string
-  totalCents: number
-  currency: string
+  title: string
+  quoteLink: string
   validUntil: string
-  message: string | null
-  link: string
-}
-
-export function formatMoney(cents: number, currency: string) {
-  return new Intl.NumberFormat('en-CA', { style: 'currency', currency }).format(
-    cents / 100,
-  )
-}
-
-function formatDate(isoDate: string) {
-  return new Date(`${isoDate}T12:00:00`).toLocaleDateString('en-CA', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-export function quoteMessage(input: QuoteEmailInput) {
-  const total = formatMoney(input.totalCents, input.currency)
-  const until = formatDate(input.validUntil)
-  const greeting = `Hi ${input.recipientName},`
-  const intro = `${input.organization} sent you an estimate for ${input.title} (${input.number}): ${total}.`
-  const action = `Review it and approve or decline online. No account needed. This estimate is valid until ${until}.`
-  const text = [
-    greeting,
-    '',
-    intro,
-    ...(input.message ? ['', input.message] : []),
-    '',
-    action,
-    input.link,
-    '',
-    `If you weren't expecting this, you can ignore this email.`,
-  ].join('\n')
-  const html = `<p>${escapeHtml(greeting)}</p><p>${escapeHtml(intro)}</p>${
-    input.message
-      ? `<p style="white-space:pre-line">${escapeHtml(input.message)}</p>`
-      : ''
-  }<p>${escapeHtml(action)}</p><p><a href="${escapeHtml(input.link)}" style="display:inline-block;padding:12px 22px;border-radius:999px;background:#11301f;color:#ffffff;font-weight:600;text-decoration:none">Review your estimate</a></p><p style="color:#6b7280;font-size:13px">If you weren't expecting this, you can ignore this email.</p>`
+}) {
   return {
-    subject: `Your estimate from ${input.organization}`,
-    text,
-    html,
+    subject: 'Your quote is ready to review',
+    text: `${input.organization} has sent quote ${input.number}: ${input.title}.\n\nReview quote: ${input.quoteLink}\n\nValid until ${input.validUntil}. Only the latest quote link works.`,
+    html: `<p>${escapeHtml(input.organization)} has sent quote ${escapeHtml(input.number)}: ${escapeHtml(input.title)}.</p><p><a href="${escapeHtml(input.quoteLink)}">Review quote</a></p><p>Valid until ${escapeHtml(input.validUntil)}. Only the latest quote link works.</p>`,
   }
 }
 
-export type DeliveryResult =
-  | { status: 'sent'; messageId: string; error: null }
-  | { status: 'failed'; messageId: null; error: string }
+export function quoteRecipient(email: string | null | undefined) {
+  const result = z.email().safeParse(email?.trim())
+  if (!result.success)
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message:
+        'Add a valid email address to this client before sending the quote.',
+    })
+  return result.data
+}
 
 export async function sendQuoteEmail(
-  config: EmailConfig,
-  input: QuoteEmailInput & { email: string; idempotencyKey: string },
-): Promise<DeliveryResult> {
+  config: ReturnType<typeof quoteEmailConfig>,
+  input: Omit<Parameters<typeof quoteEmailMessage>[0], 'quoteLink'> & {
+    email: string
+    organizationEmail: string | null
+    token: string
+    tokenId: string
+  },
+): Promise<
+  { status: 'sent'; messageId: string } | { status: 'failed'; messageId: null }
+> {
   try {
+    const email = quoteRecipient(input.email)
+    if (
+      !/^[a-f0-9]{64}$/.test(input.token) ||
+      !z.uuid().safeParse(input.tokenId).success
+    )
+      return { status: 'failed', messageId: null }
+    const replyTo = z.email().safeParse(input.organizationEmail?.trim())
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${config.key}`,
         'Content-Type': 'application/json',
-        'Idempotency-Key': `quote-${input.idempotencyKey}`,
+        'Idempotency-Key': `quote-delivery-${input.tokenId}`,
       },
       body: JSON.stringify({
         from: config.sender,
-        to: [input.email],
-        ...quoteMessage(input),
+        to: [email],
+        ...(replyTo.success ? { reply_to: replyTo.data } : {}),
+        ...quoteEmailMessage({
+          ...input,
+          quoteLink: new URL(`/q/${input.token}`, config.origin).href,
+        }),
       }),
       signal: AbortSignal.timeout(10_000),
     })
-    if (!response.ok) {
-      return {
-        status: 'failed',
-        messageId: null,
-        error: `The email provider rejected the message (HTTP ${response.status}).`,
-      }
-    }
+    if (!response.ok) return { status: 'failed', messageId: null }
     const result: unknown = await response.json()
-    if (
-      typeof result === 'object' &&
+    return typeof result === 'object' &&
       result !== null &&
       'id' in result &&
       typeof result.id === 'string' &&
       result.id.length > 0
-    ) {
-      return { status: 'sent', messageId: result.id, error: null }
-    }
-    return {
-      status: 'failed',
-      messageId: null,
-      error: 'The email provider gave no message id.',
-    }
+      ? { status: 'sent', messageId: result.id }
+      : { status: 'failed', messageId: null }
   } catch {
-    // Never log the body: it holds the link token.
-    return {
-      status: 'failed',
-      messageId: null,
-      error: 'Couldn’t reach the email provider.',
-    }
+    // Acceptance may precede a timeout; never expose provider payloads or tokens.
+    return { status: 'failed', messageId: null }
   }
 }

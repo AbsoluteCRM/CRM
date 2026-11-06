@@ -1,4 +1,4 @@
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fireEvent, fn, userEvent, within } from 'storybook/test'
 import type { Meta, StoryObj } from '@storybook/tanstack-react'
 
 import CrewBuilder from './CrewBuilder'
@@ -41,20 +41,6 @@ const crew = (
   updated_at: '2026-01-01T00:00:00Z',
   crew_members,
 })
-
-// Real DragEvents so React reads the same DataTransfer in dragstart and drop.
-function dragAndDrop(source: Element, target: Element) {
-  const dataTransfer = new DataTransfer()
-  for (const [el, type] of [
-    [source, 'dragstart'],
-    [target, 'dragover'],
-    [target, 'drop'],
-  ] as const) {
-    el.dispatchEvent(
-      new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }),
-    )
-  }
-}
 
 const meta = {
   title: 'Team/CrewBuilder',
@@ -167,11 +153,34 @@ export const CreateCrewPicksUniqueName: Story = {
 export const DragToCrew: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const card = canvas.getByText('Wade Worker', { selector: 'p' })
+    const card = canvas
+      .getByText('Wade Worker', { selector: 'p' })
+      .closest('[draggable]')!
     const column = canvas
       .getByDisplayValue('Crew B')
       .closest('[class*="w-72"]')!
-    dragAndDrop(card, column)
+    const dataTransfer = new DataTransfer()
+    await fireEvent(
+      card,
+      new DragEvent('dragstart', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await expect(dataTransfer.getData('text/member-id')).toBe('wade')
+    await fireEvent(
+      column,
+      new DragEvent('dragover', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await fireEvent(
+      column,
+      new DragEvent('drop', { dataTransfer, bubbles: true, cancelable: true }),
+    )
     await expect(args.actions.moveMember).toHaveBeenCalledWith('wade', 'c2')
   },
 }
@@ -179,9 +188,32 @@ export const DragToCrew: Story = {
 export const DragToUnassigned: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const card = canvas.getByText('Walt Worker', { selector: 'p' })
+    const card = canvas
+      .getByText('Walt Worker', { selector: 'p' })
+      .closest('[draggable]')!
     const column = canvas.getByText('Unassigned').closest('[class*="w-72"]')!
-    dragAndDrop(card, column)
+    const dataTransfer = new DataTransfer()
+    await fireEvent(
+      card,
+      new DragEvent('dragstart', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await expect(dataTransfer.getData('text/member-id')).toBe('walt')
+    await fireEvent(
+      column,
+      new DragEvent('dragover', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await fireEvent(
+      column,
+      new DragEvent('drop', { dataTransfer, bubbles: true, cancelable: true }),
+    )
     await expect(args.actions.moveMember).toHaveBeenCalledWith('walt', null)
   },
 }

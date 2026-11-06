@@ -17,7 +17,8 @@ const securityHeaders = createMiddleware().server(async ({ request, next }) => {
   if (policy === SAME_ORIGIN_ONLY) headers.set('X-Frame-Options', 'SAMEORIGIN')
   else headers.delete('X-Frame-Options')
   headers.set('X-Content-Type-Options', 'nosniff')
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  if (!headers.has('Referrer-Policy'))
+    headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   return {
     ...result,
     response: new Response(result.response.body, {

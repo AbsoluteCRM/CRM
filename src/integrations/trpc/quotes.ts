@@ -1,15 +1,21 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
+import { dbError } from './errors'
+import { requireOrgPermission } from './init'
+import {
+  messagePage,
+  quoteMessageBodySchema,
+  quoteMessageCursorSchema,
+  quoteMessageSchema,
+} from '#/integrations/quotes/public.schemas'
 import {
   generateQuoteToken,
   quoteEmailConfig,
-  quoteLink,
+  quoteRecipient,
   sendQuoteEmail,
 } from '#/server/quote-email'
-import { recordQuoteDelivery } from '#/server/trusted/quote-links'
-import { dbError } from './errors'
-import { requireOrgPermission } from './init'
+import { recordQuoteDelivery } from '#/server/trusted/quotes'
 
 import type { TRPCRouterRecord } from '@trpc/server'
 
@@ -65,87 +71,152 @@ async function seedFromService(ctx: Ctx, requestId: string, quoteId: string) {
   })
 }
 
-/** Who the quote's email goes to: the client, or the request's contact before approval. */
-async function quoteRecipient(ctx: Ctx, quoteId: string) {
-  const quote = await ctx.supabase
+async function scopedQuote(ctx: Ctx, quoteId: string) {
+  const { data, error } = await ctx.supabase
     .from('quotes')
-    .select(
-      'id, number, title, message, valid_until, total_cents, client_id, request_id, status',
-    )
+    .select(QUOTE_COLUMNS)
     .eq('organization_id', ctx.organizationId)
     .eq('id', quoteId)
     .maybeSingle()
-  if (quote.error) throw dbError(quote.error)
-  if (!quote.data) {
+  if (error) throw dbError(error)
+  if (!data)
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Quote not found' })
-  }
-  const q = quote.data
-  const [client, request, org] = await Promise.all([
-    q.client_id
+  return data
+}
+
+/** Resolve main's prospect fallback without weakening client availability checks. */
+async function resolveQuoteRecipient(
+  ctx: Ctx,
+  quote: { client_id: string | null; request_id: string | null },
+) {
+  const [client, request] = await Promise.all([
+    quote.client_id
       ? ctx.supabase
           .from('clients')
-          .select('display_name, email')
+          .select('display_name, email, archived_at')
           .eq('organization_id', ctx.organizationId)
-          .eq('id', q.client_id)
+          .eq('id', quote.client_id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    q.request_id
+    quote.request_id
       ? ctx.supabase
           .from('requests')
           .select('contact_name, contact_email')
           .eq('organization_id', ctx.organizationId)
-          .eq('id', q.request_id)
+          .eq('id', quote.request_id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    ctx.supabase
-      .from('organizations')
-      .select('name, currency')
-      .eq('id', ctx.organizationId)
-      .maybeSingle(),
   ])
   if (client.error) throw dbError(client.error)
   if (request.error) throw dbError(request.error)
-  if (org.error) throw dbError(org.error)
-  const email =
-    client.data?.email?.trim() || request.data?.contact_email || null
-  const name =
-    client.data?.display_name || request.data?.contact_name || 'there'
   return {
-    quote: q,
-    email,
-    name,
-    organization: org.data?.name ?? 'Your contractor',
-    currency: org.data?.currency ?? 'CAD',
+    email: client.data?.email?.trim() || request.data?.contact_email || null,
+    name: client.data?.display_name || request.data?.contact_name || 'there',
+    isClient: quote.client_id !== null,
+    unavailable:
+      !!quote.client_id && (!client.data || !!client.data.archived_at),
   }
 }
 
-/** Emails the link for a token that's already stored, then records the outcome. */
-async function deliver(
-  ctx: Ctx,
-  quoteId: string,
-  tokenId: string,
-  token: string,
-  config: ReturnType<typeof quoteEmailConfig>,
-) {
-  const r = await quoteRecipient(ctx, quoteId)
-  const result = await sendQuoteEmail(config, {
-    email: r.email ?? '',
-    idempotencyKey: tokenId,
-    organization: r.organization,
-    recipientName: r.name,
-    title: r.quote.title,
-    number: r.quote.number,
-    totalCents: r.quote.total_cents ?? 0,
-    currency: r.currency,
-    validUntil: r.quote.valid_until ?? '',
-    message: r.quote.message,
-    link: quoteLink(config.origin, token),
+async function deliver(ctx: Ctx, quoteId: string, retry: boolean) {
+  const quote = await scopedQuote(ctx, quoteId)
+  const config = quoteEmailConfig()
+  const [recipient, organization] = await Promise.all([
+    resolveQuoteRecipient(ctx, quote),
+    ctx.supabase
+      .from('organizations')
+      .select('name, email')
+      .eq('id', ctx.organizationId)
+      .maybeSingle(),
+  ])
+  if (organization.error) throw dbError(organization.error)
+  if (recipient.unavailable || !organization.data)
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: 'Client or organization is unavailable.',
+    })
+  const email = quoteRecipient(recipient.email)
+  const { token, tokenHash } = generateQuoteToken()
+  const result = retry
+    ? await ctx.supabase.rpc('rotate_quote_token', {
+        p_quote_id: quoteId,
+        p_new_token_hash: tokenHash,
+      })
+    : await ctx.supabase.rpc('send_quote', {
+        p_quote_id: quoteId,
+        p_token_hash: tokenHash,
+      })
+  if (result.error) throw dbError(result.error)
+  const outcome = await sendQuoteEmail(config, {
+    organization: organization.data.name,
+    organizationEmail: organization.data.email,
+    number: quote.number,
+    title: quote.title,
+    validUntil: quote.valid_until ?? '',
+    email,
+    token,
+    tokenId: result.data,
   })
-  await recordQuoteDelivery(tokenId, result)
-  return { id: quoteId, delivery: result.status, error: result.error }
+  try {
+    await recordQuoteDelivery(result.data, outcome)
+    return { id: quoteId, deliveryStatus: outcome.status }
+  } catch {
+    // Provider acceptance can precede a crash or recording failure. Pending is
+    // deliberately recoverable by rotating the token, never automatic retry.
+    return { id: quoteId, deliveryStatus: 'pending' as const }
+  }
 }
 
 export const quotesRouter = {
+  send: manageQuotes
+    .input(z.object({ quoteId: z.uuid() }))
+    .mutation(({ ctx, input }) => deliver(ctx, input.quoteId, false)),
+  retryDelivery: manageQuotes
+    .input(z.object({ quoteId: z.uuid() }))
+    .mutation(({ ctx, input }) => deliver(ctx, input.quoteId, true)),
+  listMessages: manageQuotes
+    .input(
+      z.object({
+        quoteId: z.uuid(),
+        cursor: quoteMessageCursorSchema.optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      await scopedQuote(ctx, input.quoteId)
+      let query = ctx.supabase
+        .from('quote_messages')
+        .select('id, body, sender_kind, created_at')
+        .eq('organization_id', ctx.organizationId)
+        .eq('quote_id', input.quoteId)
+      if (input.cursor)
+        query = query.or(
+          `created_at.lt.${input.cursor.beforeCreatedAt},and(created_at.eq.${input.cursor.beforeCreatedAt},id.lt.${input.cursor.beforeId})`,
+        )
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(50)
+      if (error) throw dbError(error)
+      return messagePage(data)
+    }),
+  postMessage: manageQuotes
+    .input(
+      z.object({
+        quoteId: z.uuid(),
+        body: quoteMessageBodySchema,
+        clientMessageId: z.uuid(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase.rpc('post_quote_message', {
+        p_organization_id: ctx.organizationId,
+        p_quote_id: input.quoteId,
+        p_body: input.body,
+        p_client_message_id: input.clientMessageId,
+      })
+      if (error) throw dbError(error)
+      return quoteMessageSchema.parse(data[0])
+    }),
   taxRates: manageQuotes.query(async ({ ctx }) => {
     const { data, error } = await ctx.supabase
       .from('tax_rates')
@@ -201,7 +272,7 @@ export const quotesRouter = {
       if (!quote.data) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Quote not found' })
       }
-      const recipient = await quoteRecipient(ctx, input.quoteId)
+      const recipient = await resolveQuoteRecipient(ctx, quote.data)
       return {
         quote: quote.data,
         lines: lines.data,
@@ -387,39 +458,6 @@ export const quotesRouter = {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Line not found' })
       }
       return { id: input.lineId }
-    }),
-
-  /**
-   * Sends a draft: the database marks it sent and stores the link's hash, then
-   * the email goes out. A failed email leaves the quote sent with a "failed"
-   * delivery that `retryDelivery` can fix.
-   */
-  send: manageQuotes
-    .input(z.object({ quoteId: z.uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      // Fail before sending if email isn't set up, so nothing changes.
-      const config = quoteEmailConfig()
-      const { token, tokenHash } = generateQuoteToken()
-      const { data: tokenId, error } = await ctx.supabase.rpc('send_quote', {
-        p_quote_id: input.quoteId,
-        p_token_hash: tokenHash,
-      })
-      if (error) throw dbError(error)
-      return deliver(ctx, input.quoteId, tokenId, token, config)
-    }),
-
-  /** Emails a sent quote again with a fresh link; the old link stops working. */
-  retryDelivery: manageQuotes
-    .input(z.object({ quoteId: z.uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      const config = quoteEmailConfig()
-      const { token, tokenHash } = generateQuoteToken()
-      const { data: tokenId, error } = await ctx.supabase.rpc(
-        'rotate_quote_token',
-        { p_quote_id: input.quoteId, p_new_token_hash: tokenHash },
-      )
-      if (error) throw dbError(error)
-      return deliver(ctx, input.quoteId, tokenId, token, config)
     }),
 
   pullBack: manageQuotes

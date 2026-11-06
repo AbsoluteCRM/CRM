@@ -1,13 +1,5 @@
-import { useState } from 'react'
-import {
-  Mail,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Send,
-  Trash2,
-  Undo2,
-} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Pencil, Plus, Trash2, Undo2 } from 'lucide-react'
 import type { FormEvent } from 'react'
 import type { inferRouterOutputs } from '@trpc/server'
 
@@ -28,6 +20,7 @@ import {
   TextInput,
   Toggle,
 } from '#/components/crm/ui'
+import SendQuoteDialog from './SendQuoteDialog'
 import type { TRPCRouter } from '#/integrations/trpc/router'
 
 type Outputs = inferRouterOutputs<TRPCRouter>
@@ -87,8 +80,8 @@ export default function QuoteEditor({
   onSaveLine,
   onDeleteLine,
   onPullBack,
+  recipient = null,
   onSend,
-  onRetryDelivery,
 }: {
   data: QuoteData
   taxRates: Array<TaxRate>
@@ -99,13 +92,21 @@ export default function QuoteEditor({
   onSaveLine: (input: LineInput) => Promise<boolean>
   onDeleteLine: (lineId: string) => Promise<boolean>
   onPullBack: () => Promise<boolean>
-  onSend: () => Promise<boolean>
-  onRetryDelivery: () => Promise<boolean>
+  recipient?: string | null
+  onSend?: (retry: boolean) => Promise<boolean>
 }) {
-  const { quote, lines, delivery, recipient } = data
+  const { quote, lines, delivery } = data
+  const emailRecipient = recipient ?? data.recipient.email
   const editable = quote.status === 'draft'
   // 'new' adds a line, a line id edits that line.
   const [editing, setEditing] = useState<string | 'new' | null>(null)
+  const [detailsDirty, setDetailsDirty] = useState(false)
+  const [sending, setSending] = useState(false)
+  const live =
+    delivery &&
+    !delivery.revoked_at &&
+    Date.parse(delivery.expires_at) > Date.now()
+  const canResend = quote.status === 'sent' && live
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -149,12 +150,13 @@ export default function QuoteEditor({
           editable={editable}
           busy={busy}
           onSave={onSaveDetails}
+          onDirtyChange={setDetailsDirty}
         />
 
         <Card>
           <CardHeader
             title="Line items"
-            subtitle="Optional lines count toward the total only when the client selects them."
+            subtitle="Optional lines are excluded when sending. Customer selection is coming soon."
             action={
               editable && editing === null ? (
                 <Btn
@@ -225,6 +227,38 @@ export default function QuoteEditor({
       </div>
 
       <aside className="flex flex-col gap-5">
+        {onSend && (editable || canResend) && (
+          <Btn disabled={busy} onClick={() => setSending(true)}>
+            {editable
+              ? 'Send quote'
+              : delivery?.delivery_status === 'sent'
+                ? 'Resend quote'
+                : 'Retry delivery'}
+          </Btn>
+        )}
+        {onSend && editable && !data.recipient.isClient && (
+          <p className="text-xs text-(--ink-3)">
+            This quote goes to the request contact. Approval creates or links
+            the client record.
+          </p>
+        )}
+        {onSend && (
+          <SendQuoteDialog
+            key={`${quote.id}:${sending}`}
+            open={sending}
+            onOpenChange={setSending}
+            recipient={emailRecipient}
+            title={quote.title}
+            validUntil={quote.valid_until}
+            lineCount={lines.length}
+            unsaved={detailsDirty || editing !== null}
+            retry={!editable}
+            busy={busy}
+            error={error}
+            onConfirm={() => onSend(!editable)}
+          />
+        )}
+
         <Card className="p-5">
           <h3 className="text-[15px] font-bold text-(--ink)">Totals</h3>
           <dl className="mt-3 space-y-2 text-sm">
@@ -242,22 +276,6 @@ export default function QuoteEditor({
             </div>
           </dl>
         </Card>
-        {editable && (
-          <SendCard
-            recipient={recipient}
-            busy={busy}
-            problem={
-              lines.length === 0
-                ? 'Add at least one line.'
-                : !quote.valid_until
-                  ? 'Set a “valid until” date.'
-                  : !recipient.email
-                    ? 'The client has no email address.'
-                    : null
-            }
-            onSend={onSend}
-          />
-        )}
         {delivery && (
           <Card className="p-5">
             <h3 className="text-[15px] font-bold text-(--ink)">Delivery</h3>
@@ -280,36 +298,22 @@ export default function QuoteEditor({
               </Badge>
               {delivery.viewed_at && (
                 <span className="text-(--ink-3)">
-                  Viewed {fmtDate(delivery.viewed_at.slice(0, 10))}
+                  Link opened {fmtDate(delivery.viewed_at.slice(0, 10))}
                 </span>
               )}
             </div>
+            <p className="mt-2 text-xs text-(--ink-3)">
+              Sent means the email provider accepted the request; inbox delivery
+              is not confirmed.
+            </p>
             {delivery.last_delivery_error && (
               <p className="mt-2 text-xs text-(--clay)">
                 {delivery.last_delivery_error}
               </p>
             )}
-            {recipient.email && (
+            {emailRecipient && (
               <p className="mt-2 text-xs break-all text-(--ink-3)">
-                To {recipient.email}
-              </p>
-            )}
-            {quote.status === 'sent' && (
-              <Btn
-                className="mt-3"
-                variant="outline"
-                size="sm"
-                icon={RefreshCw}
-                disabled={busy}
-                onClick={() => void onRetryDelivery()}
-              >
-                Send again
-              </Btn>
-            )}
-            {quote.status === 'sent' && (
-              <p className="mt-2 text-[11px] text-(--ink-3)">
-                Sending again emails a new link; the previous link stops
-                working.
+                To {emailRecipient}
               </p>
             )}
           </Card>
@@ -319,63 +323,18 @@ export default function QuoteEditor({
   )
 }
 
-function SendCard({
-  recipient,
-  busy,
-  problem,
-  onSend,
-}: {
-  recipient: QuoteData['recipient']
-  busy: boolean
-  problem: string | null
-  onSend: () => Promise<boolean>
-}) {
-  return (
-    <Card className="p-5">
-      <h3 className="text-[15px] font-bold text-(--ink)">Send to client</h3>
-      {recipient.email ? (
-        <p className="mt-2 flex items-start gap-2 text-sm">
-          <Mail className="mt-0.5 size-4 shrink-0 text-(--leaf-600)" />
-          <span className="min-w-0 break-all">
-            <span className="block font-semibold">{recipient.name}</span>
-            <span className="text-(--ink-2)">{recipient.email}</span>
-          </span>
-        </p>
-      ) : null}
-      {!recipient.isClient && (
-        <p className="mt-2 text-xs text-(--ink-3)">
-          There’s no client record yet. When they approve, the client is matched
-          by email or created from the request.
-        </p>
-      )}
-      {problem && (
-        <p className="mt-3 text-xs font-semibold text-(--clay)">{problem}</p>
-      )}
-      <Btn
-        className="mt-4 w-full justify-center"
-        icon={Send}
-        disabled={busy || problem !== null}
-        onClick={() => void onSend()}
-      >
-        Send quote
-      </Btn>
-      <p className="mt-2 text-[11px] text-(--ink-3)">
-        They get an email with a link to approve or decline. No account needed.
-      </p>
-    </Card>
-  )
-}
-
 function DetailsCard({
   quote,
   editable,
   busy,
   onSave,
+  onDirtyChange,
 }: {
   quote: QuoteData['quote']
   editable: boolean
   busy: boolean
   onSave: (input: DetailsInput) => Promise<boolean>
+  onDirtyChange: (dirty: boolean) => void
 }) {
   const [title, setTitle] = useState(quote.title)
   const [message, setMessage] = useState(quote.message ?? '')
@@ -386,6 +345,11 @@ function DetailsCard({
     message !== (quote.message ?? '') ||
     conditions !== (quote.conditions ?? '') ||
     validUntil !== (quote.valid_until ?? '')
+
+  useEffect(() => {
+    onDirtyChange(dirty)
+    return () => onDirtyChange(false)
+  }, [dirty, onDirtyChange])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -439,7 +403,7 @@ function DetailsCard({
         <Field
           label="Valid until"
           htmlFor="quote-valid-until"
-          hint="Leave blank for no expiry."
+          hint="A valid-until date is required before sending."
         >
           <TextInput
             id="quote-valid-until"
@@ -693,7 +657,7 @@ function LineForm({
           label="Optional line"
         />
         <span className="text-(--ink-2)">
-          Optional: the client chooses whether to include it
+          Optional: excluded when sending; selection is coming soon
         </span>
       </div>
       {taxRates.length > 0 && (
