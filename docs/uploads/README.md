@@ -1,7 +1,7 @@
 # R2 image uploads
 
-This change prepares code only. It does not apply migrations, provision secrets,
-configure Cloudflare, or deploy a function.
+Settings uses this endpoint for company logos. Deployment prerequisites and
+verification below must be completed independently for each environment.
 
 `upload-image` accepts a signed-in employee's bearer JWT and multipart POST with
 exactly these fields:
@@ -12,7 +12,8 @@ exactly these fields:
 | `folder`         | `company_logos/{organizationId}` or `jobs/{jobId}`         |
 | `file`           | One nonempty JPEG, PNG, or WebP, at most 10 MiB            |
 
-All active employee roles, including workers, can upload to any job in their
+Company logos require an active owner/admin membership in the selected
+organization. All active employee roles, including workers, can upload to any job in their
 selected organization. Portal-only, invited, disabled, anonymous and nonmember
 users cannot. Authorization verifies membership and the target organization in
 the database using the caller's JWT before credentials are retrieved. A worker's
@@ -134,3 +135,20 @@ pnpm dlx supabase@3.0.0 functions deploy upload-image --remote=skygtamcakhoirlrq
 CLI v2 uses different project-selection flags; consult that installed version's
 `functions deploy --help` instead of copying v3 syntax. Do not pass
 `--no-verify-jwt`. No deployment command was executed for this PR.
+
+## Company settings
+
+Company profile uploads validate nonempty JPEG/PNG/WebP files up to 10 MiB before
+calling the authenticated function. Settings saves the complete returned public
+URL, including `?v=`, through owner/admin-only `settings.setLogo`. Existing private
+Storage logos still display through signed URLs and can be replaced or removed.
+Remove clears the reference; public R2 objects remain accessible. A fixed-key
+upload can replace bytes even if the subsequent reference save fails. Concurrent
+clients remain last successful object write wins, not immutable revisions.
+
+Deploy the logo owner/admin authorization migration before enabling this UI.
+Deploy/configure the existing function and R2 prerequisites using the ordering
+above; this frontend does not provision or deploy them. Verify allowed logo
+uploads, worker/dispatcher logo denial, unchanged employee job uploads, and
+cross-organization denial using dedicated test organizations. The UI ignores
+stale completion after a workspace switch and invalidates the captured workspace.

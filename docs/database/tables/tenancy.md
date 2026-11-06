@@ -27,7 +27,7 @@ A contractor business, and the tenant boundary. There's no
 | `email`                         | `text`  | yes  |                      |                                                                                                                                                 |
 | `phone`                         | `text`  | yes  |                      |                                                                                                                                                 |
 | `address_line1` … `postal_code` | `text`  | yes  |                      | Same address columns as [properties](clients.md#properties)                                                                                     |
-| `logo_path`                     | `text`  | yes  |                      | Storage path in the `org-files` bucket                                                                                                          |
+| `logo_path`                     | `text`  | yes  |                      | Legacy `org-files` path or complete public HTTPS logo URL                                                                                       |
 | `settings`                      | `jsonb` | no   | `'{}'`               | See settings keys below                                                                                                                         |
 | `stripe_account_id`             | `text`  | yes  |                      | Stripe Connect account (`acct_…`). Unique                                                                                                       |
 | `created_by`                    | `uuid`  | yes  |                      | FK → `auth.users` on delete set null                                                                                                            |
@@ -60,7 +60,7 @@ A contractor business, and the tenant boundary. There's no
 | `embed.compact`                                                      | boolean | `false`                                  | The embedded view shows only services and the form                                                                             |
 | `embed.allowed_origins`                                              | text[]  | `[]`                                     | Origins allowed to frame the form (`https://…`, max 20). Empty allows any site. Enforced by `src/start.ts`                     |
 
-The company logo is `logo_path`: an image under `org-files/<org id>/branding/`, uploaded by office staff through the existing storage policies. `settings.setLogo` only accepts paths in that folder, and the app serves the logo through short-lived signed URLs.
+The company logo is `logo_path`: a complete public HTTPS URL from R2, or a legacy image under `org-files/<org id>/branding/`. Owners/admins manage the reference through `settings.setLogo`; public URLs display directly and legacy paths use short-lived signed URLs.
 
 **On create**: organizations are created only through the
 `public.create_organization(name, slug, timezone, currency, country)` RPC. It inserts the org
@@ -216,3 +216,15 @@ through these `security definer` functions (executable by `authenticated`):
 Overlapping pending or approved time off for the same member is refused
 (`55000`). Owners and admins edit `work_days`, `work_start` and `work_end`
 through the existing member update policy.
+
+### Company logo references
+
+`organizations.logo_path` contains either a legacy relative path in the private
+`org-files` bucket (`{organizationId}/branding/...`) or the complete public HTTPS
+URL returned by `upload-image`, including its version query. Settings and the
+public request portal sign legacy paths and return public URLs directly.
+Owners/admins may set or clear their organization's reference. New uploads use
+`company_logos/{organizationId}/logo.jpg|png|webp`; no new logos go to `org-files`.
+Replacing or removing a legacy reference cleans up that legacy file only after
+the reference update succeeds. Clearing a public reference does not delete the
+R2 object or revoke a previously shared URL.
