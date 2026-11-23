@@ -75,29 +75,31 @@ Shorthand used below:
 
 S = select, I = insert, U = update, D = delete. "—" means no table access.
 
-| Table(s)                                                              | owner/admin                  | dispatcher                   | worker                           | portal user                                                       |
-| --------------------------------------------------------------------- | ---------------------------- | ---------------------------- | -------------------------------- | ----------------------------------------------------------------- |
-| organizations                                                         | S U                          | S                            | S                                | `portal_my_clients()` (org name)                                  |
-| organization_members                                                  | S I U D                      | S                            | S                                | —                                                                 |
-| organization_invitations                                              | S I U D                      | —                            | —                                | —                                                                 |
-| member_pay_rates                                                      | S I U D                      | —                            | —                                | —                                                                 |
-| profiles                                                              | own row                      | own row                      | own row                          | own row                                                           |
-| clients, client_contacts, properties                                  | S I U D                      | S I U D                      | — (`worker_route_stops`)         | `portal_*` RPCs                                                   |
-| client_portal_users                                                   | S I D                        | S I D                        | —                                | —                                                                 |
-| services                                                              | S I U D                      | S                            | S                                | —                                                                 |
-| tax_rates, service_default_taxes                                      | S I U D                      | S                            | —                                | —                                                                 |
-| quotes, quote_line_items, quote_line_item_taxes                       | S I U D (no `status` writes) | S I U D (no `status` writes) | —                                | `portal_*` RPCs; approve/decline; magic link via `portal_token_*` |
-| quote_share_tokens                                                    | S (not `token_hash`)         | S (not `token_hash`)         | —                                | `portal_token_*` (service role only)                              |
-| jobs, job_line_items, job_line_item_taxes                             | S I U D                      | S I U D                      | — (`worker_route_stops`)         | `portal_my_jobs`                                                  |
-| visits                                                                | S I U D                      | S I U D                      | — (`worker_*_visit` RPCs)        | `portal_my_visits`                                                |
-| attachments                                                           | S I U D                      | S I U D                      | — (`worker_add_attachment`)      | signed URLs, `is_client_visible` only                             |
-| crews, crew_members                                                   | S I U D                      | S I U D                      | S                                | —                                                                 |
-| routes, route_members, route_stops                                    | S I U D                      | S I U D                      | — (`worker_my_routes`/`_stops`)  | —                                                                 |
-| optimization_runs                                                     | S I                          | S I                          | —                                | —                                                                 |
-| optimization_run_payloads, stripe_events, document_sequences          | — (service role only)        | —                            | —                                | —                                                                 |
-| invoices, invoice_line_items, invoice_visits, invoice_line_item_taxes | S I U D (D only for drafts)  | S                            | —                                | `portal_*` RPCs, non-draft only                                   |
-| payments                                                              | S I U                        | S                            | —                                | `portal_my_payments`                                              |
-| shifts, visit_time_entries                                            | S I U D                      | S I U D                      | — (`worker_clock_*`, visit RPCs) | —                                                                 |
+| Table(s)                                                                    | owner/admin                                                           | dispatcher                           | worker                                                          | portal user                                                       |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------- | ----------------------------------------------------------------- |
+| organizations                                                               | S U                                                                   | S                                    | S                                                               | `portal_my_clients()` (org name)                                  |
+| organization_members                                                        | S I U D                                                               | S                                    | S                                                               | —                                                                 |
+| organization_invitations                                                    | S I U D                                                               | —                                    | —                                                               | —                                                                 |
+| time_off                                                                    | S; writes via `record_time_off`, `review_time_off`, `cancel_time_off` | S; `request_time_off` for themselves | own rows S; `request_time_off`, `cancel_time_off` (own pending) | —                                                                 |
+| member_pay_rates                                                            | S I U D                                                               | —                                    | —                                                               | —                                                                 |
+| profiles                                                                    | own row                                                               | own row                              | own row                                                         | own row                                                           |
+| clients, client_contacts, properties                                        | S I U D                                                               | S I U D                              | — (`worker_route_stops`)                                        | `portal_*` RPCs                                                   |
+| client_portal_users                                                         | S I D                                                                 | S I D                                | —                                                               | —                                                                 |
+| services                                                                    | S I U D                                                               | S                                    | S                                                               | —                                                                 |
+| tax_rates, service_default_taxes                                            | S I U D                                                               | S                                    | —                                                               | —                                                                 |
+| quotes, quote_line_items, quote_line_item_taxes                             | S I U D (no `status` writes)                                          | S I U D (no `status` writes)         | —                                                               | `portal_*` RPCs; approve/decline; magic link via `portal_token_*` |
+| quote_share_tokens                                                          | S (not `token_hash`)                                                  | S (not `token_hash`)                 | —                                                               | `portal_token_*` (service role only)                              |
+| jobs, job_line_items, job_line_item_taxes                                   | S I U D                                                               | S I U D                              | — (`worker_route_stops`)                                        | `portal_my_jobs`                                                  |
+| visits                                                                      | S I U D                                                               | S I U D                              | — (`worker_*_visit` RPCs)                                       | `portal_my_visits`                                                |
+| attachments                                                                 | S I U D                                                               | S I U D                              | — (`worker_add_attachment`)                                     | signed URLs, `is_client_visible` only                             |
+| crews, crew_members                                                         | S I U D                                                               | S I U D                              | S                                                               | —                                                                 |
+| service_regions, service_areas, service_area_rotations                      | S I U D (polygons only via `upsert_*` RPCs)                           | S                                    | S                                                               | —                                                                 |
+| routes, route_members, route_stops                                          | S I U D                                                               | S I U D                              | — (`worker_my_routes`/`_stops`)                                 | —                                                                 |
+| optimization_runs                                                           | S I                                                                   | S I                                  | —                                                               | —                                                                 |
+| optimization_run_payloads, stripe_events, document_sequences, geocode_cache | — (service role only)                                                 | —                                    | —                                                               | —                                                                 |
+| invoices, invoice_line_items, invoice_visits, invoice_line_item_taxes       | S I U D (D only for drafts)                                           | S                                    | —                                                               | `portal_*` RPCs, non-draft only                                   |
+| payments                                                                    | S I U                                                                 | S                                    | —                                                               | `portal_my_payments`                                              |
+| shifts, visit_time_entries                                                  | S I U D                                                               | S I U D                              | — (`worker_clock_*`, visit RPCs)                                | —                                                                 |
 
 Notes:
 
@@ -133,6 +135,14 @@ Notes:
   has RLS on, no policies, and no grants to `anon` or `authenticated`. Workers and
   portal users have no access. See [tables/requests.md](tables/requests.md).
 
+- **Service areas** ([tables/service-areas.md](tables/service-areas.md)):
+  all staff read; owner/admin write. `service_areas.boundary` and the
+  `service_regions` geometry have no column grant: `upsert_service_area` and
+  `upsert_service_region` (security invoker) normalize GeoJSON and call
+  `private.save_service_area` / `private.save_service_region`, which are
+  `security definer` and re-check `has_org_role(org, '{owner,admin}')`.
+  `properties.service_area_id` is derived by triggers and has no grant.
+
 ## Storage
 
 Bucket `org-files` (private). Object paths are
@@ -162,6 +172,26 @@ queries and inserts must also scope to the active org. See
 trusted code. They are not callable by `anon`.
 
 ## Accepted advisor findings
+
+R2 uploads use two narrowly granted definer RPCs ([ADR 0015](decisions/0015-r2-image-uploads.md)):
+`authorize_image_upload(uuid, text)` is executable only by `authenticated`;
+it checks the JWT user, rejects anonymous Auth users, resolves active employee
+membership and scopes the logo/job target to the explicitly selected org.
+Only owners/admins may upload company logos. All four active employee roles may upload job images; jobs table RLS remains unchanged.
+`get_r2_upload_config()` is executable only by `service_role`, takes no
+caller-selected names, and returns five fixed Vault configuration entries.
+It intentionally has no user-membership check because it is a trusted-code
+configuration operation, never a user API. It is retained as a legacy helper;
+current uploads read the five fixed lowercase Edge Function secrets after
+caller authentication and target authorization instead. The upload entrypoint
+no longer creates a service-role client or depends on its key. Credentials
+remain server-side and never enter responses or logs.
+Production security advisors ran after the authorized 2026-11-06 deployment:
+39 authenticated-definer findings, the existing Supabase-managed
+`rls_auto_enable` anonymous-definer finding, and disabled leaked-password
+protection. These are the documented classes below; no new function-exposure
+class was introduced by the logo restriction. The upload RPC's grants remain
+authenticated-only and its logo branch now checks owner/admin membership.
 
 The Supabase advisors report these by design. Don't "fix" them:
 

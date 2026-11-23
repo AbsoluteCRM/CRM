@@ -35,7 +35,7 @@ and `approved_by_user_id` (the caller).
 | Column                | Type           | Null | Default      | Notes                                                                                         |
 | --------------------- | -------------- | ---- | ------------ | --------------------------------------------------------------------------------------------- |
 | `number`              | `text`         | no   |              | `Q-1001`, set by the `assign_number` trigger. `unique (organization_id, number)`              |
-| `client_id`           | `uuid`         | no   |              | Composite FK → `clients`, on delete restrict                                                  |
+| `client_id`           | `uuid`         | yes  |              | Composite FK → `clients`, on delete restrict. Null only on a request's quote before approval  |
 | `property_id`         | `uuid`         | yes  |              | FK `(organization_id, client_id, property_id) → properties`, so it must belong to the client  |
 | `status`              | `quote_status` | no   | `'draft'`    |                                                                                               |
 | `title`               | `text`         | no   |              |                                                                                               |
@@ -132,6 +132,12 @@ A sent quote's client, property, title, message, conditions, and `valid_until`
 are fixed; pull it back to draft to change them. `request_id` and `revision`
 never change.
 
+Direct `UPDATE (is_selected)` is revoked from `authenticated`. Sending clears
+all optional selections under the quote lock before the quote becomes sent;
+only guarded approval RPCs can subsequently select optional items. The current
+customer page does not offer optional selection and approves with an empty
+selection, preserving the delivered counted total.
+
 **Status is not writable through the API.** `update (status, declined_reason)`
 is revoked from `authenticated`. Every status change goes through a function
 (`send_quote`, `pull_back_quote`, `approve_quote`, `decline_quote`, the token
@@ -142,9 +148,10 @@ is the only new column staff can write directly.
 ## Revisions and request status
 
 A request can have many quotes. `create_quote_draft(request_id, copy_from_quote_id
-default null)` locks the request, allocates the next `revision`, and (when the
-request has no client) creates one from the request's contact name, email and
-phone. It leaves `property_id` null, because `requests.address` is free text.
+default null)` locks the request and allocates the next `revision`. The draft takes the
+request's client when staff linked one; otherwise it has no client until the
+customer approves it (see "Clients and approval"). It leaves `property_id`
+null, because `requests.address` is free text.
 With a source quote it copies the message, notes, conditions, lines, and line
 taxes (not `valid_until`). Sending a revision expires the request's previously
 sent one and revokes its link.
@@ -155,6 +162,25 @@ all its quotes: any `converted` gives `converted`, else any `approved` gives
 It never changes a request that is `rejected` or `scheduled`; staff own those
 through `requests.status`. A request with no quotes is left alone.
 
+## Clients and approval
+
+Since `20261029170000_quote_client_on_approval`, starting a quote never creates
+a client. A request's quote can stay without one (`client_id` null) while it is
+`draft`, `sent`, `declined` or `expired` (check `quotes_client_required`); a
+property needs a client (`quotes_property_needs_client`).
+
+- `send_quote` emails `private.quote_recipient_email`: the client's email, or
+  the request's `contact_email` when the quote has no client.
+- `portal_token_approve` attaches the client in the same update that moves the
+  quote to `approved` (the only change `quote_before_update` allows on a sent
+  quote). `private.client_for_request` picks it: the client already linked to
+  the request; else the oldest non-archived client of the same org with the
+  request's email; else a new `active` client built from the request (name,
+  email, phone, `lead_source = 'Online request'`, and the request address in
+  `notes`). It links the request too, and takes an advisory lock per (org,
+  email) so two approvals can't create two clients.
+- A declined or expired quote creates no client.
+
 ## Staff functions
 
 `security definer`, empty `search_path`, executable by `authenticated` only
@@ -162,12 +188,62 @@ through `requests.status`. A request with no quotes is left alone.
 active owner, admin or dispatcher of the quote's (or request's) org. Anyone
 else gets `P0002` (not found).
 
-| Function                                       | Purpose                                                                                                                                                |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `create_quote_draft(request_id, copy_from)`    | New draft revision (see above). Returns the quote id. Refuses a `converted` request (`55000`)                                                          |
-| `send_quote(quote_id, token_hash)`             | Draft → sent. Needs `valid_until` today or later, a client email and at least one line (`55000`). Inserts the share token. Returns the token id        |
-| `pull_back_quote(quote_id)`                    | Sent → draft. Revokes the live token                                                                                                                   |
-| `rotate_quote_token(quote_id, new_token_hash)` | Resend: revokes the live token and inserts a new one with `delivery_attempts + 1`. Locks the quote and token, so concurrent calls leave one live token |
+| Function                                       | Purpose                                                                                                                                                                |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_quote_draft(request_id, copy_from)`    | New draft revision (see above). Returns the quote id. Refuses a `converted` request (`55000`)                                                                          |
+| `send_quote(quote_id, token_hash)`             | Draft → sent. Needs `valid_until` today or later, a recipient email (client or request) and at least one line (`55000`). Inserts the share token. Returns the token id |
+| `pull_back_quote(quote_id)`                    | Sent → draft. Revokes the live token                                                                                                                                   |
+| `rotate_quote_token(quote_id, new_token_hash)` | Resend: revokes the live token and inserts a new one with `delivery_attempts + 1`. Locks the quote and token, so concurrent calls leave one live token                 |
+
+The merge repair `20261106150625_reconcile_quote_send_optional_items.sql`
+combines client-or-request recipient lookup with optional-selection normalization:
+`send_quote` clears selected optional lines while the quote is still a locked
+draft, before changing its status. Totals recalculate in the same transaction;
+failed token creation rolls those changes back. The function signature is
+unchanged. This local migration has not been applied to the hosted project.
+
+## `quote_messages`
+
+Append-only plain-text conversation for one quote revision. Migration:
+`20261027214207_quote_conversation`, applied to the remote project.
+Standard `id`, `organization_id`, `created_at` and `updated_at` columns apply.
+
+| Column              | Type             | Notes                                                                                             |
+| ------------------- | ---------------- | ------------------------------------------------------------------------------------------------- |
+| `quote_id`          | `uuid`           | Composite FK `(organization_id, quote_id)` → quotes; delete restrict                              |
+| `body`              | `text`           | Nonempty, contains a non-whitespace character, maximum 4000 characters                            |
+| `sender_kind`       | `text`           | `staff` or `customer`; assigned by the posting RPC                                                |
+| `staff_user_id`     | `uuid`, nullable | Staff caller's `auth.uid()`; FK to auth.users, delete set null. Always null for customer messages |
+| `client_message_id` | `uuid`           | Client-generated retry key, unique with organization_id, quote_id and sender_kind                 |
+
+Index `(organization_id, quote_id, created_at desc, id desc)` supports history
+and the quote FK; `staff_user_id` is indexed too. Office staff can select under
+RLS; authenticated callers cannot directly insert, update or delete. Workers,
+portal accounts, nonmembers, `anon` and `PUBLIC` have no table access. The safe
+application DTO returns only id, body, sender_kind and created_at; staff are
+labelled Team and bearer-link authors Customer.
+
+| Function                                                                 | Access                                      | Behavior                                                                                                                         |
+| ------------------------------------------------------------------------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `post_quote_message(organization_id, quote_id, body, client_message_id)` | authenticated active owner/admin/dispatcher | Checks exact organization and quote, assigns session attribution; service_role cannot execute                                    |
+| `portal_token_list_messages(token_hash, before_created_at?, before_id?)` | service_role only                           | Validates bearer token; newest 50, ordered by `(created_at, id)` descending. Cursor fields must both be supplied or both omitted |
+| `portal_token_post_message(token_hash, body, client_message_id)`         | service_role only                           | Derives quote and organization from token; writes customer attribution                                                           |
+
+All functions use an empty search_path and explicit grants/revokes. Both
+posting paths lock the quote before checking its live token. Posting requires
+sent, approved or declined and a token that is not revoked or expired.
+Acceptance/decline does not close the chat; original link expiry does. Staff
+retain history after expiry, pullback and supersession. Drafts cannot receive
+messages. Rotating a token retains the same quote's thread; revisions have
+separate threads.
+
+Retrying the same key, body and staff identity returns the original message;
+reusing a key with different content or staff identity raises `23505`. Customer
+quota is 10 new messages per 60 seconds and 100 per 24 hours, shared by holders
+of that quote's link, including after rotation. Quote locking serializes the
+check and insert. Duplicate retries do not consume quota; excess raises
+`P0001` / `quote_message_rate_limited`. Invalid tokens give the same `P0002`
+for reads and writes. No raw tokens or IP addresses are kept in messages.
 
 ## `quote_share_tokens`
 
@@ -198,12 +274,12 @@ through trusted server code. All of them resolve the token with
 future, and the quote in an allowed status. Any failure raises `P0002`, the
 same error for an unknown, expired, revoked, pulled-back or superseded link.
 
-| Function                                           | Purpose                                                                                                               |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `portal_token_get_quote(token_hash)`               | jsonb: quote, totals, org name, client name, lines. Allowed for `sent`, `approved` and `declined`. Stamps `viewed_at` |
-| `portal_token_approve(token_hash, selected_ids)`   | `sent` → `approved`, setting `is_selected` on optional lines                                                          |
-| `portal_token_decline(token_hash, reason)`         | `sent` → `declined`                                                                                                   |
-| `record_quote_delivery(token_id, status, id, err)` | Records the email outcome (`sent` or `failed`) on a live token                                                        |
+| Function                                           | Purpose                                                                                                                                               |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `portal_token_get_quote(token_hash)`               | jsonb: quote, totals, org name, client name (or the request's contact name), lines. Allowed for `sent`, `approved` and `declined`. Stamps `viewed_at` |
+| `portal_token_approve(token_hash, selected_ids)`   | `sent` → `approved`, setting `is_selected` on optional lines, and linking or creating the client (see above)                                          |
+| `portal_token_decline(token_hash, reason)`         | `sent` → `declined`                                                                                                                                   |
+| `record_quote_delivery(token_id, status, id, err)` | Records the email outcome (`sent` or `failed`) on a live token                                                                                        |
 
 Internal notes are never returned. The approving user is not recorded
 (`approved_by_user_id` stays null for link approvals).

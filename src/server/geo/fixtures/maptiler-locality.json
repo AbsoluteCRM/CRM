@@ -1,0 +1,19 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "municipality.987",
+      "text": "Calgary",
+      "place_name": "Calgary, Alberta, Canada",
+      "place_type": ["municipality"],
+      "place_type_name": ["city"],
+      "relevance": 0.6,
+      "center": [-114.0719, 51.0447],
+      "geometry": { "type": "Point", "coordinates": [-114.0719, 51.0447] },
+      "properties": { "country_code": "ca" }
+    }
+  ],
+  "query": ["nowhere", "calgary"],
+  "attribution": "&copy; MapTiler &copy; OpenStreetMap contributors"
+}

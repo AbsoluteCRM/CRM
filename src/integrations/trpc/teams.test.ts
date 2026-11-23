@@ -1,81 +1,14 @@
 import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-type State = {
-  user: { id: string } | null
-  memberships: Record<string, string>
-  insertError: null | { code: string; message: string }
-  updateError: null | { code: string; message: string }
-  updateRows: Array<{ id: string }>
-  rpcError: null | { code: string; message: string }
-  calls: Array<[string, ...Array<unknown>]>
-}
-const state = vi.hoisted<State>(() => ({
-  user: { id: 'user' },
-  memberships: {},
-  insertError: null,
-  updateError: null,
-  updateRows: [{ id: 'invite' }],
-  rpcError: null,
-  calls: [],
-}))
+import { ORG, fake } from './test/fake-supabase'
+import type { FakeError, FakeResult } from './test/fake-supabase'
 
-vi.mock('#/lib/supabase/server', () => ({
-  createSupabaseServerClient: () => ({
-    auth: {
-      getUser: async () => ({ data: { user: state.user }, error: null }),
-    },
-    from: (table: string) => {
-      let org = ''
-      let mutation = ''
-      const q: Record<string, unknown> = {}
-      for (const method of ['select', 'eq', 'is', 'insert', 'update']) {
-        q[method] = (...args: Array<unknown>) => {
-          state.calls.push([`${table}.${method}`, ...args])
-          if (method === 'eq' && args[0] === 'organization_id')
-            org = String(args[1])
-          if (method === 'insert' || method === 'update') mutation = method
-          return q
-        }
-      }
-      q.maybeSingle = async () => ({
-        data: state.memberships[org]
-          ? {
-              id: 'member',
-              organization_id: org,
-              role: state.memberships[org],
-              status: 'active',
-            }
-          : null,
-        error: null,
-      })
-      q.single = async () => ({ data: { name: '<Team & Co>' }, error: null })
-      q.then = (resolve: (result: unknown) => unknown) =>
-        Promise.resolve(
-          mutation === 'insert'
-            ? { data: null, error: state.insertError }
-            : { data: state.updateRows, error: state.updateError },
-        ).then(resolve)
-      return q
-    },
-    rpc: async (name: string, input: unknown) => {
-      state.calls.push([name, input])
-      return {
-        data: {
-          organization_id: ORG,
-          email: 'private@example.com',
-          role: 'worker',
-        },
-        error: state.rpcError,
-      }
-    },
-  }),
-}))
+vi.mock('#/lib/supabase/server', () => import('./test/fake-supabase'))
 
 const { createTRPCContext, createTRPCRouter } = await import('./init')
 const { teamsRouter } = await import('./teams')
 const router = createTRPCRouter(teamsRouter)
-const ORG = '0198f0a0-0000-7000-8000-000000000001'
 const OTHER = '0198f0a0-0000-7000-8000-000000000002'
 const caller = () => router.createCaller(createTRPCContext())
 const input = {
@@ -85,6 +18,17 @@ const input = {
 }
 const fetchMock = vi.fn()
 
+// One invite call: the insert result, then the rotation update result.
+const invitations = (
+  insertError: FakeError | null,
+  update: FakeResult = { data: [{ id: 'invite' }], error: null },
+) => {
+  fake.results.organization_invitations = [
+    { data: null, error: insertError },
+    update,
+  ]
+}
+
 beforeEach(() => {
   vi.stubEnv('SERVER_URL', 'https://terraformaflow.com')
   vi.stubEnv('RESEND_API_KEY', 'test-key')
@@ -93,26 +37,31 @@ beforeEach(() => {
   fetchMock
     .mockReset()
     .mockResolvedValue(new Response(JSON.stringify({ id: 'mail' })))
-  state.user = { id: 'user' }
-  state.memberships = { [ORG]: 'owner' }
-  state.calls = []
-  state.insertError = null
-  state.updateError = null
-  state.updateRows = [{ id: 'invite' }]
-  state.rpcError = null
+  fake.reset()
+  fake.setRole('owner')
+  fake.results.organizations = [{ data: { name: '<Team & Co>' }, error: null }]
+  invitations(null)
+  fake.rpc = {
+    data: {
+      organization_id: ORG,
+      email: 'private@example.com',
+      role: 'worker',
+    },
+    error: null,
+  }
 })
 
 describe('team invitations', () => {
   it.each(['owner', 'admin'])(
     'allows %s and writes only a seven-day token hash to the verified org',
     async (role) => {
-      state.memberships[ORG] = role
+      fake.memberships[ORG] = role
       const before = Date.now()
       const result = await caller().invite(input)
       expect(result).toMatchObject({ delivery: 'sent', resent: false })
       const token = new URL(result.inviteLink).searchParams.get('token')!
       expect(token).toMatch(/^[a-f0-9]{64}$/)
-      const row = state.calls.find(
+      const row = fake.calls.find(
         ([method]) => method === 'organization_invitations.insert',
       )![1]
       expect(row).toMatchObject({
@@ -131,18 +80,18 @@ describe('team invitations', () => {
   it.each(['dispatcher', 'worker', 'portal', null])(
     'rejects %s before writing or sending',
     async (role) => {
-      state.memberships = role ? { [ORG]: role } : {}
+      fake.memberships = role ? { [ORG]: role } : {}
       await expect(caller().invite(input)).rejects.toMatchObject({
         code: 'FORBIDDEN',
       })
       expect(fetchMock).not.toHaveBeenCalled()
-      expect(state.calls.some(([method]) => method.endsWith('.insert'))).toBe(
+      expect(fake.calls.some(([method]) => method.endsWith('.insert'))).toBe(
         false,
       )
     },
   )
   it('rejects unauthenticated callers', async () => {
-    state.user = null
+    fake.user = null
     await expect(caller().invite(input)).rejects.toMatchObject({
       code: 'UNAUTHORIZED',
     })
@@ -158,11 +107,11 @@ describe('team invitations', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
   it('scopes a multi-org caller to the selected organization', async () => {
-    state.memberships[OTHER] = 'admin'
+    fake.memberships[OTHER] = 'admin'
     await caller().invite({ ...input, organizationId: OTHER })
-    expect(state.calls).toContainEqual(['organizations.eq', 'id', OTHER])
+    expect(fake.calls).toContainEqual(['organizations.eq', 'id', OTHER])
     expect(
-      state.calls.find(([method]) => method.endsWith('.insert'))?.[1],
+      fake.calls.find(([method]) => method.endsWith('.insert'))?.[1],
     ).toMatchObject({ organization_id: OTHER })
   })
   it('validates config before creating or rotating', async () => {
@@ -171,7 +120,7 @@ describe('team invitations', () => {
       code: 'PRECONDITION_FAILED',
     })
     expect(
-      state.calls.some(([method]) => /\.(insert|update)$/.test(method)),
+      fake.calls.some(([method]) => /\.(insert|update)$/.test(method)),
     ).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -188,23 +137,23 @@ describe('team invitations', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
   it('rotates only the pending-email conflict and checks org/email/unaccepted scope', async () => {
-    state.insertError = {
+    invitations({
       code: '23505',
       message:
         'duplicate key violates unique constraint "organization_invitations_pending_email_idx"',
-    }
+    })
     expect(await caller().invite(input)).toMatchObject({ resent: true })
-    expect(state.calls).toContainEqual([
+    expect(fake.calls).toContainEqual([
       'organization_invitations.eq',
       'organization_id',
       ORG,
     ])
-    expect(state.calls).toContainEqual([
+    expect(fake.calls).toContainEqual([
       'organization_invitations.eq',
       'email',
       'person@example.com',
     ])
-    expect(state.calls).toContainEqual([
+    expect(fake.calls).toContainEqual([
       'organization_invitations.is',
       'accepted_at',
       null,
@@ -213,20 +162,22 @@ describe('team invitations', () => {
   it.each(['23505', '42501', 'XX000'])(
     'does not send or rotate after unrelated write error %s',
     async (code) => {
-      state.insertError = { code, message: 'different failure' }
+      invitations({ code, message: 'different failure' })
       await expect(caller().invite(input)).rejects.toThrow('Could not create')
-      expect(state.calls.some(([method]) => method.endsWith('.update'))).toBe(
+      expect(fake.calls.some(([method]) => method.endsWith('.update'))).toBe(
         false,
       )
       expect(fetchMock).not.toHaveBeenCalled()
     },
   )
   it('does not send if rotation updates zero rows', async () => {
-    state.insertError = {
-      code: '23505',
-      message: 'organization_invitations_pending_email_idx',
-    }
-    state.updateRows = []
+    invitations(
+      {
+        code: '23505',
+        message: 'organization_invitations_pending_email_idx',
+      },
+      { data: [], error: null },
+    )
     await expect(caller().invite(input)).rejects.toMatchObject({
       code: 'CONFLICT',
     })
@@ -251,12 +202,12 @@ describe('team invitations', () => {
 
 describe('explicit acceptance', () => {
   it('calls only the RPC with caller credentials and returns only its organization', async () => {
-    state.memberships = {}
+    fake.memberships = {}
     await expect(
       caller().acceptInvite({ token: 'b'.repeat(64) }),
     ).resolves.toEqual({ organizationId: ORG })
-    expect(state.calls).toEqual([
-      ['accept_invitation', { p_token: 'b'.repeat(64) }],
+    expect(fake.calls).toEqual([
+      ['rpc', 'accept_invitation', { p_token: 'b'.repeat(64) }],
     ])
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -266,7 +217,7 @@ describe('explicit acceptance', () => {
       await expect(caller().acceptInvite({ token })).rejects.toMatchObject({
         code: 'BAD_REQUEST',
       })
-      expect(state.calls).toEqual([])
+      expect(fake.calls).toEqual([])
     },
   )
   it.each([
@@ -275,7 +226,7 @@ describe('explicit acceptance', () => {
     ['42501', 'FORBIDDEN'],
     ['XX000', 'INTERNAL_SERVER_ERROR'],
   ])('maps %s safely', async (code, result) => {
-    state.rpcError = { code, message: 'sensitive details' }
+    fake.rpc.error = { code, message: 'sensitive details' }
     await expect(
       caller().acceptInvite({ token: 'a'.repeat(64) }),
     ).rejects.toMatchObject({ code: result })

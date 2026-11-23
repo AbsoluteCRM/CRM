@@ -272,9 +272,29 @@ export default function LandingPage() {
     <div className="min-h-screen bg-(--cream) text-(--ink)">
       {/* Nav */}
       <header className="sticky top-0 z-40 border-b border-(--line)/70 bg-(--cream)/85 backdrop-blur-md">
-        <div className="mx-auto flex h-18 max-w-[1240px] items-center gap-6 px-5 py-4 sm:px-8">
-          <Link to="/" className="no-underline">
-            <Logo />
+        <div className="mx-auto flex h-18 max-w-[1240px] items-center gap-2 px-4 py-4 sm:gap-3 sm:px-8 lg:gap-6">
+          {/* Small screens: menu button first, then the logo. */}
+          <button
+            type="button"
+            className="-ml-1.5 flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-(--paper) lg:hidden"
+            aria-label={menu ? 'Close menu' : 'Open menu'}
+            aria-expanded={menu}
+            aria-controls="landing-menu"
+            onClick={() => setMenu((m) => !m)}
+          >
+            {menu ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+          <Link
+            to="/"
+            className="shrink-0 no-underline"
+            aria-label="AbsoluteCRM home"
+          >
+            <Logo className="min-[360px]:hidden" compact size="sm" />
+            <Logo
+              className="hidden min-[360px]:inline-flex sm:hidden"
+              size="sm"
+            />
+            <Logo className="hidden sm:inline-flex" />
           </Link>
           <nav
             className="mx-auto hidden items-center gap-1 lg:flex"
@@ -290,57 +310,46 @@ export default function LandingPage() {
               </a>
             ))}
           </nav>
-          <div className="ml-auto hidden items-center gap-2 sm:flex lg:ml-0">
+          {/* Always top right, at every size. */}
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2 lg:ml-0">
             <Link
               to="/sign-in"
-              className="rounded-full px-4 py-2 text-sm font-semibold text-(--ink) no-underline hover:bg-(--paper)"
+              className="rounded-full px-2.5 py-2 text-sm font-semibold whitespace-nowrap text-(--ink) no-underline hover:bg-(--paper) sm:px-4"
             >
               Sign in
             </Link>
             <Link
               to="/sign-up"
-              className="group inline-flex items-center gap-2 rounded-full bg-(--leaf-900) py-1.5 pr-1.5 pl-5 text-sm font-semibold text-(--cream) no-underline hover:bg-(--leaf-800)"
+              className="group inline-flex h-10 items-center gap-2 rounded-full bg-(--leaf-900) px-4 text-sm font-semibold whitespace-nowrap text-(--cream) no-underline hover:bg-(--leaf-800) sm:h-11 sm:py-1.5 sm:pr-1.5 sm:pl-5"
             >
-              Start free trial <ArrowChip />
+              <span>
+                <span className="hidden sm:inline">Start </span>
+                <span className="sm:hidden">Free trial</span>
+                <span className="hidden sm:inline">free trial</span>
+              </span>
+              <span className="hidden sm:flex">
+                <ArrowChip />
+              </span>
             </Link>
           </div>
-          <button
-            type="button"
-            className="ml-auto flex size-10 cursor-pointer items-center justify-center rounded-full hover:bg-(--paper) lg:hidden"
-            aria-label="Menu"
-            aria-expanded={menu}
-            onClick={() => setMenu((m) => !m)}
-          >
-            {menu ? <X className="size-5" /> : <Menu className="size-5" />}
-          </button>
         </div>
         {menu && (
-          <div className="border-t border-(--line) px-5 pb-4 lg:hidden">
+          <nav
+            id="landing-menu"
+            aria-label="Primary"
+            className="border-t border-(--line) px-4 pb-4 lg:hidden"
+          >
             {nav.map(([label, href]) => (
               <a
                 key={href}
                 href={href}
                 onClick={() => setMenu(false)}
-                className="block rounded-xl px-3 py-3 font-semibold text-(--ink) no-underline"
+                className="block rounded-xl px-3 py-3 font-semibold text-(--ink) no-underline hover:bg-(--paper)"
               >
                 {label}
               </a>
             ))}
-            <div className="mt-2 flex gap-2">
-              <Link
-                to="/sign-in"
-                className="flex-1 rounded-full border border-(--line-2) py-2.5 text-center font-semibold text-(--ink) no-underline"
-              >
-                Sign in
-              </Link>
-              <Link
-                to="/sign-up"
-                className="flex-1 rounded-full bg-(--leaf-900) py-2.5 text-center font-semibold text-(--cream) no-underline"
-              >
-                Start free trial
-              </Link>
-            </div>
-          </div>
+          </nav>
         )}
       </header>
 

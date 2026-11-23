@@ -55,7 +55,9 @@ wrapping every user request in `withRls()`. Neither part earned its place:
   merging `main`, regenerate instead of hand-merging the file.
 - **Service role.** Clients built with `SUPABASE_SERVICE_ROLE_KEY` live only
   in `src/server/trusted/`: webhooks, cron, the optimizer write-back, and
-  public token pages.
+  public token pages. [ADR 0015](0015-r2-image-uploads.md) extends this boundary
+  to the standalone `upload-image` Edge Function, whose service-role client
+  only reads fixed Vault configuration after user-scoped authorization.
 - **No direct Postgres connection** until a feature needs one. That feature
   adds it with its own ADR.
 

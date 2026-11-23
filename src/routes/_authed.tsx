@@ -5,6 +5,7 @@ import { useAuth } from '#/integrations/auth/context'
 import SidePanel from '#/components/layout/SidePanel'
 import Header from '#/components/layout/Header'
 import Footer from '#/components/layout/Footer'
+import PageLoading from '#/components/layout/PageLoading'
 
 export const Route = createFileRoute('/_authed')({
   component: AuthedLayout,
@@ -21,11 +22,7 @@ function AuthedLayout() {
   }, [isLoading, isAuthenticated, navigate])
 
   if (isLoading || !isAuthenticated) {
-    return (
-      <div className="flex min-h-svh items-center justify-center">
-        Loading...
-      </div>
-    )
+    return <PageLoading />
   }
 
   return (

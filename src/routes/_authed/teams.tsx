@@ -3,7 +3,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   Award,
   BadgeCheck,
-  CalendarOff,
   Clock,
   Mail,
   Phone,
@@ -14,8 +13,14 @@ import {
   X,
 } from 'lucide-react'
 
+import { useRole } from '#/integrations/organization/use-role'
+import { SampleDataBadge, SampleDataNote } from '#/mocks/SampleDataBadge'
 import { useOrganization } from '#/integrations/organization/context'
-import { can as orgCan } from '#/integrations/organization/permissions'
+import {
+  ROLE_DESCRIPTION,
+  ROLE_LABEL,
+  can as orgCan,
+} from '#/integrations/organization/permissions'
 import PageShell from '#/components/crm/PageShell'
 import {
   Avatar,
@@ -23,44 +28,41 @@ import {
   Btn,
   Card,
   CardHeader,
-  CheckPill,
   Drawer,
-  EmptyState,
   Field,
-  IconBtn,
   Modal,
   Progress,
   SelectInput,
   StatusBadge,
   Tabs,
   TextInput,
-  toast,
 } from '#/components/crm/ui'
-import {
-  AVAILABILITY_LABEL,
-  ROLE_DESCRIPTION,
-  ROLE_LABEL,
-  actions,
-  can,
-  memberAvailability,
-  useTenant,
-} from '#/components/crm/store'
-import {
-  addDays,
-  fmtDate,
-  fmtWeekday,
-  isWeekend,
-  todayISO,
-} from '#/components/crm/format'
+import { toast } from '#/lib/toast'
+import { AVAILABILITY_LABEL, actions, useTenant } from '#/mocks/crm-store'
+import { addDays, fmtDate, todayISO } from '#/components/crm/format'
 import InvitationDelivery from '#/components/team/InvitationDelivery'
 import CrewBuilder from '#/components/team/CrewBuilder'
 import MembersTab from '#/components/team/MembersTab'
 import { useCrewMutations, useCrews } from '#/integrations/crews/crews'
-import { useInviteTeamMember, useTeamMembers } from '#/integrations/teams/teams'
+import {
+  useInviteTeamMember,
+  useMyMember,
+  useTeamMembers,
+} from '#/integrations/teams/teams'
+import {
+  useAvailabilityMutations,
+  useTimeOff,
+} from '#/integrations/teams/availability'
+import { useCompanySettings } from '#/integrations/settings/settings'
+import {
+  AvailabilityBoard,
+  DAYS_SHOWN,
+  MyAvailability,
+} from '#/components/team/Availability'
 import type { InviteRole } from '#/integrations/teams/teams'
 import { cn } from '#/lib/utils'
-import type { Availability, Tenant } from '#/components/crm/store'
-import type { Member, OrgRole, TimeOff, Weekday } from '#/components/crm/types'
+import type { Availability, Tenant } from '#/mocks/crm-store'
+import type { Member, OrgRole, Weekday } from '#/mocks/crm-types'
 
 export const Route = createFileRoute('/_authed/teams')({
   component: TeamsPage,
@@ -109,6 +111,7 @@ function useMetrics(t: Tenant) {
 
 function TeamsPage() {
   const t = useTenant()
+  const access = useRole()
   const { organization } = useOrganization()
   const canInvite =
     organization !== null && orgCan.manageTeam(organization.role)
@@ -118,33 +121,67 @@ function TeamsPage() {
   const [tab, setTab] = useState<Tab>('members')
   const [inviting, setInviting] = useState(false)
   const [profile, setProfile] = useState<string | null>(null)
-  const [timeOffFor, setTimeOffFor] = useState<{
-    memberId?: string
-    date?: string
-  } | null>(null)
-  const editable = can.manageTeam(t.role)
+  const editable = access.can('manageTeam')
+  const isWorker = access.role === 'worker'
+  const today = todayISO()
+  const timeOff = useTimeOff(today, addDays(today, DAYS_SHOWN + 60))
+  const company = useCompanySettings()
+  const hours = company.data?.settings.business_hours
+  const { me } = useMyMember()
+  const availabilityActions = useAvailabilityMutations()
+  const pendingRequests = (timeOff.data ?? []).filter(
+    (x) => x.status === 'pending',
+  ).length
   const realMembers = team.data ?? []
   const realCrews = crews.data ?? []
   const realActive = realMembers.filter((m) => m.status === 'active')
+  const outToday = new Set(
+    (timeOff.data ?? [])
+      .filter(
+        (x) =>
+          x.status === 'approved' &&
+          x.start_date <= today &&
+          x.end_date >= today,
+      )
+      .map((x) => x.member_id),
+  )
   const active = t.members.filter((m) => m.status === 'active')
+
+  if (isWorker) {
+    return (
+      <PageShell
+        kicker="Workforce"
+        title="My availability"
+        subtitle="Your schedule for the next two weeks. Request sick days and other time off here."
+      >
+        {me ? (
+          <MyAvailability
+            me={me}
+            timeOff={timeOff.data ?? []}
+            hours={hours}
+            actions={availabilityActions}
+          />
+        ) : (
+          <p role="status" className="py-10 text-center text-sm text-(--ink-3)">
+            {team.isLoading
+              ? 'Loading…'
+              : 'We couldn’t find your team profile.'}
+          </p>
+        )}
+      </PageShell>
+    )
+  }
 
   return (
     <PageShell
       kicker="Workforce"
       title="Team"
       subtitle="Manage employees, build crews, track availability, and see how everyone is performing."
-      allowed={can.viewTeam(t.role)}
+      allowed={access.can('viewTeam')}
       section="Team"
       actions={
         editable && (
           <>
-            <Btn
-              variant="outline"
-              icon={CalendarOff}
-              onClick={() => setTimeOffFor({})}
-            >
-              Add time off
-            </Btn>
             {canInvite && (
               <Btn icon={UserPlus} onClick={() => setInviting(true)}>
                 Invite member
@@ -168,13 +205,11 @@ function TeamsPage() {
           },
           {
             label: 'Out today',
-            value: active.filter(
-              (m) =>
-                !['available', 'off_day'].includes(
-                  memberAvailability(m, todayISO()),
-                ),
-            ).length,
-            sub: 'Vacation, sick, or time off',
+            value: realActive.filter((m) => outToday.has(m.id)).length,
+            sub:
+              pendingRequests > 0
+                ? `${pendingRequests} time-off request${pendingRequests === 1 ? '' : 's'} waiting`
+                : 'Sick, vacation, or personal time',
           },
           {
             label: 'Avg. rating',
@@ -183,10 +218,14 @@ function TeamsPage() {
               Math.max(1, active.filter((m) => m.rating).length)
             ).toFixed(1),
             sub: 'Customer feedback',
+            sample: true,
           },
         ].map((k) => (
           <Card key={k.label} className="p-4">
-            <p className="text-xs font-semibold text-(--ink-3)">{k.label}</p>
+            <p className="flex items-center gap-2 text-xs font-semibold text-(--ink-3)">
+              {k.label}
+              {'sample' in k && <SampleDataBadge />}
+            </p>
             <p className="crm-display mt-1 text-2xl font-semibold">{k.value}</p>
             <p className="mt-0.5 text-xs text-(--ink-3)">{k.sub}</p>
           </Card>
@@ -200,7 +239,11 @@ function TeamsPage() {
         tabs={[
           { value: 'members', label: 'Team list', count: team.data?.length },
           { value: 'crews', label: 'Crew builder', count: realCrews.length },
-          { value: 'availability', label: 'Availability' },
+          {
+            value: 'availability',
+            label: 'Availability',
+            count: pendingRequests || undefined,
+          },
           { value: 'performance', label: 'Performance' },
         ]}
       />
@@ -223,9 +266,23 @@ function TeamsPage() {
         />
       )}
       {tab === 'availability' && (
-        <AvailabilityTab t={t} editable={editable} onAdd={setTimeOffFor} />
+        <AvailabilityBoard
+          members={realMembers}
+          timeOff={timeOff.data ?? []}
+          hours={hours}
+          myMemberId={me?.id ?? null}
+          canManage={editable}
+          actions={availabilityActions}
+        />
       )}
-      {tab === 'performance' && <PerformanceTab t={t} onOpen={setProfile} />}
+      {tab === 'performance' && (
+        <>
+          <SampleDataNote>
+            Demo team members and ratings. Changes here are not saved.
+          </SampleDataNote>
+          <PerformanceTab t={t} onOpen={setProfile} />
+        </>
+      )}
 
       {inviting && <InviteModal onClose={() => setInviting(false)} />}
       {profile && t.member(profile) && (
@@ -234,273 +291,13 @@ function TeamsPage() {
           member={t.member(profile)!}
           editable={editable}
           onClose={() => setProfile(null)}
-          onAddTimeOff={() => setTimeOffFor({ memberId: profile })}
-        />
-      )}
-      {timeOffFor && (
-        <TimeOffModal
-          t={t}
-          defaults={timeOffFor}
-          onClose={() => setTimeOffFor(null)}
+          onAddTimeOff={() => {
+            setProfile(null)
+            setTab('availability')
+          }}
         />
       )}
     </PageShell>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Availability
-// ---------------------------------------------------------------------------
-
-function AvailabilityTab({
-  t,
-  editable,
-  onAdd,
-}: {
-  t: Tenant
-  editable: boolean
-  onAdd: (d: { memberId?: string; date?: string }) => void
-}) {
-  const today = todayISO()
-  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i))
-  const people = t.members.filter((m) => m.status === 'active')
-  const upcoming = people
-    .flatMap((m) =>
-      m.timeOff.filter((x) => x.end >= today).map((x) => ({ m, x })),
-    )
-    .sort((a, b) => a.x.start.localeCompare(b.x.start))
-
-  return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <Card className="min-w-0 overflow-hidden">
-        <CardHeader
-          title="Next 14 days"
-          subtitle={editable ? 'Click a day to record time off.' : undefined}
-        />
-        <div className="crm-scroll overflow-x-auto p-4">
-          <table className="w-full min-w-[860px] border-separate border-spacing-1 text-xs">
-            <thead>
-              <tr>
-                <th className="w-44" />
-                {days.map((d) => (
-                  <th
-                    key={d}
-                    className={cn(
-                      'rounded-lg py-1 font-semibold',
-                      d === today
-                        ? 'bg-(--leaf-900) text-(--lime)'
-                        : 'text-(--ink-3)',
-                    )}
-                  >
-                    {fmtWeekday(d).slice(0, 2)}
-                    <span className="block text-[13px] font-bold">
-                      {fmtDate(d, { day: 'numeric' })}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {people.map((m) => (
-                <tr key={m.id}>
-                  <td className="truncate pr-2 text-[13px] font-semibold">
-                    {m.display_name}
-                  </td>
-                  {days.map((d) => {
-                    const a = memberAvailability(m, d)
-                    return (
-                      <td key={d}>
-                        <button
-                          type="button"
-                          disabled={!editable}
-                          onClick={() => onAdd({ memberId: m.id, date: d })}
-                          title={`${m.display_name}: ${AVAILABILITY_LABEL[a]} on ${fmtDate(d, { weekday: 'long', month: 'short', day: 'numeric' })}`}
-                          className={cn(
-                            'h-8 w-full rounded-lg text-[10px] font-bold',
-                            AVAIL_STYLE[a],
-                            editable &&
-                              'cursor-pointer hover:ring-2 hover:ring-(--leaf-500)',
-                            isWeekend(d) && a === 'off_day' && 'opacity-60',
-                          )}
-                        >
-                          {a === 'available'
-                            ? ''
-                            : a === 'off_day'
-                              ? '–'
-                              : AVAILABILITY_LABEL[a].slice(0, 3)}
-                        </button>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="mt-3 flex flex-wrap gap-3 text-xs text-(--ink-2)">
-            {(Object.keys(AVAIL_STYLE) as Array<Availability>).map((a) => (
-              <span key={a} className="flex items-center gap-1.5">
-                <span className={cn('size-3 rounded', AVAIL_STYLE[a])} />{' '}
-                {AVAILABILITY_LABEL[a]}
-              </span>
-            ))}
-          </div>
-        </div>
-      </Card>
-      <Card>
-        <CardHeader
-          title="Upcoming time off"
-          subtitle="Vacation, sick days, and personal time"
-        />
-        <ul className="space-y-2 p-4">
-          {upcoming.length === 0 && (
-            <EmptyState icon={CalendarOff} title="Nobody is away" />
-          )}
-          {upcoming.map(({ m, x }) => (
-            <li
-              key={x.id}
-              className="flex items-center gap-3 rounded-2xl border border-(--line) p-3"
-            >
-              <span
-                className={cn(
-                  'rounded-full px-2 py-0.5 text-[11px] font-bold',
-                  AVAIL_STYLE[x.kind],
-                )}
-              >
-                {AVAILABILITY_LABEL[x.kind]}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-bold">
-                  {m.display_name}
-                </p>
-                <p className="text-xs text-(--ink-3)">
-                  {fmtDate(x.start)}
-                  {x.end !== x.start && ` – ${fmtDate(x.end)}`}
-                  {x.note && ` · ${x.note}`}
-                </p>
-              </div>
-              {editable && (
-                <IconBtn
-                  icon={X}
-                  label="Remove time off"
-                  onClick={() => actions.removeTimeOff(m.id, x.id)}
-                />
-              )}
-            </li>
-          ))}
-        </ul>
-      </Card>
-    </div>
-  )
-}
-
-function TimeOffModal({
-  t,
-  defaults,
-  onClose,
-}: {
-  t: Tenant
-  defaults: { memberId?: string; date?: string }
-  onClose: () => void
-}) {
-  const people = t.members.filter((m) => m.status === 'active')
-  const [memberId, setMemberId] = useState(
-    defaults.memberId ?? people.at(0)?.id ?? '',
-  )
-  const [kind, setKind] = useState<TimeOff['kind']>('vacation')
-  const [start, setStart] = useState(defaults.date ?? todayISO())
-  const [end, setEnd] = useState(defaults.date ?? todayISO())
-  const [note, setNote] = useState('')
-  const affected = t.jobs.filter((j) => {
-    const crew = t.crews.find((c) => c.memberIds.includes(memberId))
-    return (
-      crew &&
-      j.crew_id === crew.id &&
-      j.date >= start &&
-      j.date <= end &&
-      (j.status === 'assigned' || j.status === 'scheduled')
-    )
-  }).length
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      width={520}
-      title="Record time off"
-      footer={
-        <>
-          <Btn variant="ghost" onClick={onClose}>
-            Cancel
-          </Btn>
-          <Btn
-            disabled={!memberId || end < start}
-            onClick={() => {
-              actions.addTimeOff(memberId, {
-                kind,
-                start,
-                end,
-                note: note || undefined,
-              })
-              toast(`Time off saved for ${t.member(memberId)?.display_name}`)
-              onClose()
-            }}
-          >
-            Save
-          </Btn>
-        </>
-      }
-    >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Team member" className="sm:col-span-2">
-          <SelectInput
-            value={memberId}
-            onChange={(e) => setMemberId(e.target.value)}
-          >
-            {people.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.display_name}
-              </option>
-            ))}
-          </SelectInput>
-        </Field>
-        <Field label="Type" className="sm:col-span-2">
-          <div className="flex flex-wrap gap-2">
-            {(['vacation', 'sick', 'personal'] as const).map((k) => (
-              <CheckPill
-                key={k}
-                checked={kind === k}
-                onChange={() => setKind(k)}
-              >
-                {AVAILABILITY_LABEL[k]}
-              </CheckPill>
-            ))}
-          </div>
-        </Field>
-        <Field label="From">
-          <TextInput
-            type="date"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-          />
-        </Field>
-        <Field label="To">
-          <TextInput
-            type="date"
-            value={end}
-            min={start}
-            onChange={(e) => setEnd(e.target.value)}
-          />
-        </Field>
-        <Field label="Note (optional)" className="sm:col-span-2">
-          <TextInput value={note} onChange={(e) => setNote(e.target.value)} />
-        </Field>
-        {affected > 0 && (
-          <p className="rounded-xl bg-(--sun-100) px-3 py-2 text-[13px] text-(--ink) sm:col-span-2">
-            Their crew has {affected} job{affected === 1 ? '' : 's'} in this
-            window. The calendar will flag them so you can cover or reassign.
-          </p>
-        )}
-      </div>
-    </Modal>
   )
 }
 
@@ -704,7 +501,10 @@ function MemberProfile({
             },
           ].map((k) => (
             <Card key={k.label} className="p-4">
-              <p className="text-xs font-semibold text-(--ink-3)">{k.label}</p>
+              <p className="flex items-center gap-2 text-xs font-semibold text-(--ink-3)">
+                {k.label}
+                {'sample' in k && <SampleDataBadge />}
+              </p>
               <p className="crm-display mt-1 text-2xl font-semibold">
                 {k.value}
               </p>

@@ -13,14 +13,14 @@ import {
   XCircle,
 } from 'lucide-react'
 
+import { useRole } from '#/integrations/organization/use-role'
 import {
   actions,
-  can,
   detectConflicts,
   invoiceBalance,
   jobEnd,
   useTenant,
-} from './store'
+} from '#/mocks/crm-store'
 import {
   Alert,
   Badge,
@@ -37,12 +37,12 @@ import {
   Tabs,
   TextArea,
   TextInput,
-  toast,
 } from './ui'
+import { toast } from '#/lib/toast'
 import RouteMap from './RouteMap'
 import { buildRoute, optimizeOrder, totalDrive } from './route'
 import { fmtDate, fmtDuration, fmtTime, money, uid } from './format'
-import type { Job, Photo } from './types'
+import type { Job, Photo } from '#/mocks/crm-types'
 
 const DURATIONS = [30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480]
 
@@ -54,6 +54,7 @@ export default function JobDrawer({
   onClose: () => void
 }) {
   const t = useTenant()
+  const access = useRole()
   const job = t.jobs.find((j) => j.id === jobId)
   const [tab, setTab] = useState<'overview' | 'route' | 'completion'>(
     'overview',
@@ -66,13 +67,13 @@ export default function JobDrawer({
   const conflicts =
     detectConflicts(t.jobs, t.crews, t.members).get(job.id) ?? []
   const editable =
-    can.manageJobs(t.role) &&
+    access.can('manageJobs') &&
     job.status !== 'completed' &&
     job.status !== 'cancelled'
   const canWork =
     job.status !== 'completed' &&
     job.status !== 'cancelled' &&
-    (can.manageJobs(t.role) || t.myCrew?.id === job.crew_id)
+    (access.can('manageJobs') || t.myCrew?.id === job.crew_id)
   const invoice = t.invoice(job.invoice_id)
 
   return (
@@ -115,7 +116,7 @@ export default function JobDrawer({
       }
       footer={
         <>
-          {can.manageJobs(t.role) &&
+          {access.can('manageJobs') &&
             job.status !== 'cancelled' &&
             job.status !== 'completed' && (
               <Btn
@@ -191,7 +192,7 @@ export default function JobDrawer({
               <MapPin className="mt-0.5 size-3.5 shrink-0" />{' '}
               {property?.address_line1}, {property?.city}
             </p>
-            {can.manageClients(t.role) && client && (
+            {access.can('manageClients') && client && (
               <Link
                 to="/clients"
                 search={{ id: client.id }}
@@ -240,7 +241,7 @@ export default function JobDrawer({
                 </li>
               ))}
             </ul>
-            {can.viewRevenue(t.role) && (
+            {access.can('viewRevenue') && (
               <p className="mt-3 flex justify-between border-t border-(--line) pt-3 text-sm font-bold">
                 <span>Job price</span>
                 <span>{money(job.price_cents)}</span>
@@ -299,6 +300,7 @@ function Overview({
   conflicts: Array<string>
 }) {
   const t = useTenant()
+  const access = useRole()
   const crews = t.crews.filter((c) => c.memberIds.length > 0)
   return (
     <div className="space-y-4">
@@ -379,7 +381,7 @@ function Overview({
         <Field label="Job notes" className="sm:col-span-2">
           <TextArea
             defaultValue={job.notes}
-            disabled={!can.manageJobs(t.role)}
+            disabled={!access.can('manageJobs')}
             placeholder="Anything the crew should know"
             onBlur={(e) =>
               e.target.value !== job.notes &&
@@ -394,6 +396,7 @@ function Overview({
 
 function RouteTab({ job }: { job: Job }) {
   const t = useTenant()
+  const access = useRole()
   const crew = t.crew(job.crew_id)
   if (!crew) {
     return (
@@ -411,7 +414,7 @@ function RouteTab({ job }: { job: Job }) {
   const stops = buildRoute(dayJobs, t.property)
   const idx = stops.findIndex((s) => s.job.id === job.id)
   const canOptimize =
-    can.manageJobs(t.role) &&
+    access.can('manageJobs') &&
     dayJobs.every((j) => j.status === 'assigned' || j.status === 'scheduled')
 
   return (

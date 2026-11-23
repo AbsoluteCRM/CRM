@@ -8,6 +8,8 @@
     "vite.config.js"
   ],
 
+  "exclude": ["supabase/functions/**", ".claude/worktrees/**"],
+
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { Badge, btnClass, Card } from './ui'
 import type { WeatherForecast } from '#/server/weather'
-import type { Job } from './types'
+import type { Job } from '#/mocks/crm-types'
 
 export type WeatherState = {
   data?: WeatherForecast

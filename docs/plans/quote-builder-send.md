@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `quote-builder-send` / `feat/quote-builder-send`
 - **Tier**: full (migration, RLS, tRPC, public token route, email)
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: ~90%. Choices rest on the user's answers below. Still assumed: the items in Assumptions marked "no".
 
 ## Original request

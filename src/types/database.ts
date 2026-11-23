@@ -347,6 +347,7 @@ export type Database = {
           default_end_location: unknown
           default_start_location: unknown
           default_start_time: string
+          disabled_at: string | null
           id: string
           max_work_minutes: number | null
           name: string
@@ -361,6 +362,7 @@ export type Database = {
           default_end_location?: unknown
           default_start_location?: unknown
           default_start_time?: string
+          disabled_at?: string | null
           id?: string
           max_work_minutes?: number | null
           name: string
@@ -375,6 +377,7 @@ export type Database = {
           default_end_location?: unknown
           default_start_location?: unknown
           default_start_time?: string
+          disabled_at?: string | null
           id?: string
           max_work_minutes?: number | null
           name?: string
@@ -417,6 +420,33 @@ export type Database = {
             referencedColumns: ['id']
           },
         ]
+      }
+      geocode_cache: {
+        Row: {
+          accuracy: string
+          fetched_at: string
+          lat: number
+          lon: number
+          normalized_address_hash: string
+          provider: string
+        }
+        Insert: {
+          accuracy: string
+          fetched_at?: string
+          lat: number
+          lon: number
+          normalized_address_hash: string
+          provider: string
+        }
+        Update: {
+          accuracy?: string
+          fetched_at?: string
+          lat?: number
+          lon?: number
+          normalized_address_hash?: string
+          provider?: string
+        }
+        Relationships: []
       }
       invoice_line_item_taxes: {
         Row: {
@@ -1109,46 +1139,67 @@ export type Database = {
       }
       organization_members: {
         Row: {
+          certifications: string[]
           color: string | null
           created_at: string
           display_name: string
           email: string | null
           home_location: unknown
+          hours_worked: number
           id: string
+          jobs_completed: number
           organization_id: string
           phone: string | null
+          rating: number | null
           role: Database['public']['Enums']['org_role']
           status: Database['public']['Enums']['member_status']
           updated_at: string
           user_id: string | null
+          work_days: number[]
+          work_end: string
+          work_start: string
         }
         Insert: {
+          certifications?: string[]
           color?: string | null
           created_at?: string
           display_name: string
           email?: string | null
           home_location?: unknown
+          hours_worked?: number
           id?: string
+          jobs_completed?: number
           organization_id: string
           phone?: string | null
+          rating?: number | null
           role?: Database['public']['Enums']['org_role']
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
           user_id?: string | null
+          work_days?: number[]
+          work_end?: string
+          work_start?: string
         }
         Update: {
+          certifications?: string[]
           color?: string | null
           created_at?: string
           display_name?: string
           email?: string | null
           home_location?: unknown
+          hours_worked?: number
           id?: string
+          jobs_completed?: number
           organization_id?: string
           phone?: string | null
+          rating?: number | null
           role?: Database['public']['Enums']['org_role']
           status?: Database['public']['Enums']['member_status']
           updated_at?: string
           user_id?: string | null
+          work_days?: number[]
+          work_end?: string
+          work_start?: string
         }
         Relationships: [
           {
@@ -1335,6 +1386,7 @@ export type Database = {
           client_id: string
           country: string
           created_at: string
+          geocode_accuracy: string | null
           geocode_source: string | null
           geocoded_at: string | null
           id: string
@@ -1346,6 +1398,7 @@ export type Database = {
           organization_id: string
           postal_code: string | null
           region: string | null
+          service_area_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1357,6 +1410,7 @@ export type Database = {
           client_id: string
           country?: string
           created_at?: string
+          geocode_accuracy?: string | null
           geocode_source?: string | null
           geocoded_at?: string | null
           id?: string
@@ -1368,6 +1422,7 @@ export type Database = {
           organization_id: string
           postal_code?: string | null
           region?: string | null
+          service_area_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1379,6 +1434,7 @@ export type Database = {
           client_id?: string
           country?: string
           created_at?: string
+          geocode_accuracy?: string | null
           geocode_source?: string | null
           geocoded_at?: string | null
           id?: string
@@ -1390,6 +1446,7 @@ export type Database = {
           organization_id?: string
           postal_code?: string | null
           region?: string | null
+          service_area_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1406,6 +1463,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'organizations'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'properties_organization_id_service_area_id_fkey'
+            columns: ['organization_id', 'service_area_id']
+            isOneToOne: false
+            referencedRelation: 'service_areas'
+            referencedColumns: ['organization_id', 'id']
           },
         ]
       }
@@ -1649,7 +1713,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by_user_id: string | null
-          client_id: string
+          client_id: string | null
           conditions: string | null
           created_at: string
           created_by: string | null
@@ -1674,7 +1738,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by_user_id?: string | null
-          client_id: string
+          client_id?: string | null
           conditions?: string | null
           created_at?: string
           created_by?: string | null
@@ -1699,7 +1763,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by_user_id?: string | null
-          client_id?: string
+          client_id?: string | null
           conditions?: string | null
           created_at?: string
           created_by?: string | null
@@ -2049,6 +2113,122 @@ export type Database = {
           },
         ]
       }
+      service_area_rotations: {
+        Row: {
+          created_at: string
+          crew_id: string
+          organization_id: string
+          service_area_id: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          crew_id: string
+          organization_id: string
+          service_area_id: string
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          crew_id?: string
+          organization_id?: string
+          service_area_id?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'service_area_rotations_organization_id_crew_id_fkey'
+            columns: ['organization_id', 'crew_id']
+            isOneToOne: false
+            referencedRelation: 'crews'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'service_area_rotations_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'service_area_rotations_organization_id_service_area_id_fkey'
+            columns: ['organization_id', 'service_area_id']
+            isOneToOne: false
+            referencedRelation: 'service_areas'
+            referencedColumns: ['organization_id', 'id']
+          },
+        ]
+      }
+      service_areas: {
+        Row: {
+          archived_at: string | null
+          area_m2: number | null
+          boundary: unknown
+          color: string | null
+          created_at: string
+          crew_id: string | null
+          id: string
+          name: string
+          organization_id: string
+          priority: number
+          region_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          area_m2?: number | null
+          boundary: unknown
+          color?: string | null
+          created_at?: string
+          crew_id?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          priority?: number
+          region_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          area_m2?: number | null
+          boundary?: unknown
+          color?: string | null
+          created_at?: string
+          crew_id?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          priority?: number
+          region_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'service_areas_organization_id_crew_id_fkey'
+            columns: ['organization_id', 'crew_id']
+            isOneToOne: false
+            referencedRelation: 'crews'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'service_areas_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'service_areas_organization_id_region_id_fkey'
+            columns: ['organization_id', 'region_id']
+            isOneToOne: false
+            referencedRelation: 'service_regions'
+            referencedColumns: ['organization_id', 'id']
+          },
+        ]
+      }
       service_default_taxes: {
         Row: {
           organization_id: string
@@ -2086,6 +2266,53 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'tax_rates'
             referencedColumns: ['organization_id', 'id']
+          },
+        ]
+      }
+      service_regions: {
+        Row: {
+          bbox: unknown
+          boundary: unknown
+          center: unknown
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          source: string | null
+          source_ref: string | null
+          updated_at: string
+        }
+        Insert: {
+          bbox?: unknown
+          boundary?: unknown
+          center: unknown
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          source?: string | null
+          source_ref?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bbox?: unknown
+          boundary?: unknown
+          center?: unknown
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          source?: string | null
+          source_ref?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'service_regions_organization_id_fkey1'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -2298,6 +2525,86 @@ export type Database = {
           },
         ]
       }
+      time_off: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          kind: Database['public']['Enums']['time_off_kind']
+          member_id: string
+          note: string | null
+          organization_id: string
+          requested_by_member_id: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by_member_id: string | null
+          start_date: string
+          status: Database['public']['Enums']['time_off_status']
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          kind: Database['public']['Enums']['time_off_kind']
+          member_id: string
+          note?: string | null
+          organization_id: string
+          requested_by_member_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
+          start_date: string
+          status?: Database['public']['Enums']['time_off_status']
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          kind?: Database['public']['Enums']['time_off_kind']
+          member_id?: string
+          note?: string | null
+          organization_id?: string
+          requested_by_member_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
+          start_date?: string
+          status?: Database['public']['Enums']['time_off_status']
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'time_off_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'time_off_organization_id_member_id_fkey'
+            columns: ['organization_id', 'member_id']
+            isOneToOne: false
+            referencedRelation: 'organization_members'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'time_off_organization_id_requested_by_member_id_fkey'
+            columns: ['organization_id', 'requested_by_member_id']
+            isOneToOne: false
+            referencedRelation: 'organization_members'
+            referencedColumns: ['organization_id', 'id']
+          },
+          {
+            foreignKeyName: 'time_off_organization_id_reviewed_by_member_id_fkey'
+            columns: ['organization_id', 'reviewed_by_member_id']
+            isOneToOne: false
+            referencedRelation: 'organization_members'
+            referencedColumns: ['organization_id', 'id']
+          },
+        ]
+      }
       visit_time_entries: {
         Row: {
           created_at: string
@@ -2487,18 +2794,25 @@ export type Database = {
       accept_invitation: {
         Args: { p_token: string }
         Returns: {
+          certifications: string[]
           color: string | null
           created_at: string
           display_name: string
           email: string | null
           home_location: unknown
+          hours_worked: number
           id: string
+          jobs_completed: number
           organization_id: string
           phone: string | null
+          rating: number | null
           role: Database['public']['Enums']['org_role']
           status: Database['public']['Enums']['member_status']
           updated_at: string
           user_id: string | null
+          work_days: number[]
+          work_end: string
+          work_start: string
         }
         SetofOptions: {
           from: '*'
@@ -2511,6 +2825,11 @@ export type Database = {
         Args: { p_quote_id: string; p_selected_optional_line_ids?: string[] }
         Returns: undefined
       }
+      authorize_image_upload: {
+        Args: { p_folder: string; p_organization_id: string }
+        Returns: string
+      }
+      cancel_time_off: { Args: { p_id: string }; Returns: undefined }
       create_invoice_for_visits: {
         Args: {
           p_client_id: string
@@ -2560,15 +2879,26 @@ export type Database = {
         Args: { p_copy_from_quote_id?: string; p_request_id: string }
         Returns: string
       }
+      crew_history: {
+        Args: { p_crew_id: string }
+        Returns: {
+          completed_visits: number
+          last_route_date: string
+          past_routes: number
+          upcoming_routes: number
+        }[]
+      }
       decline_quote: {
         Args: { p_quote_id: string; p_reason?: string }
         Returns: undefined
       }
+      delete_crew: { Args: { p_crew_id: string }; Returns: number }
       generate_visits: {
         Args: { p_dates: string[]; p_job_id: string; p_through: string }
         Returns: number
       }
       get_portal: { Args: { p_slug: string }; Returns: Json }
+      get_r2_upload_config: { Args: never; Returns: Json }
       move_crew_member: {
         Args: {
           p_crew_id: string
@@ -2770,6 +3100,19 @@ export type Database = {
           sender_kind: string
         }[]
       }
+      preview_service_area: {
+        Args: {
+          p_color?: string
+          p_crew_id?: string
+          p_geojson?: Json
+          p_id?: string
+          p_name?: string
+          p_organization_id: string
+          p_priority?: number
+          p_region_id?: string
+        }
+        Returns: Json
+      }
       pull_back_quote: { Args: { p_quote_id: string }; Returns: undefined }
       record_quote_delivery: {
         Args: {
@@ -2780,9 +3123,33 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_time_off: {
+        Args: {
+          p_end: string
+          p_kind: Database['public']['Enums']['time_off_kind']
+          p_member_id: string
+          p_note?: string
+          p_start: string
+        }
+        Returns: string
+      }
+      request_time_off: {
+        Args: {
+          p_end: string
+          p_kind: Database['public']['Enums']['time_off_kind']
+          p_note?: string
+          p_org: string
+          p_start: string
+        }
+        Returns: string
+      }
       reset_job_schedule: {
         Args: { p_from?: string; p_job_id: string }
         Returns: number
+      }
+      review_time_off: {
+        Args: { p_approve: boolean; p_id: string; p_note?: string }
+        Returns: undefined
       }
       rotate_quote_token: {
         Args: { p_new_token_hash: string; p_quote_id: string }
@@ -2792,11 +3159,31 @@ export type Database = {
         Args: { p_quote_id: string; p_token_hash: string }
         Returns: string
       }
+      service_area_coverage: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      service_areas_geojson: {
+        Args: { p_include_archived?: boolean; p_organization_id: string }
+        Returns: Json
+      }
+      service_regions_geojson: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
       set_crew_lead: {
         Args: {
           p_crew_id: string
           p_member_id: string
           p_organization_id: string
+        }
+        Returns: undefined
+      }
+      set_service_area_rotations: {
+        Args: {
+          p_organization_id: string
+          p_rotations: Json
+          p_service_area_id: string
         }
         Returns: undefined
       }
@@ -2810,6 +3197,32 @@ export type Database = {
           p_phone: string
           p_service_id: string
           p_slug: string
+        }
+        Returns: string
+      }
+      upsert_service_area: {
+        Args: {
+          p_color?: string
+          p_crew_id?: string
+          p_geojson?: Json
+          p_id?: string
+          p_name?: string
+          p_organization_id: string
+          p_priority?: number
+          p_region_id?: string
+        }
+        Returns: string
+      }
+      upsert_service_region: {
+        Args: {
+          p_bbox?: number[]
+          p_boundary?: Json
+          p_center?: Json
+          p_id?: string
+          p_name?: string
+          p_organization_id: string
+          p_source?: string
+          p_source_ref?: string
         }
         Returns: string
       }
@@ -2935,6 +3348,8 @@ export type Database = {
       service_precipitation_type: 'none' | 'rain' | 'snow' | 'any'
       service_unit:
         'monthly' | 'hour' | 'visit' | 'sqft' | 'linear_ft' | 'yard' | 'bag'
+      time_off_kind: 'sick' | 'vacation' | 'personal'
+      time_off_status: 'pending' | 'approved' | 'declined' | 'cancelled'
       time_source: 'app' | 'manual' | 'auto'
       visit_status:
         | 'unscheduled'
@@ -3125,6 +3540,8 @@ export const Constants = {
         'yard',
         'bag',
       ],
+      time_off_kind: ['sick', 'vacation', 'personal'],
+      time_off_status: ['pending', 'approved', 'declined', 'cancelled'],
       time_source: ['app', 'manual', 'auto'],
       visit_status: [
         'unscheduled',

@@ -27,10 +27,13 @@ erDiagram
     properties ||--o{ quotes : "quoted at"
     quotes |o--o| jobs : "converts to"
     quotes ||--o{ quote_share_tokens : "magic links"
+    quotes ||--o{ quote_messages : "conversation"
     properties ||--o{ jobs : "work at"
     jobs ||--o{ visits : materializes
 
     crews ||--o{ routes : drives
+    crews |o--o{ service_areas : "owns area"
+    service_areas |o--o{ properties : covers
     routes ||--o{ route_stops : orders
     visits ||--o| route_stops : "assigned by"
 
@@ -99,6 +102,9 @@ erDiagram
         uuid client_id FK
         text address_line1
         geography location
+        text geocode_source
+        text geocode_accuracy
+        uuid service_area_id FK "derived"
         text access_notes
     }
     client_portal_users {
@@ -150,6 +156,15 @@ erDiagram
         timestamptz expires_at
         timestamptz revoked_at
         quote_delivery_status delivery_status
+    }
+    quote_messages {
+        uuid id PK
+        uuid quote_id FK
+        text body
+        text sender_kind
+        uuid staff_user_id FK
+        uuid client_message_id
+        timestamptz created_at
     }
     quote_line_items {
         uuid id PK
@@ -303,4 +318,46 @@ erDiagram
     invoice_line_items ||--o{ invoice_line_item_taxes : ""
     tax_rates ||--o{ invoice_line_item_taxes : ""
     invoices ||--o{ payments : ""
+```
+
+## Service areas
+
+```mermaid
+erDiagram
+    service_regions {
+        uuid id PK
+        text name "unique per org"
+        geometry boundary "MultiPolygon, nullable"
+        geometry center "Point"
+        geometry bbox "Polygon"
+    }
+    service_areas {
+        uuid id PK
+        uuid crew_id FK "nullable"
+        uuid region_id FK "nullable"
+        text name
+        int priority
+        geometry boundary "MultiPolygon 4326"
+        float area_m2 "generated"
+        timestamptz archived_at
+    }
+    service_area_rotations {
+        uuid service_area_id PK
+        smallint weekday PK "1-7"
+        uuid crew_id FK
+    }
+    properties {
+        uuid id PK
+        geography location
+        uuid service_area_id FK "derived"
+    }
+    crews {
+        uuid id PK
+    }
+
+    service_regions |o--o{ service_areas : frames
+    crews |o--o{ service_areas : owns
+    service_areas ||--o{ service_area_rotations : ""
+    crews ||--o{ service_area_rotations : "rotation crew"
+    service_areas |o--o{ properties : "covers (ST_Covers)"
 ```

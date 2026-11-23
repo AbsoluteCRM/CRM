@@ -1,117 +1,78 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 
-const ORG = '0198f0a0-0000-7000-8000-000000000001'
+import { ORG, fake } from './test/fake-supabase'
+
 const OTHER = '0198f0a0-0000-7000-8000-000000000002'
-const state = vi.hoisted<{
-  user: boolean
-  roles: Record<string, string>
-  calls: Array<[string, unknown]>
-  weather: ReturnType<typeof vi.fn>
-}>(() => ({
-  user: true,
-  roles: {},
-  calls: [],
-  weather: vi.fn(),
-}))
-vi.mock('#/server/weather', () => ({ getWeatherForecast: state.weather }))
-vi.mock('#/lib/supabase/server', () => ({
-  createSupabaseServerClient: () => ({
-    auth: {
-      getUser: async () => ({
-        data: { user: state.user ? { id: 'u1' } : null },
-        error: null,
-      }),
-    },
-    from: (table: string) => {
-      const filters: Record<string, unknown> = {}
-      const q = {
-        select: () => q,
-        eq: (key: string, value: unknown) => {
-          filters[key] = value
-          state.calls.push([key, value])
-          return q
-        },
-        maybeSingle: async () => {
-          expect(table).toBe('organization_members')
-          const org = String(filters.organization_id)
-          return {
-            data: state.roles[org]
-              ? {
-                  id: 'm1',
-                  organization_id: org,
-                  role: state.roles[org],
-                  status: 'active',
-                }
-              : null,
-            error: null,
-          }
-        },
-      }
-      return q
-    },
-  }),
-}))
+const weather = vi.hoisted(() => vi.fn())
+vi.mock('#/server/weather', () => ({ getWeatherForecast: weather }))
+vi.mock('#/lib/supabase/server', () => import('./test/fake-supabase'))
+
 const { createTRPCContext, createTRPCRouter } = await import('./init')
 const { weatherRouter } = await import('./weather')
 const router = createTRPCRouter({ weather: weatherRouter })
 const caller = () => router.createCaller(createTRPCContext())
 beforeEach(() => {
-  state.user = true
-  state.roles = { [ORG]: 'admin' }
-  state.calls = []
-  state.weather.mockReset().mockResolvedValue({ city: 'Calgary' })
+  fake.reset()
+  weather.mockReset().mockResolvedValue({ city: 'Calgary' })
 })
 it('rejects anonymous callers before weather access', async () => {
-  state.user = false
+  fake.user = null
   await expect(
     caller().weather.forecast({ organizationId: ORG }),
   ).rejects.toMatchObject({ code: 'UNAUTHORIZED' })
-  expect(state.weather).not.toHaveBeenCalled()
+  expect(weather).not.toHaveBeenCalled()
 })
 it.each([null, 'portal'])(
   'rejects non-members and portal role %s before weather access',
   async (role) => {
-    state.roles = role ? { [ORG]: role } : {}
+    fake.setRole(role)
     await expect(
       caller().weather.forecast({ organizationId: ORG }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
-    expect(state.weather).not.toHaveBeenCalled()
+    expect(weather).not.toHaveBeenCalled()
   },
 )
 it.each(['owner', 'admin', 'dispatcher', 'worker'])(
   'allows %s after active membership verification',
   async (role) => {
-    state.roles[ORG] = role
+    fake.setRole(role)
     await expect(
       caller().weather.forecast({ organizationId: ORG }),
     ).resolves.toEqual({ city: 'Calgary' })
-    expect(state.calls).toEqual([
-      ['organization_id', ORG],
-      ['user_id', 'u1'],
-      ['status', 'active'],
+    expect(fake.callsTo('organization_members.eq')).toEqual([
+      ['organization_members.eq', 'organization_id', ORG],
+      ['organization_members.eq', 'user_id', 'u1'],
+      ['organization_members.eq', 'status', 'active'],
     ])
+    expect(
+      fake.calls.every(([k]) => k.startsWith('organization_members.')),
+    ).toBe(true)
   },
 )
 it('verifies membership again before access to cached weather and denies foreign org', async () => {
   await caller().weather.forecast({ organizationId: ORG })
-  state.roles = {}
+  fake.setRole(null)
   await expect(
     caller().weather.forecast({ organizationId: ORG }),
   ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   await expect(
     caller().weather.forecast({ organizationId: OTHER }),
   ).rejects.toMatchObject({ code: 'FORBIDDEN' })
-  expect(state.weather).toHaveBeenCalledTimes(1)
+  expect(weather).toHaveBeenCalledTimes(1)
 })
 it('scopes membership to each active organization for multi-org users', async () => {
-  state.roles[OTHER] = 'worker'
+  fake.memberships[OTHER] = 'worker'
   await caller().weather.forecast({ organizationId: ORG })
   await caller().weather.forecast({ organizationId: OTHER })
-  expect(state.calls).toContainEqual(['organization_id', OTHER])
-  expect(state.weather).toHaveBeenCalledTimes(2)
+  expect(fake.calls).toContainEqual([
+    'organization_members.eq',
+    'organization_id',
+    OTHER,
+  ])
+  expect(weather).toHaveBeenCalledTimes(2)
 })
 it('returns generic unavailable errors without upstream cause', async () => {
-  state.weather.mockRejectedValue(new Error('secret URL'))
+  weather.mockRejectedValue(new Error('secret URL'))
   await expect(
     caller().weather.forecast({ organizationId: ORG }),
   ).rejects.toMatchObject({

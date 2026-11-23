@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `services-persist` / `feat/services-persist`
 - **Tier**: full (schema, tRPC and UI)
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%. Month storage, the other missing fields and the scope
   rest on user answers. The `crews` feature is the pattern to copy. Assumed:
   "inactive" means archived.

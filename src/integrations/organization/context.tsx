@@ -9,17 +9,15 @@ import { createContext, use, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '#/integrations/auth/context'
 import { createSupabaseBrowserClient } from '#/lib/supabase/client'
-import { can, isOrgRole } from './permissions'
+import {
+  membershipOrganizations,
+  pickActiveOrganizationId,
+} from './organizations'
 
 import type { ReactNode } from 'react'
-import type { OrgRole } from './permissions'
+import type { Organization } from './organizations'
 
-export interface Organization {
-  id: string
-  name: string
-  role: OrgRole
-  permissions: Array<string>
-}
+export type { Organization } from './organizations'
 
 interface OrganizationContextValue {
   organizations: Array<Organization>
@@ -69,32 +67,6 @@ function saveOrganization(userId: string, id: string) {
   }
 }
 
-function membershipOrganization(row: unknown): Organization | null {
-  if (typeof row !== 'object' || row === null || !('role' in row)) return null
-  if (!isOrgRole(row.role) || !('organizations' in row)) return null
-  const org = row.organizations
-  if (
-    typeof org !== 'object' ||
-    org === null ||
-    !('id' in org) ||
-    typeof org.id !== 'string' ||
-    !org.id ||
-    !('name' in org) ||
-    typeof org.name !== 'string'
-  ) {
-    return null
-  }
-  const role = row.role
-  return {
-    id: org.id,
-    name: org.name,
-    role,
-    permissions: Object.entries(can)
-      .filter(([, allowed]) => allowed(role))
-      .map(([permission]) => permission),
-  }
-}
-
 // Create a context for managing the current organization and its related state.
 const OrganizationContext = createContext<OrganizationContextValue | null>(null)
 
@@ -134,17 +106,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         if (cancelled || version !== loadVersion.current) return
         if (error) throw error
 
-        const organizations: Array<Organization> = []
-        for (const row of data) {
-          const organization = membershipOrganization(row)
-          if (organization) organizations.push(organization)
-        }
-
-        const savedId = savedOrganization(userId!)
-        const activeId =
-          organizations.find((org) => org.id === savedId)?.id ??
-          organizations.at(0)?.id ??
-          null
+        const organizations = membershipOrganizations(data)
+        const activeId = pickActiveOrganizationId(
+          organizations,
+          savedOrganization(userId!),
+        )
         setState({
           userId,
           organizations,
@@ -215,9 +181,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
             'Your account changed. Sign in and open your team from the dashboard.',
           )
         }
-        const loaded = data
-          .map(membershipOrganization)
-          .filter((org): org is Organization => org !== null)
+        const loaded = membershipOrganizations(data)
         if (!loaded.some((org) => org.id === id))
           throw new Error(
             'Your team is not available yet. Retry opening the team.',

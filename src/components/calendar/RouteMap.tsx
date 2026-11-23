@@ -1,64 +1,68 @@
-import { MapPin } from 'lucide-react'
-
-import { env } from '#/env'
+import { MapView } from '#/components/map/MapView'
+import type { BasemapChoice, MapStop } from '#/components/map/MapView'
+import { UnplacedStops } from '#/components/map/UnplacedStops'
+import { fmtTime } from '#/components/crm/format'
+import type { LonLat } from '#/lib/map/geo'
 import type { RouteStop } from './mock-routes'
 
+const DEFAULT_COLOR = '#2f7350'
+
+/**
+ * The selected day's route: numbered stops in driving order, joined by
+ * straight legs from (and back to) the yard when one is given. Stops without
+ * a location are listed under the map.
+ */
 export function RouteMap({
   stops,
-  apiKey = env.VITE_GOOGLE_MAPS_API_KEY,
+  depot,
+  basemap,
 }: {
   stops: Array<RouteStop>
-  apiKey?: string
+  depot?: LonLat | null
+  basemap?: BasemapChoice
 }) {
   if (stops.length === 0) {
     return null
   }
 
-  if (!apiKey) {
-    return (
-      <div className="crm-leaf-pattern flex h-full min-h-80 flex-col items-center justify-center gap-3 rounded-[22px] border border-dashed border-(--line-2) bg-(--sage) p-6 text-center">
-        <span className="flex size-12 items-center justify-center rounded-2xl bg-(--paper) text-(--leaf-700) shadow-sm">
-          <MapPin className="size-5" />
-        </span>
-        <div>
-          <p className="text-sm font-bold text-(--ink)">
-            Route map unavailable
-          </p>
-          <p className="mt-1 max-w-xs text-xs text-(--ink-3)">
-            Add <code>VITE_GOOGLE_MAPS_API_KEY</code> to <code>.env.local</code>{' '}
-            to show this route on Google Maps.
-          </p>
-        </div>
-      </div>
-    )
-  }
+  const color = stops[0].crew?.color ?? DEFAULT_COLOR
+  const numbered = stops.map((s, i) => ({ s, n: i + 1 }))
+  const placed = numbered.filter(({ s }) => s.location)
+  const unplaced = numbered.filter(({ s }) => !s.location)
 
-  const addresses = stops.map((stop) => stop.address)
-  const params = new URLSearchParams({ key: apiKey })
-  let mode: 'place' | 'directions'
+  const mapStops: Array<MapStop> = placed.map(({ s, n }) => ({
+    id: s.id,
+    position: s.location!,
+    label: String(n),
+    title: `${n}. ${s.customer}, ${fmtTime(s.time)}, ${s.address}`,
+    color: s.crew?.color ?? color,
+    muted: s.status === 'completed',
+  }))
+  const path = [
+    ...(depot ? [depot] : []),
+    ...placed.map(({ s }) => s.location!),
+    ...(depot ? [depot] : []),
+  ]
 
-  if (addresses.length === 1) {
-    mode = 'place'
-    params.set('q', addresses[0])
-  } else {
-    mode = 'directions'
-    params.set('origin', addresses[0])
-    params.set('destination', addresses[addresses.length - 1])
-    const waypoints = addresses.slice(1, -1)
-    if (waypoints.length > 0) {
-      params.set('waypoints', waypoints.join('|'))
-    }
-  }
-
-  const src = `https://www.google.com/maps/embed/v1/${mode}?${params.toString()}`
   return (
-    <iframe
-      title="Route map"
-      src={src}
-      loading="lazy"
-      referrerPolicy="no-referrer-when-downgrade"
-      allowFullScreen
-      className="h-full min-h-80 w-full rounded-[22px] border border-(--line) bg-(--sage)"
-    />
+    <div className="flex h-full flex-col gap-3">
+      <MapView
+        label="Route map"
+        className="w-full flex-1 rounded-[22px] border border-(--line)"
+        style={{ minHeight: 320 }}
+        stops={mapStops}
+        route={{ path, color }}
+        depot={depot ? { position: depot, title: 'Yard' } : undefined}
+        basemap={basemap}
+      />
+      <UnplacedStops
+        stops={unplaced.map(({ s, n }) => ({
+          id: s.id,
+          label: String(n),
+          title: s.customer,
+          detail: s.address,
+        }))}
+      />
+    </div>
   )
 }

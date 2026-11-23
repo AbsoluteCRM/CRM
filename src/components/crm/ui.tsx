@@ -2,9 +2,8 @@
  * Small UI kit for the CRM screens, styled with the brand tokens in
  * src/styles.css. Kept dependency-free (no Radix) so pages stay light.
  */
-import { useEffect, useId, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
-  CheckCircle2,
   ChevronDown,
   Info,
   Leaf,
@@ -169,7 +168,27 @@ export function IconBtn({
 // ---------------------------------------------------------------------------
 
 export type Tone =
-  'green' | 'lime' | 'sun' | 'clay' | 'sky' | 'gray' | 'violet' | 'dark'
+  | 'green'
+  | 'lime'
+  | 'sun'
+  | 'clay'
+  | 'sky'
+  | 'gray'
+  | 'violet'
+  | 'dark'
+  | 'success'
+  | 'warning'
+  | 'danger'
+
+/**
+ * Status colours that mean the same thing in every colour theme, so they use
+ * fixed values instead of the themeable --leaf / --lime tokens.
+ */
+export const FIXED_TONE = {
+  success: 'bg-[#dcf0e2] text-[#1d6b3c]',
+  warning: 'bg-[#fdf1c7] text-[#8a6100]',
+  danger: 'bg-[#fde2df] text-[#b42318]',
+} as const
 
 const toneClass: Record<Tone, string> = {
   green: 'bg-(--sage) text-(--leaf-700)',
@@ -180,6 +199,7 @@ const toneClass: Record<Tone, string> = {
   gray: 'bg-(--cream-2) text-(--ink-2)',
   violet: 'bg-(--violet-100) text-(--violet)',
   dark: 'bg-(--leaf-900) text-(--lime)',
+  ...FIXED_TONE,
 }
 
 export function Badge({
@@ -211,18 +231,18 @@ const STATUS: Partial<Record<string, { label: string; tone: Tone }>> = {
   // jobs
   scheduled: { label: 'Scheduled', tone: 'sky' },
   assigned: { label: 'Assigned', tone: 'violet' },
-  in_progress: { label: 'In progress', tone: 'sun' },
-  completed: { label: 'Completed', tone: 'green' },
-  cancelled: { label: 'Cancelled', tone: 'gray' },
+  in_progress: { label: 'In progress', tone: 'warning' },
+  completed: { label: 'Completed', tone: 'success' },
+  cancelled: { label: 'Cancelled', tone: 'danger' },
   // requests
   submitted: { label: 'New', tone: 'lime' },
   reviewing: { label: 'In review', tone: 'sky' },
   estimated: { label: 'Estimate sent', tone: 'violet' },
-  approved: { label: 'Approved', tone: 'green' },
+  approved: { label: 'Approved', tone: 'success' },
   rejected: { label: 'Rejected', tone: 'clay' },
   converted: { label: 'Converted', tone: 'dark' },
   // clients
-  active: { label: 'Active', tone: 'green' },
+  active: { label: 'Active', tone: 'success' },
   inactive: { label: 'Inactive', tone: 'gray' },
   lead: { label: 'Lead', tone: 'lime' },
   invited: { label: 'Invited', tone: 'sky' },
@@ -231,7 +251,7 @@ const STATUS: Partial<Record<string, { label: string; tone: Tone }>> = {
   draft: { label: 'Draft', tone: 'gray' },
   sent: { label: 'Sent', tone: 'sky' },
   partially_paid: { label: 'Partially paid', tone: 'sun' },
-  paid: { label: 'Paid', tone: 'green' },
+  paid: { label: 'Paid', tone: 'success' },
   void: { label: 'Void', tone: 'gray' },
   overdue: { label: 'Overdue', tone: 'clay' },
 }
@@ -598,18 +618,21 @@ export function CheckPill({
   checked,
   onChange,
   children,
+  disabled,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   children: ReactNode
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       aria-pressed={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-left text-[13px] font-semibold transition-colors',
+        'inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-left text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40',
         checked
           ? 'border-(--leaf-600) bg-(--lime-100) text-(--leaf-900)'
           : 'border-(--line-2) bg-(--paper) text-(--ink-2) hover:border-(--leaf-500)',
@@ -784,68 +807,6 @@ export function Drawer({
 // ---------------------------------------------------------------------------
 // Feedback
 // ---------------------------------------------------------------------------
-
-interface ToastItem {
-  id: number
-  message: string
-  tone: 'success' | 'info' | 'warning'
-}
-let toasts: Array<ToastItem> = []
-const toastListeners = new Set<() => void>()
-let toastId = 0
-
-export function toast(message: string, tone: ToastItem['tone'] = 'success') {
-  toastId += 1
-  const id = toastId
-  toasts = [...toasts, { id, message, tone }]
-  toastListeners.forEach((l) => l())
-  setTimeout(() => {
-    toasts = toasts.filter((t) => t.id !== id)
-    toastListeners.forEach((l) => l())
-  }, 3800)
-}
-
-const emptyToasts: Array<ToastItem> = []
-
-export function Toaster() {
-  const items = useSyncExternalStore(
-    (l) => {
-      toastListeners.add(l)
-      return () => toastListeners.delete(l)
-    },
-    () => toasts,
-    () => emptyToasts,
-  )
-  return (
-    <div
-      aria-live="polite"
-      className="pointer-events-none fixed right-5 bottom-5 z-[80] flex flex-col items-end gap-2"
-    >
-      {items.map((t) => {
-        const Icon =
-          t.tone === 'success'
-            ? CheckCircle2
-            : t.tone === 'warning'
-              ? TriangleAlert
-              : Info
-        return (
-          <div
-            key={t.id}
-            className="crm-pop pointer-events-auto flex max-w-sm items-center gap-3 rounded-2xl bg-(--leaf-900) px-4 py-3 text-sm font-medium text-(--cream) shadow-xl"
-          >
-            <Icon
-              className={cn(
-                'size-4 shrink-0',
-                t.tone === 'warning' ? 'text-(--sun-100)' : 'text-(--lime)',
-              )}
-            />
-            {t.message}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 export function EmptyState({
   icon: Icon = Leaf,

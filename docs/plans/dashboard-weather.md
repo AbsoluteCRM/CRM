@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `dashboard-weather` / existing `feature/weather-data-api` (user-created; retain it).
 - **Tier**: full; server API and dashboard UI.
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 95%; scope and display choices confirmed, integration patterns verified in repo.
 - **Plan-mode file**: this file (native plan mode unavailable).
 

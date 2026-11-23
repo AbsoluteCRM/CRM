@@ -1,5 +1,6 @@
 import { createRouter as createTanStackRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
+import StatusPage from './components/auth/StatusPage'
 
 import type { ReactNode } from 'react'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
@@ -18,6 +19,23 @@ export function getRouter() {
     scrollRestoration: true,
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
+    defaultNotFoundComponent: () => <StatusPage kind="not-found" />,
+    defaultErrorComponent: ({ error, reset }) => (
+      <StatusPage
+        kind="error"
+        onRetry={() => {
+          reset()
+          void router.invalidate()
+        }}
+        details={
+          import.meta.env.DEV
+            ? error instanceof Error
+              ? (error.stack ?? error.message)
+              : String(error)
+            : undefined
+        }
+      />
+    ),
 
     Wrap: (props: { children: ReactNode }) => {
       return (

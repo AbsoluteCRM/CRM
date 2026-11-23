@@ -19,6 +19,9 @@ const member = (
   color: null,
   role,
   status,
+  work_days: [1, 2, 3, 4, 5],
+  work_start: '08:00:00',
+  work_end: '17:00:00',
 })
 
 const crew = (
@@ -59,6 +62,8 @@ const meta = {
       member('wendy', 'Wendy Worker', 'worker'),
       member('wade', 'Wade Worker', 'worker'),
       member('dee', 'Dee Disabled', 'worker', 'disabled'),
+      member('ivy', 'Ivy Invited', 'worker', 'invited'),
+      member('dan', 'Dan Dispatcher', 'dispatcher'),
     ],
     crews: [
       crew('c1', 'Crew A', [
@@ -87,10 +92,15 @@ export const Populated: Story = {
     await expect(
       canvas.getByText('Wendy Worker', { selector: 'p' }),
     ).toBeInTheDocument()
-    // Every non-disabled member without a crew is unassigned, whatever their role.
+    // Unassigned lists only active contractors without a crew.
     await expect(canvas.getByText('Wade Worker')).toBeInTheDocument()
-    await expect(canvas.getByText('Ava Owner')).toBeInTheDocument()
+    await expect(canvas.queryByText('Ava Owner')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Dan Dispatcher')).not.toBeInTheDocument()
     await expect(canvas.queryByText('Dee Disabled')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Ivy Invited')).not.toBeInTheDocument()
+    // No role or status pills on contractor cards.
+    await expect(canvas.queryByText('Contractor')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Active')).not.toBeInTheDocument()
     await expect(
       canvas.getByLabelText('Crew lead', { selector: 'svg' }),
     ).toBeInTheDocument()
@@ -143,13 +153,34 @@ export const CreateCrewPicksUniqueName: Story = {
 export const DragToCrew: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const card = canvas.getByText('Wade Worker', { selector: 'p' })
+    const card = canvas
+      .getByText('Wade Worker', { selector: 'p' })
+      .closest('[draggable]')!
     const column = canvas
       .getByDisplayValue('Crew B')
       .closest('[class*="w-72"]')!
     const dataTransfer = new DataTransfer()
-    await fireEvent.dragStart(card, { dataTransfer })
-    await fireEvent.drop(column, { dataTransfer })
+    await fireEvent(
+      card,
+      new DragEvent('dragstart', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await expect(dataTransfer.getData('text/member-id')).toBe('wade')
+    await fireEvent(
+      column,
+      new DragEvent('dragover', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await fireEvent(
+      column,
+      new DragEvent('drop', { dataTransfer, bubbles: true, cancelable: true }),
+    )
     await expect(args.actions.moveMember).toHaveBeenCalledWith('wade', 'c2')
   },
 }
@@ -157,11 +188,32 @@ export const DragToCrew: Story = {
 export const DragToUnassigned: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const card = canvas.getByText('Walt Worker', { selector: 'p' })
+    const card = canvas
+      .getByText('Walt Worker', { selector: 'p' })
+      .closest('[draggable]')!
     const column = canvas.getByText('Unassigned').closest('[class*="w-72"]')!
     const dataTransfer = new DataTransfer()
-    await fireEvent.dragStart(card, { dataTransfer })
-    await fireEvent.drop(column, { dataTransfer })
+    await fireEvent(
+      card,
+      new DragEvent('dragstart', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await expect(dataTransfer.getData('text/member-id')).toBe('walt')
+    await fireEvent(
+      column,
+      new DragEvent('dragover', {
+        dataTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    await fireEvent(
+      column,
+      new DragEvent('drop', { dataTransfer, bubbles: true, cancelable: true }),
+    )
     await expect(args.actions.moveMember).toHaveBeenCalledWith('walt', null)
   },
 }
@@ -170,7 +222,7 @@ export const SetLead: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.selectOptions(
-      canvas.getAllByLabelText('Crew lead')[0],
+      canvas.getAllByRole('combobox', { name: 'Crew lead' })[0],
       'wendy',
     )
     await expect(args.actions.setLead).toHaveBeenCalledWith('c1', 'wendy')

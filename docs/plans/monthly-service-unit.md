@@ -2,7 +2,7 @@
 
 - **Slug / branch**: `monthly-service-unit` / `feat/monthly-service-unit`
 - **Tier**: full; database enum and UI/validation change together.
-- **Status**: approved
+- **Status**: implemented
 - **Confidence**: 97%; the user confirmed replacing stored `each`, and callers were inspected.
 - **Plan-mode file**: this file; native plan mode is unavailable.
 

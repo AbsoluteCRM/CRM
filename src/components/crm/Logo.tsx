@@ -34,18 +34,28 @@ export function Logo({
   className,
   dark = false,
   compact = false,
+  size = 'md',
 }: {
   className?: string
   dark?: boolean
   compact?: boolean
+  /** `sm` fits a phone-width header. */
+  size?: 'sm' | 'md'
 }) {
   return (
-    <span className={cn('inline-flex items-center gap-2.5', className)}>
-      <LogoMark />
+    <span
+      className={cn(
+        'inline-flex items-center',
+        size === 'sm' ? 'gap-2' : 'gap-2.5',
+        className,
+      )}
+    >
+      <LogoMark size={size === 'sm' ? 30 : 36} />
       {!compact && (
         <span
           className={cn(
-            'crm-display text-[19px] font-semibold tracking-tight',
+            'crm-display font-semibold tracking-tight',
+            size === 'sm' ? 'text-[16px]' : 'text-[19px]',
             dark ? 'text-(--cream)' : 'text-(--ink)',
           )}
         >
